@@ -412,6 +412,34 @@ nodos = 39,924 (sin pérdida)
 
 La memoria de la VM quedó en ~5.1 GB usados de 8 GB. La duración de `cargar_neo4j` se seguirá en Airflow; si supera unos minutos, se optimizará `COEDITA` para calcularlo de forma incremental.
 
+### 14. Operaciones CRUD
+
+Se implementó [`src/wikipipe/crud.py`](../src/wikipipe/crud.py), que cubre la sección 4 de las instrucciones:
+
+- **Funciones reutilizables** por base. Las usará la página de CRUD del dashboard.
+- **Una demo por consola** para la exposición. Usa entidades marcadas como "demo" que crea y luego borra, así no altera los datos del pipeline. Además consulta datos reales.
+
+| Base | Create | Read | Update | Delete |
+| --- | --- | --- | --- | --- |
+| MongoDB (`events`) | `insert_one` de un evento con la misma estructura que uno real. Un documento sin `derived` es rechazado por el validador `$jsonSchema` | `find_one` por `_id` y búsqueda de la última reversión real en eswiki | `update_one` con `$set` | `delete_one` |
+| Cassandra (`actividad_editor`) | `INSERT` de una fila | `SELECT` por partición (`editor`), con fecha opcional | `UPDATE` por clave primaria completa | `DELETE` de una fila (clave completa) o de la partición |
+| Neo4j | `MERGE` de nodos `Editor` y `Pagina`, y de las relaciones `EDITO` y `REVIRTIO` | Editor con sus relaciones salientes | `SET +=` en propiedades del nodo y de la relación | `DELETE` de la relación y `DETACH DELETE` de los nodos |
+
+Seguridad de las consultas: los tipos de relación y las etiquetas se validan contra una lista fija antes de insertarlos en el texto Cypher. Los valores siempre van como parámetros.
+
+```bash
+docker compose exec airflow python -m wikipipe.crud todo                                  # local
+gcloud compute ssh wikipipe-vm --zone us-central1-a --tunnel-through-iap \
+  --command "cd /opt/wikipipe && sudo docker compose exec -T airflow python -m wikipipe.crud todo"   # VM
+```
+
+Resultado en la VM: las 12 operaciones se ejecutaron correctamente. La consulta real mostró **79,521 eventos** en `events`, así que el mínimo de 50,000 registros ya se superó tras ~5 horas de ejecución automática. Las entidades demo quedaron eliminadas: `encontrado: false` en Mongo y en Neo4j, y 0 filas en Cassandra.
+
+**Correcciones encontradas al probar:**
+
+- **Neo4j:** el borrado de relaciones buscaba el nodo de origen sin etiqueta, lo que obliga a recorrer todos los nodos. Se agregó `:Editor` para usar el índice único.
+- **Cassandra:** un editor que en una hora solo fue revertido (sin ediciones propias) quedaba con `tipo_editor = desconocido`. Ahora el tipo se deduce por el nombre (temporal, ip, bot o registrado), igual que en Neo4j.
+
 ---
 
 ## Pendientes
@@ -421,7 +449,7 @@ La memoria de la VM quedó en ~5.1 GB usados de 8 GB. La duración de `cargar_ne
 - [x] DAG de Airflow programado cada hora.
 - [x] Cargas en MongoDB, Cassandra y Neo4j, y cálculo de KPIs.
 - [x] Scripts de creación de las bases.
-- [ ] Operaciones CRUD de cada base (demostración).
+- [x] Operaciones CRUD de cada base (demostración).
 - [ ] Streamlit en el docker-compose.
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [ ] Dashboard y página de CRUD.
