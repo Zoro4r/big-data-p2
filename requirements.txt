@@ -1,0 +1,6 @@
+# Dependencias del pipeline (src/wikipipe). En la imagen de Airflow, la versión exacta
+# la fijan las restricciones oficiales de Airflow 2.10.5 (ver airflow/Dockerfile).
+requests>=2.31
+pymongo>=4.6
+cassandra-driver>=3.29
+neo4j>=5.20
