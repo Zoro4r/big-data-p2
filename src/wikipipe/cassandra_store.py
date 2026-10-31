@@ -1,0 +1,181 @@
+"""Cassandra: agregados por ventana de tiempo (series temporales, históricos y KPIs).
+
+Lee de MongoDB los eventos de la ventana, los agrega y escribe tablas pensadas para las consultas
+del dashboard (ver db/cassandra/schema.cql). Se escriben valores ya calculados que se sobrescriben,
+no contadores: así una re-ejecución de la misma hora deja el mismo resultado.
+
+(El módulo no se llama cassandra.py para no tapar el paquete `cassandra` del driver.)
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from datetime import date, datetime, timezone
+
+from cassandra.cluster import Cluster, Session
+from cassandra.concurrent import execute_concurrent_with_args
+from cassandra.policies import DCAwareRoundRobinPolicy
+
+from wikipipe import config
+
+log = logging.getLogger(__name__)
+TOP_PAGES = 20
+
+
+def connect() -> tuple[Cluster, Session]:
+    cluster = Cluster(
+        config.CASSANDRA_HOSTS,
+        protocol_version=5,
+        load_balancing_policy=DCAwareRoundRobinPolicy(local_dc="datacenter1"),
+        connect_timeout=20,
+    )
+    return cluster, cluster.connect()
+
+
+def split_cql(text: str) -> list[str]:
+    """Separa un archivo .cql en sentencias, ignorando los comentarios '--'."""
+    lines = [line for line in text.splitlines() if not line.strip().startswith("--")]
+    return [stmt.strip() for stmt in "\n".join(lines).split(";") if stmt.strip()]
+
+
+def ensure_schema(session: Session) -> None:
+    for statement in split_cql((config.DB_DIR / "cassandra" / "schema.cql").read_text()):
+        session.execute(statement)
+    session.set_keyspace(config.CASSANDRA_KEYSPACE)
+
+
+def _day(value: str) -> date:
+    return date.fromisoformat(value)
+
+
+def aggregate(events) -> dict:
+    """Agrupa los eventos de la ventana en las estructuras de cada tabla."""
+    resumen = defaultdict(lambda: defaultdict(int))
+    resumen_editores = defaultdict(set)
+    resumen_humanos = defaultdict(set)
+    minutos = defaultdict(lambda: defaultdict(int))
+    editores = defaultdict(lambda: {"tipo": None, "eventos": 0, "ediciones": 0, "paginas": set(),
+                                    "delta": 0, "rev_hechas": 0, "rev_recibidas": 0})
+    paginas = defaultdict(lambda: {"ediciones": 0, "editores": set(), "delta": 0})
+
+    for e in events:
+        d, wiki, user, etype = e["derived"], e["wiki"], e["user"], e["type"]
+        fecha, hora = d["date"], d["hour"]
+        is_bot = d["user_type"] == "bot"
+        is_edit = etype in ("edit", "new")
+        reverted = d.get("revert_target")
+        delta = d.get("delta_bytes", 0)
+
+        key = (fecha, hora, wiki)
+        r = resumen[key]
+        r["eventos"] += 1
+        r[{"edit": "ediciones", "new": "creaciones", "categorize": "categorizaciones", "log": "logs"}[etype]] += 1
+        r["eventos_bot" if is_bot else "eventos_humanos"] += 1
+        r["reversiones"] += 1 if reverted else 0
+        r["delta_bytes"] += delta
+        resumen_editores[key].add(user)
+        if not is_bot:
+            resumen_humanos[key].add(user)
+
+        m = minutos[(wiki, fecha, d["minute"])]
+        m["eventos"] += 1
+        m["ediciones"] += 1 if is_edit else 0
+        m["eventos_bot"] += 1 if is_bot else 0
+        m["reversiones"] += 1 if reverted else 0
+
+        ed = editores[(user, fecha, hora, wiki)]
+        ed["tipo"] = d["user_type"]
+        ed["eventos"] += 1
+        if is_edit:
+            ed["ediciones"] += 1
+            ed["paginas"].add(d["page_key"])
+            ed["delta"] += delta
+        if reverted:
+            ed["rev_hechas"] += 1
+            editores[(reverted, fecha, hora, wiki)]["rev_recibidas"] += 1
+
+        if is_edit:
+            p = paginas[(wiki, fecha, hora, e["title"])]
+            p["ediciones"] += 1
+            p["editores"].add(user)
+            p["delta"] += delta
+
+    for key, users in resumen_editores.items():
+        resumen[key]["editores"] = len(users)
+        resumen[key]["editores_humanos"] = len(resumen_humanos[key])
+    return {"resumen": resumen, "minutos": minutos, "editores": editores, "paginas": paginas}
+
+
+def load_window(session: Session, events) -> dict:
+    """Agrega los eventos de la ventana y escribe las tablas de Cassandra."""
+    ensure_schema(session)
+    agg = aggregate(events)
+
+    resumen_rows = [
+        (_day(f), h, w, r["eventos"], r["ediciones"], r["creaciones"], r["categorizaciones"], r["logs"],
+         r["eventos_bot"], r["eventos_humanos"], r["editores"], r["editores_humanos"], r["reversiones"], r["delta_bytes"])
+        for (f, h, w), r in agg["resumen"].items()
+    ]
+    minuto_rows = [
+        (w, _day(f), datetime.fromisoformat(mi).replace(tzinfo=timezone.utc), m["eventos"], m["ediciones"],
+         m["eventos_bot"], m["reversiones"])
+        for (w, f, mi), m in agg["minutos"].items()
+    ]
+    editor_rows = [
+        (u, _day(f), h, w, ed["tipo"] or "desconocido", ed["eventos"], ed["ediciones"], len(ed["paginas"]),
+         ed["delta"], ed["rev_hechas"], ed["rev_recibidas"])
+        for (u, f, h, w), ed in agg["editores"].items()
+    ]
+
+    # Top de páginas por (wiki, fecha, hora): se borra la hora y se reescribe el ranking completo.
+    rankings = defaultdict(list)
+    for (w, f, h, title), p in agg["paginas"].items():
+        rankings[(w, f, h)].append((title, p))
+    pagina_rows, horas = [], []
+    for (w, f, h), items in rankings.items():
+        horas.append((w, _day(f), h))
+        items.sort(key=lambda it: (-len(it[1]["editores"]), -it[1]["ediciones"], it[0]))
+        for pos, (title, p) in enumerate(items[:TOP_PAGES], start=1):
+            pagina_rows.append((w, _day(f), h, pos, title, p["ediciones"], len(p["editores"]), p["delta"]))
+
+    statements = {
+        "resumen_por_hora": (
+            "INSERT INTO resumen_por_hora (fecha, hora, wiki, eventos, ediciones, creaciones, categorizaciones, logs, "
+            "eventos_bot, eventos_humanos, editores, editores_humanos, reversiones, delta_bytes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", resumen_rows),
+        "eventos_por_minuto": (
+            "INSERT INTO eventos_por_minuto (wiki, fecha, minuto, eventos, ediciones, eventos_bot, reversiones) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)", minuto_rows),
+        "actividad_editor": (
+            "INSERT INTO actividad_editor (editor, fecha, hora, wiki, tipo_editor, eventos, ediciones, paginas, "
+            "delta_bytes, reversiones_hechas, reversiones_recibidas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", editor_rows),
+    }
+    delete_top = session.prepare("DELETE FROM paginas_top_por_hora WHERE wiki = ? AND fecha = ? AND hora = ?")
+    execute_concurrent_with_args(session, delete_top, horas, concurrency=20, raise_on_first_error=True)
+    statements["paginas_top_por_hora"] = (
+        "INSERT INTO paginas_top_por_hora (wiki, fecha, hora, posicion, pagina, ediciones, editores, delta_bytes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", pagina_rows)
+
+    stats = {}
+    for table, (cql, rows) in statements.items():
+        execute_concurrent_with_args(session, session.prepare(cql), rows, concurrency=50, raise_on_first_error=True)
+        stats[table] = len(rows)
+    log.info("Carga en Cassandra (filas por tabla): %s", stats)
+    return stats
+
+
+def write_kpis(session: Session, window_start: datetime, kpis: dict) -> None:
+    """kpis = {nombre: (valor, detalle)}"""
+    stmt = session.prepare("INSERT INTO kpis (kpi, ventana, valor, detalle) VALUES (?, ?, ?, ?)")
+    rows = [(name, window_start, None if v is None else float(v), det) for name, (v, det) in kpis.items()]
+    execute_concurrent_with_args(session, stmt, rows, concurrency=20, raise_on_first_error=True)
+
+
+def write_run(session: Session, window_start: datetime, extract: dict, clean: dict) -> None:
+    session.execute(
+        "INSERT INTO ejecuciones (fecha, ventana, leidos_stream, extraidos, validos, rechazados, calidad_pct, "
+        "segundos_extraccion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        (window_start.date(), window_start, extract.get("read"), extract.get("kept"), clean.get("valid"),
+         clean.get("rejected"), clean.get("quality_pct"), extract.get("seconds")),
+    )
