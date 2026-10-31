@@ -6,7 +6,8 @@ x-airflow-env: &airflow-env
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres/airflow
   AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  # En local el DAG arranca pausado; en la VM de GCP arranca activo (DAGS_PAUSED=false).
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: ${DAGS_PAUSED:-true}
   AIRFLOW__CORE__DEFAULT_TIMEZONE: utc
   AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "false"
   AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
