@@ -243,14 +243,87 @@ docker compose exec airflow airflow dags test wikipedia_recent_changes 2026-10-3
 
 Con ~16k eventos por hora, el mínimo de 50,000 registros se supera con 4 horas de datos.
 
+### 11. Cargas en las tres bases y cálculo de KPIs
+
+Se implementaron las 4 tareas que faltaban en el DAG. Diseño general:
+
+- **MongoDB es la fuente de verdad.** Cassandra y Neo4j leen de Mongo los eventos de la ventana (`derived.event_dt` entre el inicio y el fin de la hora), así el flujo de datos queda Mongo → Cassandra y Mongo → Neo4j.
+- **Todas las cargas son idempotentes.** Re-ejecutar una hora deja el mismo resultado.
+
+**Scripts de creación de las bases** (entregable), aplicados por [`db/create_schemas.py`](../db/create_schemas.py):
+
+| Base | Script | Contenido |
+| --- | --- | --- |
+| MongoDB | [`db/mongo/schema.json`](../db/mongo/schema.json) | Colecciones `events` (con validador `$jsonSchema`), `events_rejected` y `pipeline_runs`; 5 índices en `events` |
+| Cassandra | [`db/cassandra/schema.cql`](../db/cassandra/schema.cql) | Keyspace `wikipipe`; tablas `resumen_por_hora`, `eventos_por_minuto`, `actividad_editor`, `paginas_top_por_hora`, `kpis` y `ejecuciones` |
+| Neo4j | [`db/neo4j/constraints.cypher`](../db/neo4j/constraints.cypher) | Unicidad de `Editor.user`, `Pagina.key`, `Wiki.nombre` y `Categoria.key`; 3 índices |
+
+```bash
+docker compose exec airflow python /opt/airflow/db/create_schemas.py
+```
+
+**Carga en MongoDB** ([`src/wikipipe/mongo.py`](../src/wikipipe/mongo.py)):
+
+- Hace `ReplaceOne(upsert=True)` por `_id = meta.id`, en lotes de 1,000.
+- Las claves que MongoDB no acepta (por ejemplo `$schema`) se renombran.
+- Los rechazados van a `events_rejected`, y el resumen de cada hora a `pipeline_runs`.
+
+**Carga en Cassandra** ([`src/wikipipe/cassandra_store.py`](../src/wikipipe/cassandra_store.py)):
+
+- Agrega en memoria los eventos de la hora y escribe valores ya calculados, que se sobrescriben al re-ejecutar.
+- No usa contadores (`counter`), porque se duplicarían en una re-ejecución.
+- El top de páginas de una hora se borra y se reescribe entero.
+- El módulo no se llama `cassandra.py` para no tapar el paquete `cassandra` del driver.
+
+**Carga en Neo4j** ([`src/wikipipe/neo4j_store.py`](../src/wikipipe/neo4j_store.py)):
+
+- Usa `UNWIND` + `MERGE` en lotes de 2,000.
+- Las relaciones que acumulan conteos (`EDITO`, `REVIRTIO`, `MENSAJE_A`, `AGRADECIO`) guardan en la propiedad `ventanas` las horas ya sumadas, y no las vuelven a sumar.
+- `EN_CATEGORIA` se crea o se borra según la última acción de la hora.
+- `COEDITA` se recalcula para las páginas editadas en la hora. Solo cuenta editores humanos, y se omiten las páginas con más de 50 editores para no generar demasiados pares.
+
+**KPIs** ([`src/wikipipe/kpis.py`](../src/wikipipe/kpis.py)): 12 KPIs por hora, cada uno calculado en la base que mejor lo responde. Se guardan en la tabla `kpis` de Cassandra y en `pipeline_runs` de MongoDB.
+
+| Fuente | KPIs |
+| --- | --- |
+| Cassandra | eventos procesados, crecimiento %, tasa de automatización %, actividad por editor |
+| MongoDB | tasa de creación %, volumen neto en bytes, tasa de reversión %, total acumulado |
+| Neo4j | página más disputada, editor más conectado, editor más revertido |
+| Limpieza | calidad de datos % |
+
+**Problema encontrado:** el KPI "editor humano más conectado" devolvía bots (ClueBot NG, AnomieBOT). Wikimedia no marca todas las ediciones de un bot con `bot = true`; por ejemplo, las reversiones de ClueBot NG salen sin la marca a propósito. Solución: un editor también es bot si su nombre termina una palabra en "bot", que es la convención obligatoria en Wikipedia. Se agregaron pruebas, incluido un nombre que no debe confundirse con bot ("Abbott"). Después se borraron los datos de prueba de las tres bases y se reprocesaron las dos horas.
+
+**Resultados** (dos horas reales procesadas con `airflow dags test`):
+
+| KPI | 16:00–17:00 UTC | 17:00–18:00 UTC |
+| --- | --- | --- |
+| Eventos procesados | 16,442 | 15,402 |
+| Crecimiento | — (sin hora anterior) | −6.33% |
+| Tasa de automatización | 27.31% | 27.22% |
+| Actividad por editor humano | 5.54 | 5.03 |
+| Tasa de creación | 3.32% | 3.02% |
+| Volumen neto | +1,612,163 bytes | +1,354,552 bytes |
+| Tasa de reversión | 2.04% (194) | 1.76% (159) |
+| Total acumulado en MongoDB | 16,442 | 31,844 |
+| Página más disputada | enwiki:Mišo Kovač (8 editores) | enwiki:Mišo Kovač (11 editores) |
+| Editor más conectado (COEDITA) | Celjski Grad (27) | Boud (20) |
+| Editor más revertido | Liubuiminn (5) | Cyan015 (16, por 1 editor) |
+| Calidad de datos | 100% | 100% |
+
+Tiempos de carga en una hora (~16k eventos): MongoDB 2.4 s, Cassandra 4.3 s, Neo4j 28 s, KPIs 1.7 s.
+
+**Prueba de idempotencia:** se re-ejecutó la hora 16:00 después de cargar la de 17:00. MongoDB insertó 0 documentos y actualizó 16,442; el total acumulado se mantuvo en 31,844 y Neo4j no volvió a sumar las ediciones de esa hora.
+
 ---
 
 ## Pendientes
 
 - [x] `docker-compose` local con MongoDB, Cassandra, Neo4j y Airflow.
 - [x] Extracción por ventanas y limpieza.
-- [x] DAG de Airflow programado cada hora (con las cargas como tareas vacías).
-- [ ] Cargas en MongoDB, Cassandra y Neo4j, y cálculo de KPIs.
+- [x] DAG de Airflow programado cada hora.
+- [x] Cargas en MongoDB, Cassandra y Neo4j, y cálculo de KPIs.
+- [x] Scripts de creación de las bases.
+- [ ] Operaciones CRUD de cada base (demostración).
 - [ ] Streamlit en el docker-compose.
 - [ ] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [ ] Dashboard y página de CRUD.
