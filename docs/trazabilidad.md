@@ -314,6 +314,57 @@ Tiempos de carga en una hora (~16k eventos): MongoDB 2.4 s, Cassandra 4.3 s, Neo
 
 **Prueba de idempotencia:** se re-ejecutó la hora 16:00 después de cargar la de 17:00. MongoDB insertó 0 documentos y actualizó 16,442; el total acumulado se mantuvo en 31,844 y Neo4j no volvió a sumar las ediciones de esa hora.
 
+### 12. Infraestructura como código y despliegue en GCP
+
+**Herramienta:** Terraform 1.17.1. En macOS, Homebrew no permitía instalarlo porque las Command Line Tools de Xcode estaban desactualizadas, así que se usó el binario oficial verificado con su checksum:
+
+```bash
+curl -sSfO https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_darwin_arm64.zip
+curl -sSfO https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_SHA256SUMS
+grep darwin_arm64 terraform_1.17.1_SHA256SUMS | shasum -a 256 -c -   # OK
+unzip terraform_1.17.1_darwin_arm64.zip && mv terraform ~/.local/bin/
+```
+
+**Archivos:**
+
+- [`infra/main.tf`](../infra/main.tf), [`variables.tf`](../infra/variables.tf) y [`outputs.tf`](../infra/outputs.tf).
+- [`infra/startup.sh`](../infra/startup.sh): script de arranque de la VM.
+- [`deploy.sh`](../deploy.sh) y [`destroy.sh`](../destroy.sh).
+- Instrucciones para el equipo: [`docs/despliegue.md`](despliegue.md).
+
+**Diseño:**
+
+- **VM:** `e2-standard-2` (2 vCPU, 8 GB), Debian 12, con el mismo `docker-compose.yml` que en local.
+- **Código:** `deploy.sh` empaqueta el último commit (`git archive`) y Terraform lo sube al bucket. Como el repo es privado, la VM descarga el código del bucket y no necesita credenciales de GitHub.
+- **Contraseñas:** las genera Terraform (`random_password`) y llegan a la VM como metadato (`wikipipe-env`), que el startup script escribe en `.env`.
+- **Firewall:** las interfaces web (8080, 7474, 7687, 8501) solo se abren a la IP de quien despliega. SSH solo por IAP (`35.235.240.0/20`). MongoDB y Cassandra no se exponen.
+- **Data lake:** un cron copia `data/raw` al bucket cada 30 minutos (`gcloud storage rsync`).
+- **DAG:** en la VM arranca activo (`DAGS_PAUSED=false`); en local sigue arrancando pausado.
+- **Actualizaciones:** si la VM ya existe, `deploy.sh` vuelve a ejecutar el startup script por SSH (IAP), y los datos se conservan.
+
+**Despliegue:**
+
+```bash
+gcloud auth application-default login                    # credenciales para Terraform (navegador)
+gcloud auth application-default set-quota-project big-data-p2
+PROJECT_ID=big-data-p2 ./deploy.sh
+```
+
+**Resultado:**
+
+- Se crearon 16 recursos, en ~3 minutos.
+- El startup script terminó en ~3 minutos: instaló Docker y levantó los 5 contenedores sanos.
+- Airflow (`:8080`) y Neo4j (`:7474`) responden desde la IP autorizada.
+- La primera ejecución programada del DAG (`scheduled__2026-10-31T19:00:00+00:00`) terminó en **success** en 2 min 44 s.
+- Memoria de la VM: ~4 GB usados de 8 GB.
+
+| Recurso | Costo aproximado |
+| --- | --- |
+| VM e2-standard-2 | ~1.6 USD/día |
+| IP fija | ~0.12 USD/día |
+| Disco de 50 GB y bucket | centavos |
+| **Total hasta el 17 de noviembre** | **~30 USD** (cubierto por el crédito) |
+
 ---
 
 ## Pendientes
@@ -325,6 +376,6 @@ Tiempos de carga en una hora (~16k eventos): MongoDB 2.4 s, Cassandra 4.3 s, Neo
 - [x] Scripts de creación de las bases.
 - [ ] Operaciones CRUD de cada base (demostración).
 - [ ] Streamlit en el docker-compose.
-- [ ] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
+- [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [ ] Dashboard y página de CRUD.
 - [ ] Informe PDF y video.
