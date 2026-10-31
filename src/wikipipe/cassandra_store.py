@@ -18,6 +18,7 @@ from cassandra.concurrent import execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy
 
 from wikipipe import config
+from wikipipe.clean import user_type
 
 log = logging.getLogger(__name__)
 TOP_PAGES = 20
@@ -100,6 +101,11 @@ def aggregate(events) -> dict:
             p["ediciones"] += 1
             p["editores"].add(user)
             p["delta"] += delta
+
+    # Editores que en esta hora solo fueron revertidos: el tipo se deduce por el nombre.
+    for (user, *_), ed in editores.items():
+        if ed["tipo"] is None:
+            ed["tipo"] = user_type({"user": user, "bot": False})
 
     for key, users in resumen_editores.items():
         resumen[key]["editores"] = len(users)
