@@ -31,14 +31,20 @@ REVERT_WORDS = re.compile(r"\b(revert\w*|undid|undo|rollback|revertid\w*|deshech
 NOT_REVERT = re.compile(r"\b(restored|warning|reporting)\b", re.IGNORECASE)
 # Página afectada en un evento categorize: el primer enlace [[:Página]] del comentario.
 CATEGORIZE_PAGE = re.compile(r"\[\[:?([^|\]]+)")
+BOT_NAME = re.compile(r"bot\b", re.IGNORECASE)  # ClueBot NG, AnomieBOT, InternetArchiveBot
 CAT_ADDED = re.compile(r"added to category|añadida a la categoría", re.IGNORECASE)
 CAT_REMOVED = re.compile(r"removed from category|eliminada de la categoría", re.IGNORECASE)
 
 
 def user_type(event: dict) -> str:
-    """Clasifica al editor: bot, temporal (cuentas ~AAAA-...), ip (formato antiguo) o registrado."""
+    """Clasifica al editor: bot, temporal (cuentas ~AAAA-...), ip (formato antiguo) o registrado.
+
+    Es bot si el evento viene marcado como bot o si el nombre termina una palabra en "bot"
+    (la política de Wikipedia exige ese nombre). Hace falta porque algunos bots, como
+    ClueBot NG, hacen ediciones sin la marca a propósito.
+    """
     user = event.get("user", "")
-    if event.get("bot"):
+    if event.get("bot") or BOT_NAME.search(user):
         return "bot"
     if user.startswith("~"):
         return "temporal"

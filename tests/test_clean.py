@@ -19,6 +19,10 @@ def test_user_types():
     assert user_type(make(user="~2026-58210-47")) == "temporal"
     assert user_type(make(user="192.168.0.1")) == "ip"
     assert user_type(make(user="Juan")) == "registrado"
+    # Bots sin la marca bot=True en el evento
+    assert user_type(make(user="ClueBot NG")) == "bot"
+    assert user_type(make(user="AnomieBOT")) == "bot"
+    assert user_type(make(user="Abbott")) == "registrado"
 
 
 def test_validate():
