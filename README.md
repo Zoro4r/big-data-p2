@@ -8,13 +8,31 @@ Pipeline multimodelo que procesa cada hora los cambios de Wikipedia (`enwiki` y 
 ## Estructura
 
 ```
-airflow/dags/       DAG de Airflow (wikipedia_recent_changes, cada hora)
-airflow/Dockerfile  imagen de Airflow 2.10.5 con los drivers de las 3 bases
-src/wikipipe/       código del pipeline: extract.py, clean.py, ...
-db/                 scripts de creación de las bases
-tests/              pruebas de las reglas de limpieza
-docker-compose.yml  MongoDB, Cassandra, Neo4j, Postgres (metadatos de Airflow) y Airflow
+airflow/dags/            DAG de Airflow (wikipedia_recent_changes, cada hora)
+airflow/Dockerfile       imagen de Airflow 2.10.5 con los drivers de las 3 bases
+src/wikipipe/
+  extract.py             extracción de una ventana del stream
+  clean.py               validación, limpieza y campos derivados
+  mongo.py               carga de eventos en MongoDB (fuente de verdad)
+  cassandra_store.py     agregados por hora y minuto en Cassandra
+  neo4j_store.py         grafo de editores, páginas, wikis y categorías en Neo4j
+  kpis.py                cálculo de los 12 KPIs de cada hora
+db/
+  mongo/schema.json         colecciones, validador e índices de MongoDB
+  cassandra/schema.cql      keyspace y tablas de Cassandra
+  neo4j/constraints.cypher  restricciones e índices de Neo4j
+  create_schemas.py         aplica los tres scripts
+tests/                   pruebas de las reglas de limpieza
+docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (metadatos de Airflow) y Airflow
 ```
+
+## Flujo del DAG
+
+```
+extraer → validar_y_limpiar → cargar_mongo → [cargar_cassandra, cargar_neo4j] → calcular_kpis
+```
+
+Cassandra y Neo4j leen de MongoDB los eventos de la hora. Todas las cargas son idempotentes: re-ejecutar una hora no duplica datos.
 
 ## Levantar el entorno en local
 
@@ -31,6 +49,12 @@ docker compose up -d --build
 | Neo4j Browser | http://localhost:7474 | `neo4j` / `NEO4J_PASSWORD` |
 | MongoDB | `mongodb://localhost:27017` | `MONGO_USER` / `MONGO_PASSWORD` |
 | Cassandra | `localhost:9042` | sin autenticación |
+
+Para crear los esquemas de las tres bases (el DAG también los crea si no existen):
+
+```bash
+docker compose exec airflow python /opt/airflow/db/create_schemas.py
+```
 
 El DAG `wikipedia_recent_changes` aparece pausado: se activa desde la interfaz de Airflow.
 
