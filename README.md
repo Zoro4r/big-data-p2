@@ -17,6 +17,7 @@ src/wikipipe/
   cassandra_store.py     agregados por hora y minuto en Cassandra
   neo4j_store.py         grafo de editores, páginas, wikis y categorías en Neo4j
   kpis.py                cálculo de los 12 KPIs de cada hora
+  crud.py                operaciones CRUD de las 3 bases y demo para la exposición
 db/
   mongo/schema.json         colecciones, validador e índices de MongoDB
   cassandra/schema.cql      keyspace y tablas de Cassandra
@@ -62,6 +63,21 @@ Para procesar una hora concreta sin esperar al scheduler:
 
 ```bash
 docker compose exec airflow airflow dags test wikipedia_recent_changes 2026-10-31T17:00:00+00:00
+```
+
+## Demo de operaciones CRUD
+
+Ejecuta paso a paso crear, consultar, actualizar y eliminar en cada base, mostrando el resultado de cada operación. Usa entidades "demo" que crea y luego borra, y además consulta datos reales.
+
+```bash
+docker compose exec airflow python -m wikipipe.crud mongo       # o cassandra, neo4j, todo
+```
+
+En la VM de GCP:
+
+```bash
+gcloud compute ssh wikipipe-vm --zone us-central1-a --tunnel-through-iap \
+  --command "cd /opt/wikipipe && sudo docker compose exec -T airflow python -m wikipipe.crud todo"
 ```
 
 ## Desarrollo sin Docker
