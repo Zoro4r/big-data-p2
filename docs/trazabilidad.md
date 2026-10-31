@@ -159,16 +159,99 @@ Resultado: el proyecto `big-data-p2` quedó activo y con facturación habilitada
 - **Integrantes:** 4.
 - **Wikis:** `enwiki` y `eswiki`.
 - **Infraestructura como código:** Terraform más un script `deploy.sh`, para que cualquier integrante despliegue todo en su propio proyecto con un solo comando.
+- **Reparto de componentes** (aprobado):
+
+| Integrante | Componente principal | En el DAG | CRUD y dashboard |
+| --- | --- | --- | --- |
+| 1 | Infraestructura: Terraform, `deploy.sh`, docker-compose | Extracción, y armar y programar el DAG | Página "Resumen" (KPIs) |
+| 2 | MongoDB | Validación, limpieza y carga en Mongo | CRUD de Mongo y página "Explorador de eventos" |
+| 3 | Cassandra | Agregación y carga en Cassandra, cálculo de KPIs | CRUD de Cassandra y página "Actividad en el tiempo" |
+| 4 | Neo4j | Construcción de relaciones y carga en Neo4j | CRUD de Neo4j y página "Red de editores" |
+
+### 10. Base del pipeline: extracción, limpieza, docker-compose y DAG
+
+**Extracción** ([`src/wikipipe/extract.py`](../src/wikipipe/extract.py)):
+
+- Pide el stream con `?since=<inicio de la ventana>`.
+- Guarda solo los eventos de `enwiki` y `eswiki` con `inicio <= meta.dt < fin`.
+- Escribe el resultado en `data/raw/AAAA-MM-DD/HHMM.jsonl.gz`.
+- Si la conexión se corta, se reconecta con `Last-Event-ID`.
+
+Problemas encontrados y cómo se resolvieron:
+
+1. **El primer evento cortaba la lectura.** El stream mezcla dos datacenters (`eqiad` y `codfw`). Al pedir datos pasados, el inactivo entrega primero un evento `canary` con la hora actual. Solución: ignorar los `canary` y cortar solo después de 100 eventos reales fuera de la ventana.
+2. **Error al comparar fechas en Airflow** (`can't compare offset-naive and offset-aware datetimes`). Airflow entrega fechas de `pendulum`, que pierden la zona horaria al convertirlas con `astimezone()` y sumarles un `timedelta`. Solución: normalizar con `datetime.fromtimestamp(x.timestamp(), tz=timezone.utc)`.
+
+**Limpieza** ([`src/wikipipe/clean.py`](../src/wikipipe/clean.py)): valida los campos obligatorios, descarta los `canary` y los duplicados, y agrega `_id = meta.id` y un subdocumento `derived` con estos campos:
+
+- Fecha, hora y minuto del evento.
+- Tipo de editor: bot, temporal, ip o registrado.
+- Cambio de tamaño (Δbytes).
+- Destino de reversiones, mensajes, bloqueos, agradecimientos, traslados y subidas de archivos.
+- Página y acción (añadida o eliminada) de los eventos `categorize`.
+
+Las reglas se probaron con comentarios reales de las dos wikis:
+
+- **Reversiones:** `Undid`, `Reverted`, `Deshecha`, `Revertida`, con enlaces `Special:Contributions/`, `Special:Contribs/` y `Especial:Contribuciones/`.
+- **Falsos positivos excluidos:** `Warning`, `Reporting`, `Restored` y las autorreversiones.
+
+```bash
+PYTHONPATH=src .venv/bin/python -m pytest -q tests   # 8 passed
+```
+
+**Entorno Docker** ([`docker-compose.yml`](../docker-compose.yml)):
+
+- MongoDB 7.0 (caché de 0.25 GB).
+- Cassandra 4.1 (heap de 512 MB).
+- Neo4j 5.26 Community (heap de 512 MB).
+- Postgres 16, como base de metadatos de Airflow.
+- Airflow 2.10.5 en modo `standalone` con `LocalExecutor`.
+- La imagen de Airflow ([`airflow/Dockerfile`](../airflow/Dockerfile)) instala los drivers usando las restricciones oficiales de Airflow 2.10.5. Por eso `requirements.txt` usa rangos de versiones y no versiones fijas.
+
+```bash
+cp .env.example .env    # contraseñas generadas con openssl rand
+docker compose up -d --build
+```
+
+Problema de memoria: con ~3.8 GB asignados a Docker, el kernel mató a Cassandra 12 veces mientras corrían tareas (`Out of memory: Killed process ... java`). Solución:
+
+- 1 worker para el webserver de Airflow (`AIRFLOW__WEBSERVER__WORKERS=1`).
+- `AIRFLOW__CORE__PARALLELISM=4`.
+- Se detuvo el otro proyecto Docker del equipo local.
+
+En GCP la VM tendrá más memoria.
+
+**DAG** ([`airflow/dags/wikipedia_pipeline.py`](../airflow/dags/wikipedia_pipeline.py)): `wikipedia_recent_changes` se ejecuta `@hourly` con `max_active_runs=1` y 2 reintentos cada 5 minutos. Sus 6 etapas son:
+
+```
+extraer → validar_y_limpiar → cargar_mongo → [cargar_cassandra, cargar_neo4j] → calcular_kpis
+```
+
+Las 4 cargas están como tareas vacías (`EmptyOperator`) hasta que cada integrante implemente su parte.
+
+Otro problema: con `start_date` el 1 de noviembre, una prueba del 31 de octubre terminaba en "success" sin ejecutar ninguna tarea. Solución: `start_date` el 25 de octubre de 2026, con `catchup=False`.
+
+Prueba de punta a punta sobre una hora real:
+
+```bash
+docker compose exec airflow airflow dags test wikipedia_recent_changes 2026-10-31T17:00:00+00:00
+```
+
+| Ventana procesada | Leídos del stream | enwiki + eswiki | Válidos | Rechazados | Duración de la extracción |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-31 16:00–17:00 UTC | 171,756 | 16,442 | 16,442 (100%) | 0 | 52 s |
+
+Con ~16k eventos por hora, el mínimo de 50,000 registros se supera con 4 horas de datos.
 
 ---
 
 ## Pendientes
 
-- [ ] Definir el reparto de componentes entre los 4 integrantes.
-- [ ] `docker-compose` local con MongoDB, Cassandra, Neo4j, Airflow y Streamlit.
-- [ ] Extracción por ventanas y limpieza.
+- [x] `docker-compose` local con MongoDB, Cassandra, Neo4j y Airflow.
+- [x] Extracción por ventanas y limpieza.
+- [x] DAG de Airflow programado cada hora (con las cargas como tareas vacías).
 - [ ] Cargas en MongoDB, Cassandra y Neo4j, y cálculo de KPIs.
-- [ ] DAG de Airflow programado cada hora.
+- [ ] Streamlit en el docker-compose.
 - [ ] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [ ] Dashboard y página de CRUD.
 - [ ] Informe PDF y video.
