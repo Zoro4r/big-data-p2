@@ -365,6 +365,53 @@ PROJECT_ID=big-data-p2 ./deploy.sh
 | Disco de 50 GB y bucket | centavos |
 | **Total hasta el 17 de noviembre** | **~30 USD** (cubierto por el crédito) |
 
+### 13. Proyección de volumen y memoria de Neo4j
+
+**Proyección hasta la entrega:**
+
+- Se decidió no procesar horas pasadas (sin backfill) y acumular solo desde el primer despliegue.
+- Quedan ~390 horas, desde el 31 de octubre a las 19:00 UTC hasta el 17 de noviembre a las 00:00 UTC.
+- A 12–15k eventos por hora en promedio, se estiman **4.7 a 5.9 millones de registros** al llegar a la entrega.
+
+**Medición del grafo tras 4 horas de ejecución automática en la VM:**
+
+| Medida | Valor |
+| --- | --- |
+| Nodos | 39,924 (28,311 páginas, 6,741 editores, 4,870 categorías, 2 wikis) |
+| Relaciones | ~92 mil (`PERTENECE_A` 33k, `EDITO` 30k, `EN_CATEGORIA` 23k, `COEDITA` 2.2k, `MENSAJE_A` 1.2k, `REVIRTIO` 504, ...) |
+| Duración de `cargar_neo4j` por hora | 46 s → 25 s → 19 s → 18 s |
+
+**Análisis:**
+
+- El volumen esperado al final (1.5–2 millones de nodos y 5–8 millones de relaciones) no es un problema para Neo4j.
+- Los `MERGE` buscan cada nodo por un índice único, así que su costo casi no crece con el tamaño del grafo.
+- La carga usa ~20 s de la hora disponible.
+
+Riesgos identificados:
+
+1. **Caché de páginas pequeña:** con el grafo pesando varios GB, aumentan las lecturas a disco.
+2. **El cálculo de `COEDITA`:** recorre la historia completa de cada par de editores, así que crece con el tiempo.
+3. **Consultas globales del dashboard:** deben usar límites y conteos ya guardados en los nodos.
+
+**Cambio aplicado (riesgo 1):** la memoria de Neo4j ahora se configura con `NEO4J_HEAP` y `NEO4J_PAGECACHE`.
+
+- En local mantiene 512 MB de heap y 256 MB de caché.
+- En la VM se subió a **1 GB de heap y 1.5 GB de caché**, con las variables de Terraform `neo4j_heap` y `neo4j_pagecache`.
+
+```bash
+PROJECT_ID=big-data-p2 ./deploy.sh   # solo se recreó el contenedor de Neo4j; los datos se conservaron
+```
+
+Verificación:
+
+```
+server.memory.heap.max_size  = 1.00GiB
+server.memory.pagecache.size = 1.50GiB
+nodos = 39,924 (sin pérdida)
+```
+
+La memoria de la VM quedó en ~5.1 GB usados de 8 GB. La duración de `cargar_neo4j` se seguirá en Airflow; si supera unos minutos, se optimizará `COEDITA` para calcularlo de forma incremental.
+
 ---
 
 ## Pendientes
