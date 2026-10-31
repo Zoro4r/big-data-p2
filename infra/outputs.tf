@@ -10,6 +10,15 @@ output "neo4j_url" {
   value = "http://${google_compute_address.vm.address}:7474"
 }
 
+output "dashboard_url" {
+  value = "http://${google_compute_address.vm.address}:8501"
+}
+
+output "dashboard_password" {
+  value     = random_password.dashboard.result
+  sensitive = true
+}
+
 output "bucket" {
   value = google_storage_bucket.data.name
 }

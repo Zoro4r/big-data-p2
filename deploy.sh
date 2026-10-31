@@ -58,6 +58,7 @@ cat <<EOF
 ==> Despliegue listo. La primera vez la VM tarda ~5 minutos en instalar Docker y levantar todo.
     Airflow : http://$IP:8080   usuario admin / $($TF output -raw airflow_admin_password)
     Neo4j   : http://$IP:7474   usuario neo4j / $($TF output -raw neo4j_password)
+    Dashboard: http://$IP:8501  contraseña $($TF output -raw dashboard_password)
     Bucket  : gs://$($TF output -raw bucket)
     Ver el arranque: gcloud compute instances get-serial-port-output wikipipe-vm --zone $ZONE --project $PROJECT_ID | grep startup-script
 EOF
