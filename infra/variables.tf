@@ -34,6 +34,18 @@ variable "code_archive" {
   type        = string
 }
 
+variable "neo4j_heap" {
+  description = "Memoria heap de Neo4j en la VM (cargas por lotes y consultas)."
+  type        = string
+  default     = "1g"
+}
+
+variable "neo4j_pagecache" {
+  description = "Caché de páginas de Neo4j en la VM: cuánto del grafo se mantiene en memoria."
+  type        = string
+  default     = "1536m"
+}
+
 variable "wikis" {
   type    = string
   default = "enwiki,eswiki"

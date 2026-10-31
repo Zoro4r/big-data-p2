@@ -132,6 +132,8 @@ locals {
     AIRFLOW_DB_PASSWORD=${random_password.airflow_db.result}
     AIRFLOW_UID=50000
     DAGS_PAUSED=false
+    NEO4J_HEAP=${var.neo4j_heap}
+    NEO4J_PAGECACHE=${var.neo4j_pagecache}
   EOT
 }
 

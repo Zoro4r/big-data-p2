@@ -57,9 +57,11 @@ services:
     image: neo4j:5.26.2-community
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
-      NEO4J_server_memory_heap_initial__size: 256m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
+      # Valores bajos por defecto para equipos con ~4 GB para Docker; en la VM de GCP se suben
+      # desde el .env (NEO4J_HEAP y NEO4J_PAGECACHE) porque el grafo crece cada hora.
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP:-512m}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-512m}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-256m}
     ports: ["7474:7474", "7687:7687"]
     volumes: [neo4j-data:/data]
     healthcheck:
