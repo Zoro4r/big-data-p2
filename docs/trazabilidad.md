@@ -485,6 +485,47 @@ PROJECT_ID=big-data-p2 ./deploy.sh   # crea el contenedor dashboard; Terraform g
 
 Verificación en la VM: se ingresó con la contraseña desde la IP autorizada. El Resumen mostró 4 horas procesadas automáticamente (19:00–22:00 UTC), 79,521 eventos acumulados y la página más disputada con 18 editores distintos.
 
+### 16. Dashboard compartido y rediseño visual
+
+**Compartir con el equipo.** El firewall solo permitía la IP de quien desplegó. Se evaluaron tres opciones:
+
+1. Abrir solo el dashboard a internet.
+2. Agregar las IPs de los compañeros.
+3. Acceso con IAP.
+
+Se eligió la opción 1: una regla aparte, `wikipipe-dashboard` (tcp:8501), con origen `0.0.0.0/0` por defecto (variable `dashboard_cidrs`). Lo protege la contraseña `DASHBOARD_PASSWORD`. Airflow y Neo4j (8080, 7474 y 7687) siguen restringidos a la IP autorizada.
+
+```
+wikipipe-dashboard  0.0.0.0/0        tcp:8501
+wikipipe-web        <IP-autorizada>  tcp:8080,tcp:7474,tcp:7687
+wikipipe-ssh-iap    35.235.240.0/20  tcp:22
+```
+
+**Hallazgo de seguridad.** GCP crea en todo proyecto nuevo las reglas `default-allow-ssh` (tcp:22) y `default-allow-rdp` (tcp:3389), abiertas a `0.0.0.0/0`. Eso anula la decisión de permitir SSH solo por IAP. Pendiente de decidir si se eliminan.
+
+**Rediseño del dashboard.** La primera versión se veía demasiado simple. Se creó [`dashboard/ui.py`](../dashboard/ui.py) con un sistema visual propio:
+
+- Tipografía Inter y tema claro con color primario `#2a78d6`.
+- Barra lateral oscura con la marca del proyecto.
+- Cabecera ("hero") en cada página, con estado en vivo: última hora procesada, eventos almacenados y horas procesadas.
+- Tarjetas de KPI con barra de acento, sparkline de las últimas 24 horas (SVG) y pastilla de cambio coloreada según si el cambio es bueno o malo. Por ejemplo, una baja en la tasa de reversión sale en verde.
+- Tarjetas destacadas para los "protagonistas de la hora" (página más disputada, editor más conectado, editor más revertido).
+- Secciones con título y subtítulo que nombran la tabla o la consulta de origen.
+- Gráficos dentro de tarjetas, con área rellena y barras con esquinas redondeadas.
+- En los rankings de Neo4j, el color de cada barra indica el tipo de editor (registrado, temporal o bot), igual que en el grafo interactivo.
+- El texto que viene de los datos se escapa (`html.escape`) antes de insertarlo en el HTML.
+
+Ajustes tras revisar capturas:
+
+- El estilo de tarjeta blanca se limitó al área principal, porque afectaba a la barra lateral.
+- Se agregó margen superior a la cabecera.
+- Ticks del eje de tiempo cada una hora.
+- Grilla de 4 tarjetas por fila, con etiquetas en una línea.
+- La página de Actividad abre en el último día con datos.
+- Se acortaron los textos que se cortaban.
+
+Verificación: 0 excepciones en las 5 páginas (`AppTest`) y captura en la VM con datos reales. Por ejemplo, el 31 de octubre enwiki tuvo 93,288 eventos, un pico de 818 por minuto a las 19:18, 31.5% hechos por bots y 665 reversiones.
+
 ---
 
 ## Pendientes
@@ -498,4 +539,5 @@ Verificación en la VM: se ingresó con la contraseña desde la IP autorizada. E
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [x] Dashboard en Streamlit (5 páginas) con página de CRUD, en local y en la VM.
 - [ ] Capturas del dashboard para el informe (cuando haya varios días de datos).
+- [ ] Decidir si se eliminan las reglas de firewall por defecto `default-allow-ssh` y `default-allow-rdp`.
 - [ ] Informe PDF y video.
