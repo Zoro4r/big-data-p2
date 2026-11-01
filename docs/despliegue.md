@@ -75,7 +75,15 @@ terraform -chdir=infra output -raw neo4j_password
 terraform -chdir=infra output -raw dashboard_password
 ```
 
-### 4. Verificar
+### 4. Cerrar las reglas de firewall por defecto (recomendado)
+
+GCP crea en todo proyecto nuevo dos reglas que abren SSH (22) y RDP (3389) a todo internet. El despliegue no las necesita: el SSH va por IAP, que tiene su propia regla.
+
+```bash
+gcloud compute firewall-rules delete default-allow-ssh default-allow-rdp --quiet
+```
+
+### 5. Verificar
 
 ```bash
 # Ver el arranque de la VM
