@@ -549,6 +549,68 @@ Aun con el rediseño, el dashboard en Streamlit se veía poco profesional. shadc
 - **Datos:** reales, tomados de la VM el 31 de octubre de 2026. Por ejemplo, la hora 23:00 tuvo 18,606 eventos, con 41.43% de bots y 164 reversiones.
 - **Pendiente:** la pantalla "Explorador de eventos" no se incluyó en el mockup; se diseñará al implementar.
 
+### 18. Dashboard en React + shadcn/ui + FastAPI
+
+Se aprobó el mockup y se implementó el dashboard nuevo. Reemplaza a la versión Streamlit, que queda en el historial de git.
+
+**Arquitectura:**
+
+```
+navegador ──► web (nginx, puerto 8501) ──/api──► api (FastAPI) ──► MongoDB · Cassandra · Neo4j
+```
+
+**API** ([`api/`](../api/)):
+
+- FastAPI 0.115.
+- [`queries.py`](../api/queries.py) reutiliza las consultas de la versión Streamlit, con una caché en memoria de 60 segundos. El CRUD usa las funciones de `wikipipe.crud`.
+- Rutas de lectura: `/api/resumen`, `/api/serie10`, `/api/actividad`, `/api/editor/{nombre}`, `/api/eventos`, `/api/eventos/{id}`, `/api/red` y `/api/red/ego/{nombre}`.
+- Rutas de CRUD por base: `/api/crud/mongo`, `/api/crud/cassandra` y `/api/crud/neo4j/...`.
+- Documentación automática en `/api/docs`.
+- **Seguridad:** si existe `DASHBOARD_PASSWORD`, `/api/login` entrega una cookie `httpOnly` (HMAC-SHA256 de la clave) y un middleware rechaza con 401 las rutas sin sesión. En la VM la clave la sigue generando Terraform.
+
+**Frontend** ([`web/`](../web/)):
+
+- Vite 6 + React 19 + TypeScript.
+- Tailwind CSS 4 con el tema zinc de shadcn/ui: componentes card, badge, button, table, tabs, select, toggle-group, input, textarea y sonner.
+- Recharts 2 para los gráficos y react-force-graph-2d para el grafo de fuerzas.
+- Tipografía Geist y la paleta de datos validada (enwiki/registrado azul, eswiki/temporal naranja, bot verde).
+- Cada página se carga por separado: el JavaScript inicial pesa 121 KB comprimido.
+
+Las 5 páginas siguen el mockup:
+
+| Página | Contenido |
+| --- | --- |
+| Resumen | 8 KPIs con pastilla de cambio (verde si mejora, rojo si empeora); ritmo cada 10 minutos por wiki; protagonistas de la hora; tabla de ejecuciones; evolución de cualquier KPI; tabla de definiciones |
+| Actividad | KPIs del día; barras apiladas de humanos y bots por hora; pulso por minuto; top 10 de páginas por hora; historial de un editor |
+| Explorador | Totales por tipo; barras por tipo y wiki (`$group`); búsqueda con filtros; tabla de resultados y documento JSON completo al hacer clic |
+| Red | Tamaño del grafo; grafo interactivo (arrastrar, zoom, clic en un vecino para explorarlo); rankings de revertidos y patrulleros coloreados por tipo de editor; páginas disputadas |
+| CRUD | Pestañas por base; operación como control segmentado; resultado en JSON con botón de copiar; historial de la sesión; notificaciones; botón para mostrar el validador de MongoDB rechazando un documento |
+
+**Despliegue:**
+
+- En el `docker-compose`, el servicio `dashboard` se reemplazó por `api` y `web`.
+- `web` es una imagen multietapa: `node:22` compila y `nginx:1.27` sirve los archivos y redirige `/api` a la API.
+- El puerto sigue siendo 8501, así que el firewall y Terraform no cambian.
+- La API se publica solo en `127.0.0.1:8000`, para desarrollar el frontend con `npm run dev`.
+
+**Problema encontrado:** `shadcn init` falló en la validación del CSS (`css: Invalid input`), aunque sí agregó los componentes, pero importando `cn` desde una ruta inválida (`"cn"`). Se corrigió a mano:
+
+- Se creó `src/lib/utils.ts` y se reemplazaron los imports por `@/lib/utils`.
+- Se instalaron las dependencias que faltaban: `clsx`, `tailwind-merge`, `class-variance-authority`, `radix-ui` y `tw-animate-css`.
+- Se escribió el tema zinc de Tailwind 4 en `src/index.css`.
+
+**Pruebas:**
+
+- `npm run build` sin errores de TypeScript.
+- Las 5 páginas, capturadas con Playwright, sin errores en la consola del navegador.
+- Operación CREATE probada desde la página CRUD; el documento de prueba se borró después.
+
+Ajustes tras revisar las capturas:
+
+- El grafo se veía amontonado: se aumentó la repulsión (−260) y el largo de las aristas (90), y se ajusta el zoom al terminar de acomodarse.
+- Los selectores del Explorador ahora ocupan todo el ancho.
+- Se oculta la pastilla de cambio cuando el valor no cambió.
+
 ---
 
 ## Pendientes
@@ -561,7 +623,7 @@ Aun con el rediseño, el dashboard en Streamlit se veía poco profesional. shadc
 - [x] Operaciones CRUD de cada base (demostración).
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [x] Dashboard en Streamlit (5 páginas) con página de CRUD, en local y en la VM.
-- [ ] Aprobar el mockup y migrar el dashboard a React + shadcn/ui + FastAPI.
+- [x] Aprobar el mockup y migrar el dashboard a React + shadcn/ui + FastAPI.
 - [ ] Capturas del dashboard para el informe (cuando haya varios días de datos).
 - [x] Eliminar las reglas de firewall por defecto `default-allow-ssh` y `default-allow-rdp`.
 - [ ] Informe PDF y video.
