@@ -29,6 +29,12 @@ variable "allowed_cidrs" {
   type        = list(string)
 }
 
+variable "dashboard_cidrs" {
+  description = "IPs que pueden abrir el dashboard. Por defecto cualquiera, para compartirlo con el equipo."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "code_archive" {
   description = "Ruta local del .tar.gz con el código (lo genera deploy.sh)."
   type        = string

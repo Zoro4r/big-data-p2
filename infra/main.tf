@@ -96,7 +96,7 @@ resource "google_compute_address" "vm" {
   depends_on = [google_project_service.apis]
 }
 
-# Interfaces web (Airflow, Neo4j Browser y su conexión bolt, dashboard) solo desde las IPs permitidas.
+# Interfaces de administración (Airflow, Neo4j Browser y su conexión bolt) solo desde las IPs permitidas.
 # MongoDB (27017) y Cassandra (9042) no se exponen a internet.
 resource "google_compute_firewall" "web" {
   name          = "wikipipe-web"
@@ -105,7 +105,21 @@ resource "google_compute_firewall" "web" {
   target_tags   = ["wikipipe"]
   allow {
     protocol = "tcp"
-    ports    = ["8080", "7474", "7687", "8501"]
+    ports    = ["8080", "7474", "7687"]
+  }
+  depends_on = [google_project_service.apis]
+}
+
+# Dashboard: abierto para compartirlo con el equipo (por defecto, a cualquier IP). Lo protege la
+# contraseña DASHBOARD_PASSWORD que genera Terraform.
+resource "google_compute_firewall" "dashboard" {
+  name          = "wikipipe-dashboard"
+  network       = "default"
+  source_ranges = var.dashboard_cidrs
+  target_tags   = ["wikipipe"]
+  allow {
+    protocol = "tcp"
+    ports    = ["8501"]
   }
   depends_on = [google_project_service.apis]
 }
