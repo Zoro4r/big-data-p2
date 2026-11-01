@@ -23,9 +23,10 @@ db/
   cassandra/schema.cql      keyspace y tablas de Cassandra
   neo4j/constraints.cypher  restricciones e índices de Neo4j
   create_schemas.py         aplica los tres scripts
-dashboard/               dashboard en Streamlit (5 páginas) conectado a las 3 bases
+api/                     API del dashboard (FastAPI): consultas a las 3 bases y CRUD
+web/                     dashboard en React + shadcn/ui + Recharts (servido por nginx)
 tests/                   pruebas de las reglas de limpieza
-docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (metadatos de Airflow), Airflow y dashboard
+docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (Airflow), Airflow, api y web
 ```
 
 ## Flujo del DAG
@@ -48,6 +49,7 @@ docker compose up -d --build
 | Servicio | Dirección | Usuario |
 | --- | --- | --- |
 | Dashboard | http://localhost:8501 | sin contraseña en local (`DASHBOARD_PASSWORD` del `.env` para activarla) |
+| Documentación de la API | http://localhost:8501/api/docs | la misma sesión del dashboard |
 | Airflow | http://localhost:8080 | `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` del `.env` |
 | Neo4j Browser | http://localhost:7474 | `neo4j` / `NEO4J_PASSWORD` |
 | MongoDB | `mongodb://localhost:27017` | `MONGO_USER` / `MONGO_PASSWORD` |
@@ -80,6 +82,18 @@ En la VM de GCP:
 ```bash
 gcloud compute ssh wikipipe-vm --zone us-central1-a --tunnel-through-iap \
   --command "cd /opt/wikipipe && sudo docker compose exec -T airflow python -m wikipipe.crud todo"
+```
+
+## Desarrollo del dashboard
+
+```
+navegador ──► web (nginx: React + shadcn/ui, puerto 8501) ──/api──► api (FastAPI) ──► MongoDB · Cassandra · Neo4j
+```
+
+Con los contenedores arriba, el frontend se puede desarrollar con recarga en caliente (Vite redirige `/api` a la API en `127.0.0.1:8000`):
+
+```bash
+cd web && npm install && npm run dev      # http://localhost:5173
 ```
 
 ## Desarrollo sin Docker
