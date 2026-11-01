@@ -65,7 +65,8 @@ for col, kpi in zip(c, ("pagina_mas_disputada", "editor_mas_conectado", "editor_
     nombre = fila["detalle"].iloc[0] or ""
     # Sin delta: el número acompaña a la entidad, no es un cambio respecto de la hora anterior.
     col.metric(meta["nombre"], nombre.split(" (")[0], help=f"{meta['formula']} · Fuente: {meta['fuente']}")
-    col.caption(f"{formato(fila['valor'].iloc[0], '')} {meta['unidad']}")
+    # El nombre completo va también en el texto: títulos largos se cortan en la tarjeta.
+    col.caption(f"{nombre.split(' (')[0]} · {formato(fila['valor'].iloc[0], '')} {meta['unidad']}")
 
 st.divider()
 
