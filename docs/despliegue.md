@@ -64,6 +64,7 @@ Tarda unos 3 minutos en crear la infraestructura. La primera vez, la VM tarda ot
 ==> Despliegue listo.
     Airflow : http://<IP>:8080   usuario admin / <contraseña>
     Neo4j   : http://<IP>:7474   usuario neo4j / <contraseña>
+    Dashboard: http://<IP>:8501  contraseña <contraseña>
 ```
 
 Para ver de nuevo las contraseñas:
@@ -71,6 +72,7 @@ Para ver de nuevo las contraseñas:
 ```bash
 terraform -chdir=infra output -raw airflow_admin_password
 terraform -chdir=infra output -raw neo4j_password
+terraform -chdir=infra output -raw dashboard_password
 ```
 
 ### 4. Verificar

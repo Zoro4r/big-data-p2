@@ -23,8 +23,9 @@ db/
   cassandra/schema.cql      keyspace y tablas de Cassandra
   neo4j/constraints.cypher  restricciones e índices de Neo4j
   create_schemas.py         aplica los tres scripts
+dashboard/               dashboard en Streamlit (5 páginas) conectado a las 3 bases
 tests/                   pruebas de las reglas de limpieza
-docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (metadatos de Airflow) y Airflow
+docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (metadatos de Airflow), Airflow y dashboard
 ```
 
 ## Flujo del DAG
@@ -46,6 +47,7 @@ docker compose up -d --build
 
 | Servicio | Dirección | Usuario |
 | --- | --- | --- |
+| Dashboard | http://localhost:8501 | sin contraseña en local (`DASHBOARD_PASSWORD` del `.env` para activarla) |
 | Airflow | http://localhost:8080 | `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` del `.env` |
 | Neo4j Browser | http://localhost:7474 | `neo4j` / `NEO4J_PASSWORD` |
 | MongoDB | `mongodb://localhost:27017` | `MONGO_USER` / `MONGO_PASSWORD` |
