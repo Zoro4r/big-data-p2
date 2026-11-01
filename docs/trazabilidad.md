@@ -501,7 +501,17 @@ wikipipe-web        <IP-autorizada>  tcp:8080,tcp:7474,tcp:7687
 wikipipe-ssh-iap    35.235.240.0/20  tcp:22
 ```
 
-**Hallazgo de seguridad.** GCP crea en todo proyecto nuevo las reglas `default-allow-ssh` (tcp:22) y `default-allow-rdp` (tcp:3389), abiertas a `0.0.0.0/0`. Eso anula la decisión de permitir SSH solo por IAP. Pendiente de decidir si se eliminan.
+**Hallazgo de seguridad.** GCP crea en todo proyecto nuevo las reglas `default-allow-ssh` (tcp:22) y `default-allow-rdp` (tcp:3389), abiertas a `0.0.0.0/0`. Eso anulaba la decisión de permitir SSH solo por IAP, así que se eliminaron:
+
+```bash
+gcloud compute firewall-rules delete default-allow-ssh default-allow-rdp --project big-data-p2 --quiet
+```
+
+Verificación:
+
+- El SSH por IAP sigue funcionando (`gcloud compute ssh ... --tunnel-through-iap`).
+- El puerto 22 ya no responde desde internet (`nc -z 34.45.96.253 22` falla).
+- Se agregó el paso a [`docs/despliegue.md`](despliegue.md) para los proyectos de los demás integrantes.
 
 **Rediseño del dashboard.** La primera versión se veía demasiado simple. Se creó [`dashboard/ui.py`](../dashboard/ui.py) con un sistema visual propio:
 
@@ -539,5 +549,5 @@ Verificación: 0 excepciones en las 5 páginas (`AppTest`) y captura en la VM co
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [x] Dashboard en Streamlit (5 páginas) con página de CRUD, en local y en la VM.
 - [ ] Capturas del dashboard para el informe (cuando haya varios días de datos).
-- [ ] Decidir si se eliminan las reglas de firewall por defecto `default-allow-ssh` y `default-allow-rdp`.
+- [x] Eliminar las reglas de firewall por defecto `default-allow-ssh` y `default-allow-rdp`.
 - [ ] Informe PDF y video.
