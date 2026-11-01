@@ -440,6 +440,51 @@ Resultado en la VM: las 12 operaciones se ejecutaron correctamente. La consulta 
 - **Neo4j:** el borrado de relaciones buscaba el nodo de origen sin etiqueta, lo que obliga a recorrer todos los nodos. Se agregó `:Editor` para usar el índice único.
 - **Cassandra:** un editor que en una hora solo fue revertido (sin ediciones propias) quedaba con `tipo_editor = desconocido`. Ahora el tipo se deduce por el nombre (temporal, ip, bot o registrado), igual que en Neo4j.
 
+### 15. Dashboard en Streamlit
+
+**Stack:** Streamlit 1.45, Plotly 6 para los gráficos y pyvis para el grafo interactivo. Corre como servicio `dashboard` del `docker-compose` (puerto 8501), con su propia imagen ([`dashboard/Dockerfile`](../dashboard/Dockerfile)).
+
+**Páginas** ([`dashboard/`](../dashboard/)):
+
+| Página | Base | Contenido |
+| --- | --- | --- |
+| Resumen y KPIs | Cassandra (`kpis`, `resumen_por_hora`, `ejecuciones`) | 12 KPIs de la última hora con su cambio respecto de la anterior; eventos por hora y wiki; evolución de cualquier KPI; tabla con definición, fórmula, fuente e interpretación de cada KPI |
+| Actividad en el tiempo | Cassandra (`eventos_por_minuto`, `paginas_top_por_hora`, `actividad_editor`) | Serie por minuto (total y bots), top 10 de páginas por hora, historial de un editor |
+| Explorador de eventos | MongoDB (`events`) | Eventos por tipo y wiki en 24 h (`$group`), búsqueda con filtros (wiki, tipo, editor, título, solo reversiones) y el documento JSON completo |
+| Red de editores | Neo4j | Tamaño del grafo, editores más revertidos, patrulleros más activos, páginas más disputadas y vecindario interactivo de un editor |
+| Operaciones CRUD | Las 3 | Formularios para crear, consultar, actualizar y eliminar en cada base; reutiliza `wikipipe.crud` |
+
+**Decisiones de diseño:**
+
+- **Conexiones y caché:** las conexiones se crean una vez por proceso (`st.cache_resource`) y las consultas se guardan 5 minutos (`st.cache_data`), porque los datos cambian una vez por hora. Las operaciones CRUD limpian esa caché.
+- **Colores:** paleta categórica validada con el script de la guía de visualización: azul `#2a78d6` para enwiki y registrados, naranja `#eb6834` para eswiki y cuentas temporales, aqua `#1baf7a` para bots. Resultado: todas las comprobaciones de daltonismo y separación aprobadas, con un aviso de contraste del aqua, que se compensa con leyenda y tablas.
+- **Gráficos:** una sola escala por gráfico; series de una sola métrica en el mismo azul; hover en todos los gráficos.
+- **Conteos del grafo:** se consultan con la etiqueta o el tipo escritos en la consulta (`MATCH (n:Editor) RETURN count(n)`), que Neo4j responde desde sus contadores internos sin recorrer el grafo.
+- **Seguridad:** contraseña opcional (`DASHBOARD_PASSWORD`). En la VM la genera Terraform, porque la página CRUD permite escribir. Además, el firewall solo abre el puerto 8501 a la IP autorizada.
+
+**Pruebas:**
+
+- Cada página se ejecutó con `streamlit.testing.v1.AppTest`: 0 excepciones en las 5.
+- Se revisaron capturas tomadas con Playwright (Chrome headless).
+
+Problemas encontrados y corregidos:
+
+1. **Fechas de Cassandra:** el driver devuelve el tipo `Date`, que la tabla de Streamlit (Arrow) no sabe mostrar. Se convierten a `datetime.date`.
+2. **Modo "magic" de Streamlit:** expresiones como `st.json(x) if c else st.warning(...)` se imprimirían en pantalla. Se reemplazaron por `if/else`.
+3. **Flechas engañosas:** los KPIs de grafo mostraban una flecha ↑ junto al detalle, como si fuera un cambio. Ahora el detalle va como texto debajo.
+4. **Eje de tiempo** en milisegundos con un solo punto: ahora se muestra un aviso cuando hay menos de dos horas de datos.
+5. **Cambios de código no aplicados:** Streamlit en Docker no detectaba los cambios en el volumen montado desde macOS. Se reinicia el contenedor.
+6. **Grafo ilegible** con muchos vecinos: se acortaron los resortes, se agrandó la letra y las etiquetas de las flechas pasan al hover cuando hay más de 12 relaciones.
+7. **Color de los rankings:** el de editores revertidos usaba el naranja de eswiki; se cambió al azul base.
+
+**Despliegue:**
+
+```bash
+PROJECT_ID=big-data-p2 ./deploy.sh   # crea el contenedor dashboard; Terraform genera DASHBOARD_PASSWORD
+```
+
+Verificación en la VM: se ingresó con la contraseña desde la IP autorizada. El Resumen mostró 4 horas procesadas automáticamente (19:00–22:00 UTC), 79,521 eventos acumulados y la página más disputada con 18 editores distintos.
+
 ---
 
 ## Pendientes
@@ -450,7 +495,7 @@ Resultado en la VM: las 12 operaciones se ejecutaron correctamente. La consulta 
 - [x] Cargas en MongoDB, Cassandra y Neo4j, y cálculo de KPIs.
 - [x] Scripts de creación de las bases.
 - [x] Operaciones CRUD de cada base (demostración).
-- [ ] Streamlit en el docker-compose.
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
-- [ ] Dashboard y página de CRUD.
+- [x] Dashboard en Streamlit (5 páginas) con página de CRUD, en local y en la VM.
+- [ ] Capturas del dashboard para el informe (cuando haya varios días de datos).
 - [ ] Informe PDF y video.
