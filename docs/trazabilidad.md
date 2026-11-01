@@ -611,6 +611,12 @@ Ajustes tras revisar las capturas:
 - Los selectores del Explorador ahora ocupan todo el ancho.
 - Se oculta la pastilla de cambio cuando el valor no cambió.
 
+**Despliegue en la VM:**
+
+- `./deploy.sh` construyó los contenedores `api` y `web`, y eliminó el contenedor `dashboard` (Streamlit) por quedar huérfano.
+- Sin sesión, `/api/resumen` responde 401.
+- Con la contraseña, el dashboard mostró 6 horas procesadas, 114,320 eventos acumulados y 0 errores en la consola del navegador.
+
 ---
 
 ## Pendientes
