@@ -6,66 +6,78 @@ import streamlit.components.v1 as components
 from pyvis.network import Network
 
 import data
-from style import OTRO, TIPO_EDITOR_COLOR, WIKI_COLOR, estilo
-
-st.title("Red de editores")
-st.caption("Fuente: Neo4j · nodos Editor, Pagina, Categoria y Wiki · relaciones entre editores derivadas del stream")
+import ui
+from style import OTRO, TIPO_EDITOR_COLOR, estilo
 
 conteo = data.conteo_grafo()
-c = st.columns(4)
-c[0].metric("Editores", f"{conteo['nodos']['Editor']:,}")
-c[1].metric("Páginas", f"{conteo['nodos']['Pagina']:,}")
-c[2].metric("Categorías", f"{conteo['nodos']['Categoria']:,}")
-c[3].metric("Relaciones EDITO", f"{conteo['relaciones']['EDITO']:,}")
-c = st.columns(4)
-c[0].metric("REVIRTIO", f"{conteo['relaciones']['REVIRTIO']:,}", help="Editor que revierte a otro editor")
-c[1].metric("MENSAJE_A", f"{conteo['relaciones']['MENSAJE_A']:,}", help="Edición en la página de discusión de otro usuario")
-c[2].metric("AGRADECIO", f"{conteo['relaciones']['AGRADECIO']:,}", help="Agradecimiento (log thanks)")
-c[3].metric("COEDITA", f"{conteo['relaciones']['COEDITA']:,}", help="Editores humanos que editaron las mismas páginas (derivada)")
+nodos, rels = conteo["nodos"], conteo["relaciones"]
+ui.hero("Grafo · Neo4j", "Red de editores",
+        "Quién edita qué y, sobre todo, quién interactúa con quién: reversiones, mensajes, agradecimientos y "
+        "bloqueos entre editores. Aquí aparecen los patrulleros, los vándalos y las páginas en disputa.",
+        [f"{sum(nodos.values()):,} nodos", f"{sum(rels.values()):,} relaciones", "11 tipos de relación"])
 
-st.divider()
+ui.seccion("Tamaño del grafo", "Conteos leídos de los contadores internos de Neo4j")
+ui.kpi_grid([
+    ui.kpi_card("Editores", f"{nodos['Editor']:,}", acento=ui.BLUE, sub="nodos :Editor"),
+    ui.kpi_card("Páginas", f"{nodos['Pagina']:,}", acento=ui.BLUE, sub="nodos :Pagina"),
+    ui.kpi_card("Categorías", f"{nodos['Categoria']:,}", acento=ui.BLUE, sub="nodos :Categoria"),
+    ui.kpi_card("Ediciones (EDITO)", f"{rels['EDITO']:,}", acento=ui.BLUE, sub="editor → página"),
+    ui.kpi_card("Reversiones", f"{rels['REVIRTIO']:,}", acento=ui.ORANGE, sub="pares editor → editor (REVIRTIO)"),
+    ui.kpi_card("Mensajes", f"{rels['MENSAJE_A']:,}", acento=ui.ORANGE, sub="avisos en discusión (MENSAJE_A)"),
+    ui.kpi_card("Agradecimientos", f"{rels['AGRADECIO']:,}", acento=ui.AQUA, sub="AGRADECIO"),
+    ui.kpi_card("Coedición", f"{rels['COEDITA']:,}", acento=ui.AQUA, sub="humanos con páginas en común"),
+])
 
 
-def barras(df, x, y, color, titulo_hover):
-    fig = go.Figure(go.Bar(x=df[x], y=df[y], orientation="h", marker_color=color, text=df[x],
-                           textposition="outside", cliponaxis=False,
-                           hovertemplate="%{y}<br>%{x} " + titulo_hover + "<extra></extra>"))
+def barras(df, x, titulo_hover):
+    """Barras horizontales coloreadas por tipo de editor (mismo código de color que el grafo)."""
+    colores = [TIPO_EDITOR_COLOR.get(t, OTRO) for t in df["tipo"]]
+    fig = go.Figure(go.Bar(x=df[x], y=df["editor"], orientation="h", marker=dict(color=colores, cornerradius=4),
+                           text=df[x], textposition="outside", cliponaxis=False, customdata=df["tipo"],
+                           hovertemplate="%{y} (%{customdata})<br>%{x} " + titulo_hover + "<extra></extra>"))
     fig.update_yaxes(autorange="reversed")
-    return estilo(fig, alto=360, leyenda=False)
+    fig.update_xaxes(showticklabels=False)
+    return estilo(fig, alto=380, leyenda=False)
 
 
+ui.seccion("Patrulla y vandalismo", "Rankings sobre la relación REVIRTIO · color = tipo de editor")
+ui.leyenda({"registrado": TIPO_EDITOR_COLOR["registrado"], "cuenta temporal": TIPO_EDITOR_COLOR["temporal"],
+            "bot": TIPO_EDITOR_COLOR["bot"]})
+rev, pat = data.ranking_revertidos(10), data.ranking_patrulleros(10)
 c1, c2 = st.columns(2)
-with c1:
-    st.subheader("Editores más revertidos")
-    rev = data.ranking_revertidos(10)
+with c1, st.container(border=True):
+    st.markdown("**Editores más revertidos** · posible vandalismo")
     if not rev.empty:
-        st.plotly_chart(barras(rev, "reversiones", "editor", WIKI_COLOR["enwiki"], "reversiones recibidas"),
-                        use_container_width=True)
-        st.caption("Posible vandalismo. La columna revertido_por cuenta patrulleros distintos.")
-        st.dataframe(rev, hide_index=True, use_container_width=True)
-with c2:
-    st.subheader("Patrulleros más activos")
-    pat = data.ranking_patrulleros(10)
+        st.plotly_chart(barras(rev, "reversiones", "reversiones recibidas"), use_container_width=True)
+        with st.expander("Ver tabla"):
+            st.dataframe(rev, hide_index=True, use_container_width=True)
+with c2, st.container(border=True):
+    st.markdown("**Patrulleros más activos** · editores y bots que revierten")
     if not pat.empty:
-        st.plotly_chart(barras(pat, "reversiones", "editor", WIKI_COLOR["enwiki"], "reversiones hechas"),
-                        use_container_width=True)
-        st.caption("Editores (y bots antivandalismo) que más revierten.")
-        st.dataframe(pat, hide_index=True, use_container_width=True)
+        st.plotly_chart(barras(pat, "reversiones", "reversiones hechas"), use_container_width=True)
+        with st.expander("Ver tabla"):
+            st.dataframe(pat, hide_index=True, use_container_width=True)
 
-st.subheader("Páginas más disputadas (últimas 24 h)")
+ui.seccion("Páginas más disputadas", "Editadas en las últimas 24 h · ordenadas por editores distintos en toda su historia")
 disp = data.paginas_disputadas(24, 15)
 if not disp.empty:
     st.dataframe(disp, hide_index=True, use_container_width=True,
-                 column_config={"editores": st.column_config.ProgressColumn(
-                     "editores distintos", min_value=0, max_value=int(disp["editores"].max()), format="%d")})
+                 column_config={
+                     "pagina": st.column_config.TextColumn("página", width="large"),
+                     "editores": st.column_config.ProgressColumn(
+                         "editores distintos", min_value=0, max_value=int(disp["editores"].max()), format="%d"),
+                     "humanos": st.column_config.NumberColumn("humanos"),
+                     "ediciones": st.column_config.NumberColumn("ediciones"),
+                 })
 
 # ---------------------------------------------------------------- vecindario de un editor
-st.divider()
-st.subheader("Conexiones de un editor")
+ui.seccion("Conexiones de un editor", "Vecindario en el grafo: REVIRTIO, MENSAJE_A, AGRADECIO, BLOQUEO y COEDITA")
 # Por defecto, el patrullero más activo: suele tener la red más rica (revierte y avisa a muchos editores).
 sugerido = pat["editor"].iloc[0] if not pat.empty else (rev["editor"].iloc[0] if not rev.empty else "")
-user = st.text_input("Editor (exacto)", value=sugerido)
-limite = st.slider("Máximo de relaciones", 10, 100, 25, step=5)
+with st.container(border=True):
+    k1, k2 = st.columns([2, 1])
+    user = k1.text_input("Editor (exacto)", value=sugerido)
+    limite = k2.slider("Máximo de relaciones", 10, 100, 25, step=5)
 if user:
     red = data.ego_red(user, limite)
     if red["centro"] is None:

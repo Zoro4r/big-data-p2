@@ -6,8 +6,8 @@ import plotly.graph_objects as go
 WIKI_COLOR = {"enwiki": "#2a78d6", "eswiki": "#eb6834"}
 TIPO_EDITOR_COLOR = {"registrado": "#2a78d6", "temporal": "#eb6834", "bot": "#1baf7a"}
 OTRO = "#898781"           # gris neutro: "otros", referencias
-GRID = "rgba(137,135,129,0.25)"
-FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+GRID = "rgba(148,163,184,0.22)"
+FONT = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif'
 
 
 def estilo(fig: go.Figure, alto: int = 340, leyenda: bool = True) -> go.Figure:
@@ -15,16 +15,16 @@ def estilo(fig: go.Figure, alto: int = 340, leyenda: bool = True) -> go.Figure:
     fig.update_layout(
         height=alto,
         margin=dict(l=8, r=8, t=36, b=8),
-        font=dict(family=FONT, size=13),
+        font=dict(family=FONT, size=13, color="#334155"),
         showlegend=leyenda,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, title=None),
-        hoverlabel=dict(font_family=FONT),
+        hoverlabel=dict(font_family=FONT, bgcolor="white", bordercolor="#e5e7eb"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         bargap=0.25,
     )
-    fig.update_xaxes(showgrid=False, linecolor=GRID, title=None)
-    fig.update_yaxes(gridcolor=GRID, zeroline=False, title=None)
+    fig.update_xaxes(showgrid=False, linecolor=GRID, title=None, tickfont=dict(color="#64748b"))
+    fig.update_yaxes(gridcolor=GRID, zeroline=False, title=None, tickfont=dict(color="#64748b"))
     return fig
 
 

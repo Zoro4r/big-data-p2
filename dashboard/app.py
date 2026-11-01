@@ -7,7 +7,10 @@ import os
 
 import streamlit as st
 
-st.set_page_config(page_title="Wikipedia en vivo · Big Data P2", page_icon="📊", layout="wide")
+import ui
+
+st.set_page_config(page_title="Wikipedia en vivo · Big Data P2", page_icon="📡", layout="wide")
+ui.aplicar_estilo()
 
 
 def acceso() -> bool:
@@ -15,7 +18,7 @@ def acceso() -> bool:
     clave = os.getenv("DASHBOARD_PASSWORD")
     if not clave or st.session_state.get("autenticado"):
         return True
-    st.title("Wikipedia en vivo")
+    ui.hero("Acceso", "Wikipedia en vivo", "Dashboard del Proyecto Grupal II de Big Data. Ingresa la contraseña del equipo.")
     intento = st.text_input("Contraseña del dashboard", type="password")
     if intento:
         if intento == clave:
@@ -26,6 +29,7 @@ def acceso() -> bool:
 
 
 if acceso():
+    ui.marca_sidebar()
     pages = st.navigation([
         st.Page("views/resumen.py", title="Resumen y KPIs", icon=":material/monitoring:", default=True),
         st.Page("views/actividad.py", title="Actividad en el tiempo", icon=":material/timeline:"),

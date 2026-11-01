@@ -6,11 +6,13 @@ import streamlit as st
 from pymongo.errors import DuplicateKeyError, WriteError
 
 import data
+import ui
 from wikipipe import crud
 
-st.title("Operaciones CRUD")
-st.caption("Crear, consultar, actualizar y eliminar en MongoDB, Cassandra y Neo4j. "
-           "Sugerencia para la demo: usar nombres que empiecen con «Demo_» y borrarlos al final.")
+ui.hero("Demostración · 3 bases", "Operaciones CRUD",
+        "Crear, consultar, actualizar y eliminar en MongoDB, Cassandra y Neo4j desde formularios. "
+        "Para la demo, usa nombres que empiecen con «Demo_» y bórralos al terminar.",
+        ["MongoDB · events", "Cassandra · actividad_editor", "Neo4j · Editor / relaciones"])
 
 
 def listo(resultado=None, mensaje="Operación realizada."):
