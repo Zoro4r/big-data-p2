@@ -536,6 +536,19 @@ Ajustes tras revisar capturas:
 
 Verificación: 0 excepciones en las 5 páginas (`AppTest`) y captura en la VM con datos reales. Por ejemplo, el 31 de octubre enwiki tuvo 93,288 eventos, un pico de 818 por minuto a las 19:18, 31.5% hechos por bots y 665 reversiones.
 
+### 17. Decisión: dashboard en React + shadcn/ui, con mockup previo
+
+Aun con el rediseño, el dashboard en Streamlit se veía poco profesional. shadcn/ui es una librería de React, así que no se puede integrar de verdad en Streamlit: el paquete comunitario `streamlit-shadcn-ui` muestra cada componente en un iframe y está poco mantenido.
+
+**Decisión** (aprobada): migrar el dashboard a **React + shadcn/ui + Recharts**, con una API en **FastAPI** que reutiliza las consultas actuales a las tres bases. El enunciado lo permite: "Streamlit o Dash (Python) u otro que crea conveniente".
+
+**Mockup previo en Claude Design** (lienzo privado del dueño del proyecto), con 4 pantallas: Resumen y KPIs, Actividad en el tiempo, Red de editores y Operaciones CRUD.
+
+- **Estilo:** neutros zinc de shadcn, tipografía Geist, tarjetas con borde fino y barra lateral clara.
+- **Colores de datos:** la paleta validada de la entrada 15.
+- **Datos:** reales, tomados de la VM el 31 de octubre de 2026. Por ejemplo, la hora 23:00 tuvo 18,606 eventos, con 41.43% de bots y 164 reversiones.
+- **Pendiente:** la pantalla "Explorador de eventos" no se incluyó en el mockup; se diseñará al implementar.
+
 ---
 
 ## Pendientes
@@ -548,6 +561,7 @@ Verificación: 0 excepciones en las 5 páginas (`AppTest`) y captura en la VM co
 - [x] Operaciones CRUD de cada base (demostración).
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [x] Dashboard en Streamlit (5 páginas) con página de CRUD, en local y en la VM.
+- [ ] Aprobar el mockup y migrar el dashboard a React + shadcn/ui + FastAPI.
 - [ ] Capturas del dashboard para el informe (cuando haya varios días de datos).
 - [x] Eliminar las reglas de firewall por defecto `default-allow-ssh` y `default-allow-rdp`.
 - [ ] Informe PDF y video.
