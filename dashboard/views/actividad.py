@@ -31,13 +31,13 @@ else:
     pico = m.loc[m["eventos"].idxmax()]
     ui.kpi_grid([
         ui.kpi_card("Eventos del día", f"{m['eventos'].sum():,}", serie=m.sort_values("minuto")["eventos"].tolist()[-120:],
-                    acento=WIKI_COLOR[wiki], sub=f"{len(m):,} minutos con datos"),
+                    acento=WIKI_COLOR[wiki], sub=f"{len(m):,} min con datos"),
         ui.kpi_card("Promedio por minuto", f"{m['eventos'].mean():,.0f}", acento=WIKI_COLOR[wiki],
                     sub=f"pico de {pico['eventos']:,} a las {pico['minuto']:%H:%M}"),
         ui.kpi_card("Hechos por bots", f"{100 * m['eventos_bot'].sum() / max(m['eventos'].sum(), 1):,.1f}%",
                     acento=ui.AQUA, sub=f"{m['eventos_bot'].sum():,} eventos"),
         ui.kpi_card("Reversiones", f"{m['reversiones'].sum():,}", acento=ui.ORANGE,
-                    serie=m.sort_values("minuto")["reversiones"].tolist()[-120:], sub="ediciones que revierten a otro"),
+                    serie=m.sort_values("minuto")["reversiones"].tolist()[-120:], sub="revierten a otro"),
     ])
     with st.container(border=True):
         ui.leyenda({"todos los eventos": WIKI_COLOR[wiki], "de bots": TIPO_EDITOR_COLOR["bot"]})
