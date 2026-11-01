@@ -9,3 +9,5 @@ data/
 *.tfstate
 *.tfstate.*
 .terraform.tfstate.lock.info
+web/node_modules/
+web/dist/
