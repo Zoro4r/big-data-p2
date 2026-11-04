@@ -617,6 +617,40 @@ Ajustes tras revisar las capturas:
 - Sin sesión, `/api/resumen` responde 401.
 - Con la contraseña, el dashboard mostró 6 horas procesadas, 114,320 eventos acumulados y 0 errores en la consola del navegador.
 
+### 19. Capa rápida (streaming): datos en segundos
+
+**Motivo:** hasta aquí el pipeline procesaba por lotes una vez por hora, y los datos llegaban a las bases y al dashboard con 3 a 60 minutos de atraso. La expectativa del equipo era ver la actividad casi en vivo: Wikipedia emite eventos cada pocos segundos (~4–5 por segundo entre enwiki y eswiki).
+
+**Decisión:** pasar a una **arquitectura Lambda** con dos capas:
+
+- **Capa rápida:** un servicio nuevo, `stream`, que corre 24/7.
+- **Capa por lotes:** el DAG de Airflow, que sigue cada hora con sus 6 etapas.
+
+Se descartó acortar el intervalo del DAG a 5–10 minutos: los agregados por hora y los KPIs asumen ventanas de una hora, y la latencia seguiría siendo de minutos.
+
+**Capa rápida** ([`src/wikipipe/streaming.py`](../src/wikipipe/streaming.py)):
+
+- Se conecta al stream sin `?since=` y no se desconecta.
+- Aplica la misma validación y los mismos campos derivados que el DAG (reutiliza `clean.validate` y `clean.derive`).
+- Cada ~2 s, o cada 200 eventos, guarda los eventos en MongoDB (`ReplaceOne` con `upsert` por `_id`) y reescribe en Cassandra (`eventos_por_minuto`) los contadores de los minutos que cambiaron.
+- Guarda un marcador del último evento leído en la colección `stream_state`. Al reiniciar o al cortarse la conexión, retoma desde ahí con el encabezado `Last-Event-ID` (si el marcador tiene menos de 24 h).
+- **Sin duplicados:** las dos capas usan el mismo `_id` (`meta.id`).
+- **La capa por lotes corrige a la rápida:** cada hora el DAG vuelve a extraer la hora completa y reescribe los contadores por minuto. Si la capa rápida perdió eventos por un reinicio, la hora queda exacta igual.
+- Corre como servicio `stream` del `docker-compose`, con la imagen de la API.
+
+**API y dashboard:**
+
+- Endpoint `/api/vivo`: contadores por minuto de los últimos 30 minutos (Cassandra), las 25 ediciones más recientes (MongoDB), eventos del último minuto y estado del streaming.
+- Página **"En vivo"**: se refresca cada 4 segundos. Muestra eventos por segundo, totales de 30 minutos, el pulso por minuto por wiki, y una lista de las últimas ediciones que resalta las nuevas y marca bots y reversiones.
+
+**Pruebas:**
+
+- 2 pruebas nuevas (`tests/test_streaming.py`): filtro y enriquecimiento de eventos, y contadores por minuto. En total, 10 pruebas pasando.
+- En local, el último evento guardado tenía 1.4 s de antigüedad.
+- En la VM, después de `./deploy.sh`, 2 s de antigüedad y ~4 eventos por segundo.
+
+**Otro cambio:** en el equipo local, el puerto 8000 lo usaba otro proyecto, así que la API de este proyecto se publica en `127.0.0.1:8010`. El proxy de Vite se actualizó; la VM no cambia.
+
 ---
 
 ## Pendientes
