@@ -651,6 +651,23 @@ Se descartó acortar el intervalo del DAG a 5–10 minutos: los agregados por ho
 
 **Otro cambio:** en el equipo local, el puerto 8000 lo usaba otro proyecto, así que la API de este proyecto se publica en `127.0.0.1:8010`. El proxy de Vite se actualizó; la VM no cambia.
 
+### 20. Cabecera común en el dashboard y dos correcciones de despliegue
+
+**Cabecera homogénea:** cada vista armaba su cabecera a su manera, con filtros, etiquetas propias y el estado en formatos distintos. Ahora todas comparten la misma estructura:
+
+- **A la izquierda:** la ruta (Panel / Vista).
+- **Al centro:** solo los filtros de la vista, todos de 32 px de alto. Hay filtros en Resumen y en Actividad.
+- **A la derecha:** la misma pastilla de estado en todas las vistas: "● En vivo · hace N s | Lote <hora> UTC". Combina la capa rápida (último evento guardado por el streaming) y la capa por lotes (última hora consolidada por el DAG).
+
+Detalles de implementación:
+
+- Nuevo endpoint liviano `/api/estado`: 1 fila de Cassandra y 1 documento de MongoDB. El frontend lo consulta cada 10 s desde un contexto compartido (`web/src/lib/estado.tsx`).
+- Las etiquetas propias de cada vista pasaron a su descripción. La advertencia del CRUD ("Estas operaciones escriben en las bases de producción") quedó como aviso bajo el título.
+
+**Corrección 1: código nuevo que no se aplicaba.** La API y el streaming leen el código desde volúmenes montados, así que un despliegue sin cambios en el `docker-compose` no los reiniciaba y seguían con el código anterior. Ahora `infra/startup.sh` ejecuta `docker compose restart api stream` después de levantar todo.
+
+**Corrección 2: error 502 después de reiniciar la API.** nginx resolvía la dirección del contenedor `api` una sola vez, al arrancar. Cuando la API se reinició y cambió de IP, el dashboard respondió 502; se restauró reiniciando nginx. Solución de fondo en `web/nginx.conf`: `resolver 127.0.0.11 valid=10s` y `proxy_pass` con variable, para que nginx vuelva a resolver la dirección cada 10 s. Se verificó reiniciando la API en local y desplegando en la VM: el dashboard y la API siguieron respondiendo 200.
+
 ---
 
 ## Pendientes
