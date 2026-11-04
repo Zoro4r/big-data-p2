@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { UserRound } from "lucide-react"
 
@@ -10,26 +10,27 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useApi } from "@/lib/api"
-import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
+import { useWiki } from "@/lib/estado"
+import { COLOR, colorTipo, colorWiki, entero, horaUTC } from "@/lib/format"
 
 interface Actividad {
   fecha: string
   fechas: string[]
   minutos: { t: string; eventos: number; eventos_bot: number; reversiones: number }[]
   horas: { hora: number; eventos: number; eventos_bot: number; eventos_humanos: number; reversiones: number }[]
-  top: { hora: number; posicion: number; pagina: string; ediciones: number; editores: number; delta_bytes: number }[]
+  top: { hora: number; posicion: number; wiki: string; pagina: string; ediciones: number; editores: number; delta_bytes: number }[]
 }
 interface FilaEditor { fecha: string; hora: number; wiki: string; tipo_editor: string; eventos: number; ediciones: number; reversiones_hechas: number; reversiones_recibidas: number }
 
 export default function ActividadPage() {
-  const [wiki, setWiki] = useState("enwiki")
+  const { wiki, etiqueta } = useWiki()
   const [fecha, setFecha] = useState<string | null>(null)
   const [hora, setHora] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState("")
   const [editor, setEditor] = useState<string | null>(null)
   const { data } = useApi<Actividad>(`/api/actividad?wiki=${wiki}${fecha ? `&fecha=${fecha}` : ""}`)
+  useEffect(() => setHora(null), [wiki, fecha])
   const historial = useApi<FilaEditor[]>(editor ? `/api/editor/${encodeURIComponent(editor)}` : null)
 
   const tot = useMemo(() => {
@@ -62,17 +63,17 @@ export default function ActividadPage() {
 
   return (
     <>
-      <Header ruta={["Panel", "Actividad en el tiempo"]}>
-        <ToggleGroup type="single" value={wiki} onValueChange={(v) => { if (v) { setWiki(v); setHora(null) } }} variant="outline" size="sm" aria-label="Wiki">
-          <ToggleGroupItem value="enwiki" className="px-3">enwiki</ToggleGroupItem>
-          <ToggleGroupItem value="eswiki" className="px-3">eswiki</ToggleGroupItem>
-        </ToggleGroup>
-        <Select value={data?.fecha ?? ""} onValueChange={(v) => { setFecha(v); setHora(null) }}>
-          <SelectTrigger size="sm" className="w-40" aria-label="Fecha (UTC)"><SelectValue placeholder="Fecha" /></SelectTrigger>
-          <SelectContent>{(data?.fechas ?? []).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-        </Select>
-      </Header>
-      <Pagina titulo="Actividad en el tiempo" descripcion={`Pulso de ${wiki} el ${data?.fecha ?? "…"} (UTC). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}>
+      <Header ruta={["Panel", "Actividad en el tiempo"]} />
+      <Pagina titulo="Actividad en el tiempo" descripcion={`Pulso de ${etiqueta} el ${data?.fecha ?? "…"} (UTC). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}
+        acciones={
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Día (UTC)</span>
+            <Select value={data?.fecha ?? ""} onValueChange={setFecha}>
+              <SelectTrigger className="w-40" aria-label="Día (UTC)"><SelectValue placeholder="Fecha" /></SelectTrigger>
+              <SelectContent>{(data?.fechas ?? []).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        }>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
@@ -84,7 +85,7 @@ export default function ActividadPage() {
           )}
         </div>
 
-        <Seccion titulo="Humanos y bots por hora" descripcion={`Eventos de ${wiki} · Cassandra resumen_por_hora`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
+        <Seccion titulo="Humanos y bots por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%">
@@ -107,7 +108,7 @@ export default function ActividadPage() {
                 <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="#71717a" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="#71717a" />
                 <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Line type="monotone" dataKey="eventos" name="eventos" stroke={COLOR[wiki as "enwiki"]} strokeWidth={1.5} dot={false} />
+                <Line type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -127,7 +128,7 @@ export default function ActividadPage() {
                 {top.map((p) => (
                   <div key={p.posicion} className="grid grid-cols-[22px_minmax(0,1fr)] items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground">{p.posicion}</span>
-                    <FilaBarra nombre={p.pagina} valor={p.editores} max={top[0]?.editores ?? 1} color={COLOR[wiki as "enwiki"]} />
+                    <FilaBarra nombre={p.pagina} valor={p.editores} max={top[0]?.editores ?? 1} color={colorWiki(p.wiki)} />
                   </div>
                 ))}
               </div>

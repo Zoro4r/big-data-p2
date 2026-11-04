@@ -6,6 +6,7 @@ import { Cargando, Leyenda, Seccion, TarjetaKpi } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { api } from "@/lib/api"
+import { useWiki } from "@/lib/estado"
 import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -30,14 +31,16 @@ export default function VivoPage() {
   const [data, setData] = useState<Vivo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reloj, setReloj] = useState(Date.now())
+  const { wiki, wikis, etiqueta } = useWiki()
   const vistos = useRef<Set<string>>(new Set())
   const [nuevos, setNuevos] = useState<Set<string>>(new Set())
 
   // Consulta la API cada pocos segundos mientras la página está abierta.
   useEffect(() => {
     let vigente = true
+    vistos.current = new Set()  // al cambiar de wiki no se resaltan como nuevas las ya existentes
     const cargar = () =>
-      api<Vivo>("/api/vivo?minutos=30")
+      api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
         .then((d) => {
           if (!vigente) return
           const frescos = new Set(d.ultimos.filter((e) => vistos.current.size > 0 && !vistos.current.has(e._id)).map((e) => e._id))
@@ -51,7 +54,7 @@ export default function VivoPage() {
     const t = setInterval(cargar, REFRESCO_MS)
     const r = setInterval(() => setReloj(Date.now()), 1000)
     return () => { vigente = false; clearInterval(t); clearInterval(r) }
-  }, [])
+  }, [wiki])
 
   const serie = useMemo(() => {
     const m = new Map<string, { t: string; enwiki: number; eswiki: number }>()
@@ -78,14 +81,14 @@ export default function VivoPage() {
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
               <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} fuente="MongoDB · events" />
-              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie="eventos de enwiki y eswiki" fuente="Cassandra · eventos_por_minuto" />
+              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie={`eventos de ${etiqueta}`} fuente="Cassandra · eventos_por_minuto" />
               <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} fuente="Cassandra · eventos_por_minuto" />
               <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" fuente="Cassandra · eventos_por_minuto" />
             </>
           )}
         </div>
 
-        <Seccion titulo="Pulso por minuto" descripcion="Últimos 30 minutos · el minuto en curso todavía se está llenando" accion={<Leyenda items={[{ nombre: "enwiki", color: COLOR.enwiki }, { nombre: "eswiki", color: COLOR.eswiki }]} />}>
+        <Seccion titulo="Pulso por minuto" descripcion="Últimos 30 minutos · el minuto en curso todavía se está llenando" accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
           {!data ? <Cargando alto={240} /> : (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={serie} margin={{ left: 0, right: 8, top: 8 }}>
@@ -93,8 +96,8 @@ export default function VivoPage() {
                 <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="#71717a" />
                 <YAxis tickLine={false} axisLine={false} width={40} fontSize={11} stroke="#71717a" />
                 <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Area type="monotone" dataKey="enwiki" stackId="a" stroke={COLOR.enwiki} fill={COLOR.enwiki} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />
-                <Area type="monotone" dataKey="eswiki" stackId="a" stroke={COLOR.eswiki} fill={COLOR.eswiki} fillOpacity={0.25} strokeWidth={2} isAnimationActive={false} />
+                {wikis.includes("enwiki") && <Area type="monotone" dataKey="enwiki" stackId="a" stroke={COLOR.enwiki} fill={COLOR.enwiki} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />}
+                {wikis.includes("eswiki") && <Area type="monotone" dataKey="eswiki" stackId="a" stroke={COLOR.eswiki} fill={COLOR.eswiki} fillOpacity={0.25} strokeWidth={2} isAnimationActive={false} />}
               </AreaChart>
             </ResponsiveContainer>
           )}

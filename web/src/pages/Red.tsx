@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
+import { useWiki } from "@/lib/estado"
 import { COLOR, colorTipo, entero } from "@/lib/format"
 
 interface Ranking { editor: string; tipo: string; reversiones: number }
@@ -35,7 +36,8 @@ function useAncho<T extends HTMLElement>() {
 }
 
 export default function RedPage() {
-  const { data } = useApi<Red>("/api/red")
+  const { wiki, etiqueta } = useWiki()
+  const { data } = useApi<Red>(`/api/red?wiki=${wiki}`)
   const [busqueda, setBusqueda] = useState("")
   const [usuario, setUsuario] = useState<string | null>(null)
   const centro = usuario ?? data?.patrulleros[0]?.editor ?? null
@@ -74,7 +76,7 @@ export default function RedPage() {
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           {!c ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : (
             <>
-              <TarjetaKpi etiqueta="Editores" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente="(:Editor) · (:Pagina) · (:Categoria)" />
+              <TarjetaKpi etiqueta="Editores" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente="Totales del grafo (ambas wikis)" />
               <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} fuente="-[:EDITO]-> · -[:CREO]->" />
               <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} fuente="-[:REVIRTIO]-> · -[:MENSAJE_A]->" />
               <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} fuente="-[:COEDITA]- · -[:AGRADECIO]->" />
@@ -143,7 +145,7 @@ export default function RedPage() {
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Seccion titulo="Editores más revertidos" descripcion="Reversiones recibidas · posible vandalismo">
+          <Seccion titulo="Editores más revertidos" descripcion={`Reversiones recibidas en ${etiqueta} · posible vandalismo`}>
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
                 {data.revertidos.map((r) => (
@@ -154,7 +156,7 @@ export default function RedPage() {
               </div>
             )}
           </Seccion>
-          <Seccion titulo="Patrulleros más activos" descripcion="Reversiones hechas · humanos y bots antivandalismo">
+          <Seccion titulo="Patrulleros más activos" descripcion={`Reversiones hechas en ${etiqueta} · humanos y bots antivandalismo`}>
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
                 {data.patrulleros.map((r) => (
@@ -167,7 +169,7 @@ export default function RedPage() {
           </Seccion>
         </div>
 
-        <Seccion titulo="Páginas más disputadas" descripcion="Editadas en las últimas 24 h · ordenadas por editores distintos en toda su historia">
+        <Seccion titulo="Páginas más disputadas" descripcion={`${etiqueta} · editadas en las últimas 24 h · ordenadas por editores distintos en toda su historia`}>
           {!data ? <Cargando alto={260} /> : (
             <Table>
               <TableHeader><TableRow><TableHead>Página</TableHead><TableHead>Wiki</TableHead><TableHead className="w-[30%]">Editores distintos</TableHead><TableHead className="text-right">Humanos</TableHead><TableHead className="text-right">Ediciones</TableHead></TableRow></TableHeader>

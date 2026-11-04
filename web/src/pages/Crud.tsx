@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { CheckCircle2, Copy, XCircle } from "lucide-react"
 import { toast } from "sonner"
 
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { api } from "@/lib/api"
+import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
 
 type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO"
@@ -62,7 +63,7 @@ export default function CrudPage() {
   const enviarMongo = (e: FormEvent) => {
     e.preventDefault()
     const id = encodeURIComponent(m.id)
-    if (mOp === "Crear") ejecutar("CREATE", "MongoDB · events", m.id, () => api("/api/crud/mongo", { method: "POST", body: JSON.stringify({ _id: m.id, titulo: m.titulo, editor: m.editor, comentario: m.comentario }) }))
+    if (mOp === "Crear") ejecutar("CREATE", "MongoDB · events", m.id, () => api("/api/crud/mongo", { method: "POST", body: JSON.stringify({ _id: m.id, titulo: m.titulo, editor: m.editor, comentario: m.comentario, wiki: wikiForm }) }))
     if (mOp === "Consultar") ejecutar("READ", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`))
     if (mOp === "Actualizar") ejecutar("UPDATE", "MongoDB · events", `${m.id} · ${m.campo}`, () => api(`/api/crud/mongo/${id}`, { method: "PATCH", body: JSON.stringify({ campo: m.campo, valor: m.valor }) }))
     if (mOp === "Eliminar") ejecutar("DELETE", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`, { method: "DELETE" }))
@@ -70,7 +71,10 @@ export default function CrudPage() {
 
   // ---------------------------------------------------------------- Cassandra
   const [cOp, setCOp] = useState("Insertar")
-  const [c, setC] = useState({ editor: "Demo_Editor", fecha: hoy(), hora: String(new Date().getUTCHours()), wiki: "enwiki", eventos: "10", ediciones: "8" })
+  const { wiki } = useWiki()
+  const wikiForm = wiki === "ambas" ? "enwiki" : wiki  // con "Ambas" en la cabecera, los formularios usan enwiki
+  const [c, setC] = useState({ editor: "Demo_Editor", fecha: hoy(), hora: String(new Date().getUTCHours()), wiki: wikiForm as string, eventos: "10", ediciones: "8" })
+  useEffect(() => setC((x) => ({ ...x, wiki: wikiForm })), [wikiForm])
   const filaC = () => ({ editor: c.editor, fecha: c.fecha, hora: Number(c.hora), wiki: c.wiki, eventos: Number(c.eventos), ediciones: Number(c.ediciones) })
   const enviarCassandra = (e: FormEvent) => {
     e.preventDefault()
@@ -113,7 +117,7 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" descripcion="insert_one · find_one · update_one ($set) · delete_one">
+              <Seccion titulo="Colección events" descripcion={`insert_one · find_one · update_one ($set) · delete_one · wiki del documento: ${wikiForm}`}>
                 <form onSubmit={enviarMongo} className="flex flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   <Campo id="m-id" label="_id"><Input id="m-id" className="font-mono text-xs" value={m.id} onChange={(e) => setM({ ...m, id: e.target.value })} /></Campo>

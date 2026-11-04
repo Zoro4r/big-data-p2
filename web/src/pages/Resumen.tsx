@@ -7,9 +7,9 @@ import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useApi } from "@/lib/api"
-import { COLOR, entero, horaUTC } from "@/lib/format"
+import { useWiki } from "@/lib/estado"
+import { COLOR, colorWiki, entero, horaUTC } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
@@ -45,7 +45,7 @@ function TooltipChart({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 export default function ResumenPage() {
-  const [wiki, setWiki] = useState("enwiki")
+  const { wiki, wikis, etiqueta } = useWiki()
   const [kpiElegido, setKpiElegido] = useState<Kpi>("tasa_automatizacion_pct")
   const { data, cargando } = useApi<Resumen>("/api/resumen")
   const serie = useApi<Serie10>(`/api/serie10?wiki=${wiki}`)
@@ -54,7 +54,7 @@ export default function ResumenPage() {
   const porHora = useMemo(() => {
     if (!data) return []
     const m = new Map<string, { hora: string; eventos: number; bots: number; rev: number }>()
-    for (const h of data.horas) {
+    for (const h of data.horas.filter((x) => wikis.includes(x.wiki))) {
       const f = m.get(h.hora_utc) ?? { hora: h.hora_utc, eventos: 0, bots: 0, rev: 0 }
       f.eventos += h.eventos; f.bots += h.eventos_bot; f.rev += h.reversiones
       m.set(h.hora_utc, f)
@@ -62,7 +62,7 @@ export default function ResumenPage() {
     const calidad = new Map(data.ejecuciones.map((e) => [e.ventana.slice(0, 13), e]))
     return [...m.values()].sort((a, b) => b.hora.localeCompare(a.hora)).slice(0, 8)
       .map((f) => ({ ...f, ejec: calidad.get(f.hora.slice(0, 13)) }))
-  }, [data])
+  }, [data, wikis])
 
   const evolucion = useMemo(
     () => (data?.kpis[kpiElegido] ?? []).filter((p) => p.valor != null).slice().reverse(),
@@ -71,13 +71,8 @@ export default function ResumenPage() {
 
   return (
     <>
-      <Header ruta={["Panel", "Resumen"]}>
-        <ToggleGroup type="single" value={wiki} onValueChange={(v) => v && setWiki(v)} variant="outline" size="sm" aria-label="Wiki del gráfico">
-          <ToggleGroupItem value="enwiki" className="px-3">enwiki</ToggleGroupItem>
-          <ToggleGroupItem value="eswiki" className="px-3">eswiki</ToggleGroupItem>
-        </ToggleGroup>
-      </Header>
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de enwiki y eswiki en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior.` : "Cargando…"}>
+      <Header ruta={["Panel", "Resumen"]} />
+      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de enwiki y eswiki en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Los KPIs se calculan sobre ambas wikis; el filtro de wiki aplica al ritmo de ediciones y a las ejecuciones.` : "Cargando…"}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
@@ -88,21 +83,21 @@ export default function ResumenPage() {
               ))}
         </div>
 
-        <Seccion titulo={`Ritmo de ediciones en ${wiki}`} descripcion={`Eventos cada 10 minutos · ${serie.data?.fecha ?? ""} UTC · Cassandra eventos_por_minuto`}>
+        <Seccion titulo={`Ritmo de ediciones · ${etiqueta}`} descripcion={`Eventos cada 10 minutos · ${serie.data?.fecha ?? ""} UTC · Cassandra eventos_por_minuto`}>
           {!serie.data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={serie.data.serie} margin={{ left: 0, right: 8, top: 8 }}>
                 <defs>
                   <linearGradient id="relleno" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COLOR[wiki as "enwiki"]} stopOpacity={0.22} />
-                    <stop offset="100%" stopColor={COLOR[wiki as "enwiki"]} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={colorWiki(wiki)} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={colorWiki(wiki)} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="#f4f4f5" />
                 <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="#71717a" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="#71717a" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip content={<TooltipChart />} />
-                <Area type="monotone" dataKey="eventos" name="eventos" stroke={COLOR[wiki as "enwiki"]} strokeWidth={2} fill="url(#relleno)" />
+                <Area type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={2} fill="url(#relleno)" />
                 <Area type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} fill="none" />
               </AreaChart>
             </ResponsiveContainer>
@@ -136,7 +131,7 @@ export default function ResumenPage() {
             )}
           </Seccion>
 
-          <Seccion className="lg:col-span-3" titulo="Ejecuciones del pipeline" descripcion="Una fila por hora procesada por el DAG · Cassandra resumen_por_hora y ejecuciones">
+          <Seccion className="lg:col-span-3" titulo="Ejecuciones del pipeline" descripcion={`Una fila por hora procesada por el DAG · ${etiqueta} · Cassandra resumen_por_hora y ejecuciones`}>
             {!data ? <Cargando alto={200} /> : (
               <Table>
                 <TableHeader>

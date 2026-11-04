@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
+import { useWiki } from "@/lib/estado"
 import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -20,10 +21,11 @@ interface Respuesta { total: number; tipos: { wiki: string; tipo: string; evento
 const NOMBRE_TIPO: Record<string, string> = { edit: "Ediciones", categorize: "Categorizaciones", log: "Acciones de registro", new: "Páginas nuevas" }
 
 export default function ExploradorPage() {
-  const [form, setForm] = useState({ wiki: "todas", tipo: "todos", editor: "", titulo: "", solo: false })
+  const { wiki, wikis, etiqueta } = useWiki()
+  const [form, setForm] = useState({ tipo: "todos", editor: "", titulo: "", solo: false })
   const [filtro, setFiltro] = useState(form)
   const [elegido, setElegido] = useState<string | null>(null)
-  const qs = new URLSearchParams({ wiki: filtro.wiki, tipo: filtro.tipo, editor: filtro.editor, titulo: filtro.titulo, solo_reversiones: String(filtro.solo), limite: "60" })
+  const qs = new URLSearchParams({ wiki, tipo: filtro.tipo, editor: filtro.editor, titulo: filtro.titulo, solo_reversiones: String(filtro.solo), limite: "60" })
   const { data, cargando } = useApi<Respuesta>(`/api/eventos?${qs}`)
   const doc = useApi<Record<string, unknown>>(elegido ? `/api/eventos/${encodeURIComponent(elegido)}` : null)
 
@@ -31,6 +33,7 @@ export default function ExploradorPage() {
     const m = new Map<string, { tipo: string; enwiki: number; eswiki: number; total: number }>()
     for (const t of data?.tipos ?? []) {
       const f = m.get(t.tipo) ?? { tipo: NOMBRE_TIPO[t.tipo] ?? t.tipo, enwiki: 0, eswiki: 0, total: 0 }
+      if (!wikis.includes(t.wiki)) continue
       if (t.wiki === "enwiki" || t.wiki === "eswiki") f[t.wiki] += t.eventos
       f.total += t.eventos
       m.set(t.tipo, f)
@@ -55,29 +58,22 @@ export default function ExploradorPage() {
           ))}
         </div>
 
-        <Seccion titulo="Eventos por tipo y wiki" descripcion="Últimas 24 horas · agregación $group en MongoDB" accion={<Leyenda items={[{ nombre: "enwiki", color: COLOR.enwiki }, { nombre: "eswiki", color: COLOR.eswiki }]} />}>
+        <Seccion titulo="Eventos por tipo y wiki" descripcion={`Últimas 24 horas · ${etiqueta} · agregación $group en MongoDB`} accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
           {!data ? <Cargando alto={240} /> : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={porTipo} margin={{ top: 20, left: 0, right: 8 }} barGap={4}>
                 <CartesianGrid vertical={false} stroke="#f4f4f5" />
                 <XAxis dataKey="tipo" tickLine={false} axisLine={false} fontSize={12} stroke="#71717a" />
                 <Tooltip cursor={{ fill: "#f4f4f5" }} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="enwiki" fill={COLOR.enwiki} radius={[5, 5, 0, 0]}><LabelList dataKey="enwiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>
-                <Bar dataKey="eswiki" fill={COLOR.eswiki} radius={[5, 5, 0, 0]}><LabelList dataKey="eswiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>
+                {wikis.includes("enwiki") && <Bar dataKey="enwiki" fill={COLOR.enwiki} radius={[5, 5, 0, 0]}><LabelList dataKey="enwiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>}
+                {wikis.includes("eswiki") && <Bar dataKey="eswiki" fill={COLOR.eswiki} radius={[5, 5, 0, 0]}><LabelList dataKey="eswiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>}
               </BarChart>
             </ResponsiveContainer>
           )}
         </Seccion>
 
         <Seccion titulo="Buscar eventos" descripcion="find() con filtros, ordenado por fecha descendente (índice por_wiki_tipo_fecha)">
-          <form onSubmit={aplicar} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end">
-            <div className="flex flex-col gap-1.5">
-              <Label>Wiki</Label>
-              <Select value={form.wiki} onValueChange={(v) => setForm({ ...form, wiki: v })}>
-                <SelectTrigger className="w-full" aria-label="Wiki"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="todas">Todas</SelectItem><SelectItem value="enwiki">enwiki</SelectItem><SelectItem value="eswiki">eswiki</SelectItem></SelectContent>
-              </Select>
-            </div>
+          <form onSubmit={aplicar} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
             <div className="flex flex-col gap-1.5">
               <Label>Tipo</Label>
               <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v })}>

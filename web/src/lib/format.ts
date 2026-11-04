@@ -41,6 +41,11 @@ export const COLOR = {
   otro: "#a1a1aa",
 } as const
 
+/** Color de la serie según la wiki elegida; "ambas" usa un gris neutro para no confundirse con una wiki. */
+export function colorWiki(wiki: string): string {
+  return wiki === "enwiki" ? COLOR.enwiki : wiki === "eswiki" ? COLOR.eswiki : "#52525b"
+}
+
 export function colorTipo(tipo: string | null | undefined): string {
   return (tipo && (COLOR as Record<string, string>)[tipo]) || COLOR.otro
 }

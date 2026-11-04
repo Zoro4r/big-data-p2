@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { Activity, ChartLine, Database, LayoutDashboard, Radio, Search, Share2 } from "lucide-react"
 
-import { useEstado } from "@/lib/estado"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useEstado, useWiki, type Wiki } from "@/lib/estado"
 import { horaUTC } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -101,8 +102,20 @@ function EstadoPipeline() {
   )
 }
 
-/** Cabecera común: ruta a la izquierda, filtros de la vista (opcionales) y estado del pipeline a la derecha. */
-export function Header({ ruta, children }: { ruta: [string, string]; children?: ReactNode }) {
+/** Filtro global de wiki: el mismo en todas las vistas y recordado al navegar. */
+function FiltroWiki() {
+  const { wiki, setWiki } = useWiki()
+  return (
+    <ToggleGroup type="single" value={wiki} onValueChange={(v) => v && setWiki(v as Wiki)} variant="outline" size="sm" aria-label="Wiki">
+      <ToggleGroupItem value="ambas" className="px-3">Ambas</ToggleGroupItem>
+      <ToggleGroupItem value="enwiki" className="px-3">enwiki</ToggleGroupItem>
+      <ToggleGroupItem value="eswiki" className="px-3">eswiki</ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
+
+/** Cabecera estándar de todas las vistas: ruta, filtro global de wiki y estado del pipeline. */
+export function Header({ ruta }: { ruta: [string, string] }) {
   return (
     <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-6 py-3 md:px-8">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -111,20 +124,24 @@ export function Header({ ruta, children }: { ruta: [string, string]; children?: 
         <span className="font-medium text-foreground">{ruta[1]}</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {children}
+        <FiltroWiki />
         <EstadoPipeline />
       </div>
     </header>
   )
 }
 
-export function Pagina({ titulo, descripcion, aviso, children }: { titulo: string; descripcion: ReactNode; aviso?: ReactNode; children: ReactNode }) {
+export function Pagina(props: { titulo: string; descripcion: ReactNode; aviso?: ReactNode; acciones?: ReactNode; children: ReactNode }) {
+  const { titulo, descripcion, aviso, acciones, children } = props
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-6 pt-7 pb-12 md:px-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[26px] font-semibold tracking-tight">{titulo}</h1>
-        <p className="text-sm text-muted-foreground">{descripcion}</p>
-        {aviso && <p className="mt-2 w-fit rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[13px] text-amber-900">{aviso}</p>}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex max-w-3xl flex-col gap-1">
+          <h1 className="text-[26px] font-semibold tracking-tight">{titulo}</h1>
+          <p className="text-sm text-muted-foreground">{descripcion}</p>
+          {aviso && <p className="mt-2 w-fit rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[13px] text-amber-900">{aviso}</p>}
+        </div>
+        {acciones && <div className="flex items-center gap-2">{acciones}</div>}
       </div>
       {children}
     </div>
