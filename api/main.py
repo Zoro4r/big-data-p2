@@ -74,6 +74,11 @@ def resumen():
             "total": q.total_eventos()}
 
 
+@app.get("/api/vivo")
+def vivo(minutos: int = 30):
+    return q.vivo(min(max(minutos, 5), 120))
+
+
 @app.get("/api/serie10")
 def serie10(wiki: str = "enwiki", fecha: date | None = None):
     fechas = q.fechas_con_datos()

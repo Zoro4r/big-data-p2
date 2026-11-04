@@ -195,6 +195,46 @@ def documento(event_id: str) -> dict | None:
     return mongo_db().events.find_one({"_id": event_id})
 
 
+# ---------------------------------------------------------------- En vivo (capa rápida)
+
+
+def vivo(minutos: int = 30) -> dict:
+    """Actividad de los últimos minutos escrita por el servicio de streaming (sin caché)."""
+    ahora = datetime.now(timezone.utc)
+    s, por_minuto = cassandra(), []
+    for wiki in sorted(config.WIKIS):
+        filas = []
+        for f in (ahora.date(), ahora.date() - timedelta(days=1)):  # el día anterior, si cruzó la medianoche
+            if len(filas) >= minutos:
+                break
+            filas += list(s.execute("SELECT * FROM eventos_por_minuto WHERE wiki = %s AND fecha = %s LIMIT %s",
+                                    (wiki, f, minutos - len(filas))))
+        por_minuto += [{"wiki": wiki, "t": r.minuto.replace(tzinfo=timezone.utc).isoformat(), "eventos": r.eventos,
+                        "ediciones": r.ediciones, "eventos_bot": r.eventos_bot, "reversiones": r.reversiones}
+                       for r in filas]
+    db = mongo_db()
+    hace_un_minuto = ahora - timedelta(seconds=60)
+    ultimos = db.events.find({}, {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}) \
+        .sort("derived.event_dt", -1).limit(25)
+    estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
+    return {
+        "ahora": ahora.isoformat(),
+        "eventos_ultimo_minuto": db.events.count_documents({"derived.event_dt": {"$gte": hace_un_minuto}}),
+        "por_minuto": sorted(por_minuto, key=lambda x: x["t"]),
+        "ultimos": [{
+            "_id": d["_id"], "fecha": d["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat(),
+            "wiki": d["wiki"], "tipo": d["type"], "titulo": d["title"], "editor": d["user"],
+            "tipo_editor": d["derived"].get("user_type"), "delta_bytes": d["derived"].get("delta_bytes"),
+            "revierte_a": d["derived"].get("revert_target"),
+        } for d in ultimos],
+        "stream": {
+            "ultimo_evento": estado.get("last_dt"),
+            "actualizado": estado["updated_at"].replace(tzinfo=timezone.utc).isoformat() if estado.get("updated_at") else None,
+            "stats": estado.get("stats"),
+        },
+    }
+
+
 # ---------------------------------------------------------------- Neo4j
 
 
