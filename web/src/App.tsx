@@ -12,6 +12,7 @@ import { horaUTC } from "@/lib/format"
 
 // Cada página se descarga solo cuando se abre (el grafo y los gráficos pesan).
 const Resumen = lazy(() => import("@/pages/Resumen"))
+const Vivo = lazy(() => import("@/pages/Vivo"))
 const Actividad = lazy(() => import("@/pages/Actividad"))
 const Explorador = lazy(() => import("@/pages/Explorador"))
 const Red = lazy(() => import("@/pages/Red"))
@@ -63,6 +64,7 @@ function Dashboard() {
         <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<Resumen />} />
+          <Route path="/vivo" element={<Vivo />} />
           <Route path="/actividad" element={<Actividad />} />
           <Route path="/explorador" element={<Explorador />} />
           <Route path="/red" element={<Red />} />

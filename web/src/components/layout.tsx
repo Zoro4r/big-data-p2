@@ -1,11 +1,12 @@
 import type { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { Activity, ChartLine, Database, LayoutDashboard, Search, Share2 } from "lucide-react"
+import { Activity, ChartLine, Database, LayoutDashboard, Radio, Search, Share2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
 const PANEL = [
   { to: "/", label: "Resumen y KPIs", icon: LayoutDashboard },
+  { to: "/vivo", label: "En vivo", icon: Radio },
   { to: "/actividad", label: "Actividad en el tiempo", icon: ChartLine },
   { to: "/explorador", label: "Explorador de eventos", icon: Search },
   { to: "/red", label: "Red de editores", icon: Share2 },
@@ -55,7 +56,8 @@ export function Sidebar({ ultimaHora }: { ultimaHora?: string }) {
           </span>
           Pipeline activo
         </div>
-        <span className="text-xs text-muted-foreground">DAG horario · última hora {ultimaHora ?? "—"} UTC</span>
+        <span className="text-xs text-muted-foreground">Streaming en vivo + DAG horario</span>
+        <span className="text-xs text-muted-foreground">Última hora consolidada: {ultimaHora ?? "—"} UTC</span>
         <span className="text-xs text-muted-foreground">MongoDB · Cassandra · Neo4j</span>
       </div>
     </aside>
