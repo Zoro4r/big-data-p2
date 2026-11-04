@@ -32,6 +32,9 @@ chown -R 50000:0 "$APP/data"
 # 5. Levantar todo.
 cd "$APP"
 docker compose up -d --build --remove-orphans
+# La API y el streaming leen el código montado (src/, api/): se reinician para que tomen la versión
+# nueva aunque su configuración no haya cambiado. Airflow lee el código en cada tarea, no hace falta.
+docker compose restart api stream
 
 # 6. Respaldo de los datos crudos en Cloud Storage cada 30 minutos (data lake).
 cat > /etc/cron.d/wikipipe-backup <<EOF
