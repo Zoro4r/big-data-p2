@@ -6,39 +6,154 @@
       "validator": {
         "$jsonSchema": {
           "bsonType": "object",
-          "required": ["_id", "type", "wiki", "title", "user", "meta", "derived"],
+          "required": [
+            "_id",
+            "type",
+            "wiki",
+            "title",
+            "user",
+            "meta",
+            "derived"
+          ],
           "properties": {
-            "type": {"enum": ["edit", "new", "categorize", "log"]},
-            "wiki": {"bsonType": "string"},
-            "title": {"bsonType": "string"},
-            "user": {"bsonType": "string"},
-            "bot": {"bsonType": "bool"},
+            "type": {
+              "enum": [
+                "edit",
+                "new",
+                "categorize",
+                "log"
+              ]
+            },
+            "wiki": {
+              "bsonType": "string"
+            },
+            "title": {
+              "bsonType": "string"
+            },
+            "user": {
+              "bsonType": "string"
+            },
+            "bot": {
+              "bsonType": "bool"
+            },
             "derived": {
               "bsonType": "object",
-              "required": ["event_dt", "date", "hour", "user_type", "page_key"],
+              "required": [
+                "event_dt",
+                "date",
+                "hour",
+                "user_type",
+                "page_key"
+              ],
               "properties": {
-                "event_dt": {"bsonType": "date"},
-                "user_type": {"enum": ["bot", "temporal", "ip", "registrado"]}
+                "event_dt": {
+                  "bsonType": "date"
+                },
+                "user_type": {
+                  "enum": [
+                    "bot",
+                    "temporal",
+                    "ip",
+                    "registrado"
+                  ]
+                }
               }
             }
           }
         }
       },
       "indexes": [
-        {"keys": [["derived.event_dt", 1]], "name": "por_fecha"},
-        {"keys": [["wiki", 1], ["type", 1], ["derived.event_dt", -1]], "name": "por_wiki_tipo_fecha"},
-        {"keys": [["user", 1], ["derived.event_dt", -1]], "name": "por_editor"},
-        {"keys": [["derived.page_key", 1]], "name": "por_pagina"},
-        {"keys": [["derived.revert_target", 1]], "name": "por_revertido", "sparse": true}
+        {
+          "keys": [
+            [
+              "derived.event_dt",
+              1
+            ]
+          ],
+          "name": "por_fecha"
+        },
+        {
+          "keys": [
+            [
+              "wiki",
+              1
+            ],
+            [
+              "type",
+              1
+            ],
+            [
+              "derived.event_dt",
+              -1
+            ]
+          ],
+          "name": "por_wiki_tipo_fecha"
+        },
+        {
+          "keys": [
+            [
+              "user",
+              1
+            ],
+            [
+              "derived.event_dt",
+              -1
+            ]
+          ],
+          "name": "por_editor"
+        },
+        {
+          "keys": [
+            [
+              "derived.page_key",
+              1
+            ]
+          ],
+          "name": "por_pagina"
+        },
+        {
+          "keys": [
+            [
+              "derived.revert_target",
+              1
+            ]
+          ],
+          "name": "por_revertido",
+          "sparse": true
+        }
       ]
     },
     "events_rejected": {
       "_comment": "Eventos descartados en la limpieza, con el motivo.",
-      "indexes": [{"keys": [["reason", 1]], "name": "por_motivo"}]
+      "indexes": [
+        {
+          "keys": [
+            [
+              "reason",
+              1
+            ]
+          ],
+          "name": "por_motivo"
+        }
+      ]
     },
     "pipeline_runs": {
       "_comment": "Una ejecución del DAG por ventana horaria. _id = inicio de la ventana (ISO).",
-      "indexes": [{"keys": [["window_start_dt", -1]], "name": "por_ventana"}]
+      "indexes": [
+        {
+          "keys": [
+            [
+              "window_start_dt",
+              -1
+            ]
+          ],
+          "name": "por_ventana"
+        }
+      ]
+    },
+    "stream_state": {
+      "_comment": "Marcador de la capa rápida (servicio stream): último evento leído, para retomar sin huecos al reiniciar.",
+      "indexes": []
     }
   }
 }
