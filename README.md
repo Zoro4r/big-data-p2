@@ -17,6 +17,7 @@ src/wikipipe/
   cassandra_store.py     agregados por hora y minuto en Cassandra
   neo4j_store.py         grafo de editores, páginas, wikis y categorías en Neo4j
   kpis.py                cálculo de los 12 KPIs de cada hora
+  streaming.py           capa rápida: lee el stream sin parar y guarda cada evento en segundos
   crud.py                operaciones CRUD de las 3 bases y demo para la exposición
 db/
   mongo/schema.json         colecciones, validador e índices de MongoDB
@@ -28,6 +29,11 @@ web/                     dashboard en React + shadcn/ui + Recharts (servido por 
 tests/                   pruebas de las reglas de limpieza
 docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (Airflow), Airflow, api y web
 ```
+
+## Arquitectura: capa rápida + capa por lotes (Lambda)
+
+- **Capa rápida (servicio `stream`):** lee el stream de Wikipedia sin parar y cada ~2 s guarda los eventos en MongoDB y los contadores por minuto en Cassandra. El dashboard los muestra en la página "En vivo".
+- **Capa por lotes (DAG de Airflow, cada hora):** vuelve a extraer la hora completa, la valida, construye el grafo, los agregados por hora y los KPIs, y corrige los contadores por minuto. Las dos capas guardan cada evento con el mismo `_id`, así que no hay duplicados.
 
 ## Flujo del DAG
 
@@ -90,7 +96,7 @@ gcloud compute ssh wikipipe-vm --zone us-central1-a --tunnel-through-iap \
 navegador ──► web (nginx: React + shadcn/ui, puerto 8501) ──/api──► api (FastAPI) ──► MongoDB · Cassandra · Neo4j
 ```
 
-Con los contenedores arriba, el frontend se puede desarrollar con recarga en caliente (Vite redirige `/api` a la API en `127.0.0.1:8000`):
+Con los contenedores arriba, el frontend se puede desarrollar con recarga en caliente (Vite redirige `/api` a la API en `127.0.0.1:8010`):
 
 ```bash
 cd web && npm install && npm run dev      # http://localhost:5173
