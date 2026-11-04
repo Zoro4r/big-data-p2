@@ -76,9 +76,6 @@ export default function ResumenPage() {
           <ToggleGroupItem value="enwiki" className="px-3">enwiki</ToggleGroupItem>
           <ToggleGroupItem value="eswiki" className="px-3">eswiki</ToggleGroupItem>
         </ToggleGroup>
-        <Badge variant="outline" className="rounded-full px-2.5 py-1 font-normal text-zinc-600">
-          Última hora {ultima ? horaUTC(ultima) : "—"} UTC
-        </Badge>
       </Header>
       <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de enwiki y eswiki en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior.` : "Cargando…"}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

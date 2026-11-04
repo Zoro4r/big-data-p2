@@ -102,10 +102,8 @@ export default function CrudPage() {
 
   return (
     <>
-      <Header ruta={["Administración", "Operaciones CRUD"]}>
-        <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-2.5 py-1 font-normal text-amber-800">Escribe en las bases de producción</Badge>
-      </Header>
-      <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
+      <Header ruta={["Administración", "Operaciones CRUD"]} />
+      <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar." aviso="Estas operaciones escriben en las bases de producción.">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
           <Tabs defaultValue="mongo" className="gap-4 lg:col-span-2">
             <TabsList className="w-full">

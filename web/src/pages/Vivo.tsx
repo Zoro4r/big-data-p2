@@ -69,20 +69,9 @@ export default function VivoPage() {
     return { ev, bots: p.reduce((s, x) => s + x.eventos_bot, 0), rev: p.reduce((s, x) => s + x.reversiones, 0) }
   }, [data])
 
-  const retraso = data?.stream.ultimo_evento ? (reloj - new Date(data.stream.ultimo_evento).getTime()) / 1000 : null
-  const enVivo = retraso != null && retraso < 120
-
   return (
     <>
-      <Header ruta={["Panel", "En vivo"]}>
-        <Badge variant="outline" className={cn("gap-2 rounded-full px-2.5 py-1 font-normal", enVivo ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800")}>
-          <span className="relative flex size-2">
-            {enVivo && <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60" />}
-            <span className={cn("relative inline-flex size-2 rounded-full", enVivo ? "bg-green-600" : "bg-amber-500")} />
-          </span>
-          {data?.stream.ultimo_evento ? (enVivo ? `Recibiendo datos · último evento ${hace(data.stream.ultimo_evento, reloj)}` : `Sin datos nuevos · último evento ${hace(data.stream.ultimo_evento, reloj)}`) : "Conectando…"}
-        </Badge>
-      </Header>
+      <Header ruta={["Panel", "En vivo"]} />
       <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada edición de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
         {error && <p className="text-sm text-red-700">No se pudo actualizar: {error}</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

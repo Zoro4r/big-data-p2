@@ -3,7 +3,6 @@ import ForceGraph2D from "react-force-graph-2d"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -70,10 +69,8 @@ export default function RedPage() {
   const c = data?.conteo
   return (
     <>
-      <Header ruta={["Panel", "Red de editores"]}>
-        <Badge variant="outline" className="rounded-full px-2.5 py-1 font-normal text-zinc-600">Neo4j · 4 tipos de nodo · 11 tipos de relación</Badge>
-      </Header>
-      <Pagina titulo="Red de editores" descripcion="Quién interactúa con quién: reversiones, avisos, agradecimientos y bloqueos entre editores. Aquí aparecen los patrulleros, el vandalismo y las páginas en disputa.">
+      <Header ruta={["Panel", "Red de editores"]} />
+      <Pagina titulo="Red de editores" descripcion="Quién interactúa con quién: reversiones, avisos, agradecimientos y bloqueos entre editores. Aquí aparecen los patrulleros, el vandalismo y las páginas en disputa. El grafo en Neo4j tiene 4 tipos de nodo y 11 tipos de relación.">
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           {!c ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : (
             <>

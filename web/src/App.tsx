@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { api, useApi } from "@/lib/api"
-import { horaUTC } from "@/lib/format"
+import { api } from "@/lib/api"
+import { EstadoProvider } from "@/lib/estado"
 
 // Cada página se descarga solo cuando se abre (el grafo y los gráficos pesan).
 const Resumen = lazy(() => import("@/pages/Resumen"))
@@ -52,14 +52,11 @@ function Login({ onOk }: { onOk: () => void }) {
 }
 
 interface Sesion { requiere_clave: boolean; autenticado: boolean }
-interface UltimaHora { kpis: { eventos_procesados: { ventana: string }[] } }
-
 function Dashboard() {
-  const { data } = useApi<UltimaHora>("/api/resumen")
-  const ultima = data?.kpis.eventos_procesados[0]?.ventana
   return (
+    <EstadoProvider>
     <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar ultimaHora={ultima ? horaUTC(ultima, false) : undefined} />
+      <Sidebar />
       <main className="min-w-0 flex-1">
         <Suspense fallback={null}>
         <Routes>
@@ -74,6 +71,7 @@ function Dashboard() {
         </Suspense>
       </main>
     </div>
+    </EstadoProvider>
   )
 }
 

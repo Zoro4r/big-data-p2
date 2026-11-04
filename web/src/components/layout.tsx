@@ -1,7 +1,9 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { Activity, ChartLine, Database, LayoutDashboard, Radio, Search, Share2 } from "lucide-react"
 
+import { useEstado } from "@/lib/estado"
+import { horaUTC } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const PANEL = [
@@ -30,7 +32,9 @@ function Enlace({ to, label, icon: Icon }: { to: string; label: string; icon: ty
   )
 }
 
-export function Sidebar({ ultimaHora }: { ultimaHora?: string }) {
+export function Sidebar() {
+  const estado = useEstado()
+  const ultimaHora = estado?.ultima_hora ? horaUTC(estado.ultima_hora, false) : undefined
   return (
     <aside className="flex w-full flex-col gap-6 border-b bg-sidebar px-3.5 py-5 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-r md:border-b-0">
       <div className="flex items-center gap-2.5 px-2">
@@ -64,25 +68,63 @@ export function Sidebar({ ultimaHora }: { ultimaHora?: string }) {
   )
 }
 
+function hace(iso: string, ahora: number): string {
+  const seg = Math.max(0, Math.round((ahora - new Date(iso).getTime()) / 1000))
+  if (seg < 60) return `hace ${seg} s`
+  const min = Math.floor(seg / 60)
+  return min < 60 ? `hace ${min} min` : `hace ${Math.floor(min / 60)} h`
+}
+
+/** Pastilla de estado común a todas las vistas: capa rápida (streaming) y capa por lotes (DAG). */
+function EstadoPipeline() {
+  const estado = useEstado()
+  const [ahora, setAhora] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const ultimo = estado?.stream_ultimo_evento
+  const enVivo = ultimo != null && ahora - new Date(ultimo).getTime() < 120_000
+  return (
+    <div className="flex h-8 items-center gap-2.5 rounded-full border bg-white px-3 text-xs text-zinc-600" title="Capa rápida: último evento guardado por el streaming · Lote: última hora consolidada por el DAG">
+      <span className="flex items-center gap-1.5">
+        <span className="relative flex size-2">
+          {enVivo && <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60" />}
+          <span className={cn("relative inline-flex size-2 rounded-full", enVivo ? "bg-green-600" : "bg-amber-500")} />
+        </span>
+        <span className={cn("font-medium", enVivo ? "text-green-800" : "text-amber-800")}>{enVivo ? "En vivo" : "Sin datos nuevos"}</span>
+        <span className="tabular-nums">{ultimo ? hace(ultimo, ahora) : "…"}</span>
+      </span>
+      <span className="h-3.5 w-px bg-zinc-200" aria-hidden />
+      <span className="tabular-nums">Lote {estado?.ultima_hora ? horaUTC(estado.ultima_hora) : "…"} UTC</span>
+    </div>
+  )
+}
+
+/** Cabecera común: ruta a la izquierda, filtros de la vista (opcionales) y estado del pipeline a la derecha. */
 export function Header({ ruta, children }: { ruta: [string, string]; children?: ReactNode }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3.5 md:px-8">
+    <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-6 py-3 md:px-8">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>{ruta[0]}</span>
         <span aria-hidden>/</span>
         <span className="font-medium text-foreground">{ruta[1]}</span>
       </div>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        {children}
+        <EstadoPipeline />
+      </div>
     </header>
   )
 }
 
-export function Pagina({ titulo, descripcion, children }: { titulo: string; descripcion: ReactNode; children: ReactNode }) {
+export function Pagina({ titulo, descripcion, aviso, children }: { titulo: string; descripcion: ReactNode; aviso?: ReactNode; children: ReactNode }) {
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-6 pt-7 pb-12 md:px-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-[26px] font-semibold tracking-tight">{titulo}</h1>
         <p className="text-sm text-muted-foreground">{descripcion}</p>
+        {aviso && <p className="mt-2 w-fit rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[13px] text-amber-900">{aviso}</p>}
       </div>
       {children}
     </div>
