@@ -668,6 +668,20 @@ Detalles de implementación:
 
 **Corrección 2: error 502 después de reiniciar la API.** nginx resolvía la dirección del contenedor `api` una sola vez, al arrancar. Cuando la API se reinició y cambió de IP, el dashboard respondió 502; se restauró reiniciando nginx. Solución de fondo en `web/nginx.conf`: `resolver 127.0.0.11 valid=10s` y `proxy_pass` con variable, para que nginx vuelva a resolver la dirección cada 10 s. Se verificó reiniciando la API en local y desplegando en la VM: el dashboard y la API siguieron respondiendo 200.
 
+### 21. Cabecera estándar y filtro global de wiki
+
+La cabecera de "Resumen y KPIs" pasó a ser la misma en las seis vistas: ruta a la izquierda y, a la derecha, el selector de wiki (Ambas / enwiki / eswiki) y la pastilla de estado. Los filtros propios de una vista se movieron dentro de la página: el selector de día de "Actividad en el tiempo" quedó junto al título.
+
+El selector de wiki es global: se guarda en el navegador (`localStorage`, clave `wp-wiki`) y lo usan todas las vistas.
+
+- **API:** los endpoints `/api/vivo`, `/api/serie10`, `/api/actividad`, `/api/eventos` y `/api/red` aceptan `?wiki=ambas|enwiki|eswiki` (un valor distinto devuelve 400). Con "ambas" se suman las series de las dos wikis; en el top de páginas por hora se combinan y se vuelven a ordenar.
+- **En vivo, Actividad y Explorador:** las series y leyendas muestran solo la wiki elegida. El Explorador ya no tiene su propio selector de wiki.
+- **Red de editores:** los rankings y las páginas disputadas se filtran en Neo4j (`WHERE $wiki IS NULL OR r.wiki = $wiki`); los totales del grafo siguen siendo de ambas wikis.
+- **Resumen:** el ritmo de ediciones y las ejecuciones se filtran; los KPIs se calculan sobre ambas wikis y la página lo indica.
+- **CRUD:** la wiki de los formularios toma la elegida en la cabecera (con "Ambas", enwiki).
+
+Verificación: `tsc` y `npm run build` sin errores; capturas con Playwright de las seis vistas con la misma cabecera y sin errores de JavaScript; al elegir eswiki, "En vivo" mostró solo eventos de eswiki. Commits `feat: add wiki filter to api` y `feat: standardize header and filter views by wiki`, desplegados con `./deploy.sh`.
+
 ---
 
 ## Pendientes
