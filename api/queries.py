@@ -198,6 +198,17 @@ def documento(event_id: str) -> dict | None:
 # ---------------------------------------------------------------- En vivo (capa rápida)
 
 
+def estado() -> dict:
+    """Última hora consolidada por el DAG (Cassandra) y último evento guardado por el streaming (Mongo)."""
+    fila = cassandra().execute("SELECT ventana FROM kpis WHERE kpi = 'eventos_procesados' LIMIT 1").one()
+    marcador = mongo_db().stream_state.find_one({"_id": "recentchange"}, {"last_dt": 1}) or {}
+    return {
+        "ahora": datetime.now(timezone.utc).isoformat(),
+        "ultima_hora": fila.ventana.replace(tzinfo=timezone.utc).isoformat() if fila else None,
+        "stream_ultimo_evento": marcador.get("last_dt"),
+    }
+
+
 def vivo(minutos: int = 30) -> dict:
     """Actividad de los últimos minutos escrita por el servicio de streaming (sin caché)."""
     ahora = datetime.now(timezone.utc)

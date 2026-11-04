@@ -74,6 +74,12 @@ def resumen():
             "total": q.total_eventos()}
 
 
+@app.get("/api/estado")
+def estado():
+    """Estado de las dos capas para la cabecera del dashboard (consulta liviana)."""
+    return q.estado()
+
+
 @app.get("/api/vivo")
 def vivo(minutos: int = 30):
     return q.vivo(min(max(minutos, 5), 120))
