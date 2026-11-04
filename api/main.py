@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError, WriteError
 
 import queries as q
-from wikipipe import crud
+from wikipipe import config, crud
 
 app = FastAPI(title="Wikipedia en vivo · API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -66,6 +66,25 @@ def health():
 
 
 # ---------------------------------------------------------------- lectura
+# El filtro global del dashboard envía wiki=ambas|enwiki|eswiki; "ambas" combina las dos wikis.
+
+
+def wikis_de(wiki: str) -> list[str]:
+    if wiki in ("ambas", "todas", ""):
+        return sorted(config.WIKIS)
+    if wiki not in config.WIKIS:
+        raise HTTPException(400, f"Wiki no válida: {wiki}")
+    return [wiki]
+
+
+def sumar_por(filas: list[dict], clave: str, campos: tuple[str, ...]) -> list[dict]:
+    """Suma campos numéricos de filas que comparten la misma clave (p. ej. el mismo minuto)."""
+    acumulado: dict = {}
+    for f in filas:
+        a = acumulado.setdefault(f[clave], {clave: f[clave], **{c: 0 for c in campos}})
+        for c in campos:
+            a[c] += f.get(c) or 0
+    return sorted(acumulado.values(), key=lambda x: x[clave])
 
 
 @app.get("/api/resumen")
@@ -81,24 +100,37 @@ def estado():
 
 
 @app.get("/api/vivo")
-def vivo(minutos: int = 30):
-    return q.vivo(min(max(minutos, 5), 120))
+def vivo(minutos: int = 30, wiki: str = "ambas"):
+    return q.vivo(min(max(minutos, 5), 120), wikis_de(wiki))
 
 
 @app.get("/api/serie10")
-def serie10(wiki: str = "enwiki", fecha: date | None = None):
+def serie10(wiki: str = "ambas", fecha: date | None = None):
     fechas = q.fechas_con_datos()
     fecha = fecha or (date.fromisoformat(fechas[0]) if fechas else datetime.now(timezone.utc).date())
-    return {"fecha": fecha.isoformat(), "serie": q.serie_10min(wiki, fecha)}
+    filas = [f for w in wikis_de(wiki) for f in q.serie_10min(w, fecha)]
+    return {"fecha": fecha.isoformat(), "serie": sumar_por(filas, "t", ("eventos", "eventos_bot", "reversiones"))}
 
 
 @app.get("/api/actividad")
-def actividad(wiki: str = "enwiki", fecha: date | None = None):
+def actividad(wiki: str = "ambas", fecha: date | None = None):
+    wikis = wikis_de(wiki)
     fechas = q.fechas_con_datos()
     fecha = fecha or (date.fromisoformat(fechas[0]) if fechas else datetime.now(timezone.utc).date())
-    horas = [h for h in q.resumen_por_hora(30) if h["wiki"] == wiki and h["fecha"] == fecha]
-    return {"fecha": fecha.isoformat(), "fechas": fechas, "minutos": q.serie_minuto(wiki, fecha),
-            "horas": horas, "top": q.paginas_top(wiki, fecha)}
+    horas = [h for h in q.resumen_por_hora(30) if h["wiki"] in wikis and h["fecha"] == fecha]
+    minutos = [m for w in wikis for m in q.serie_minuto(w, fecha)]
+    # Top de páginas: con "ambas" se juntan los dos rankings de cada hora y se vuelve a ordenar.
+    top = []
+    por_hora: dict = {}
+    for t in (t for w in wikis for t in q.paginas_top(w, fecha)):
+        por_hora.setdefault(t["hora"], []).append(t)
+    for hora, filas in por_hora.items():
+        filas.sort(key=lambda t: (-t["editores"], -t["ediciones"]))
+        top += [{**t, "posicion": i} for i, t in enumerate(filas[:20], start=1)]
+    return {"fecha": fecha.isoformat(), "fechas": fechas,
+            "minutos": sumar_por(minutos, "t", ("eventos", "eventos_bot", "reversiones")),
+            "horas": sumar_por(horas, "hora", ("eventos", "eventos_bot", "eventos_humanos", "reversiones")),
+            "top": top}
 
 
 @app.get("/api/editor/{nombre}")
@@ -107,10 +139,10 @@ def editor(nombre: str):
 
 
 @app.get("/api/eventos")
-def eventos(wiki: str = "todas", tipo: str = "todos", editor: str = "", titulo: str = "",
+def eventos(wiki: str = "ambas", tipo: str = "todos", editor: str = "", titulo: str = "",
             solo_reversiones: bool = False, limite: int = 50):
     return {"total": q.total_eventos(), "tipos": q.tipos_por_wiki(24),
-            "eventos": q.buscar_eventos(wiki, tipo, editor.strip(), titulo.strip(), solo_reversiones, min(limite, 500))}
+            "eventos": q.buscar_eventos("todas" if wiki == "ambas" else wikis_de(wiki)[0], tipo, editor.strip(), titulo.strip(), solo_reversiones, min(limite, 500))}
 
 
 @app.get("/api/eventos/{event_id}")
@@ -122,9 +154,10 @@ def evento(event_id: str):
 
 
 @app.get("/api/red")
-def red():
-    return {"conteo": q.conteo_grafo(), "revertidos": q.ranking_revertidos(10),
-            "patrulleros": q.ranking_patrulleros(10), "disputadas": q.paginas_disputadas(24, 12)}
+def red(wiki: str = "ambas"):
+    w = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return {"conteo": q.conteo_grafo(), "revertidos": q.ranking_revertidos(10, w),
+            "patrulleros": q.ranking_patrulleros(10, w), "disputadas": q.paginas_disputadas(24, 12, w)}
 
 
 @app.get("/api/red/ego/{nombre}")

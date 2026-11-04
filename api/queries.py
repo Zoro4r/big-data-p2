@@ -209,11 +209,12 @@ def estado() -> dict:
     }
 
 
-def vivo(minutos: int = 30) -> dict:
+def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     """Actividad de los últimos minutos escrita por el servicio de streaming (sin caché)."""
     ahora = datetime.now(timezone.utc)
+    wikis = wikis or sorted(config.WIKIS)
     s, por_minuto = cassandra(), []
-    for wiki in sorted(config.WIKIS):
+    for wiki in wikis:
         filas = []
         for f in (ahora.date(), ahora.date() - timedelta(days=1)):  # el día anterior, si cruzó la medianoche
             if len(filas) >= minutos:
@@ -225,12 +226,13 @@ def vivo(minutos: int = 30) -> dict:
                        for r in filas]
     db = mongo_db()
     hace_un_minuto = ahora - timedelta(seconds=60)
-    ultimos = db.events.find({}, {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}) \
+    ultimos = db.events.find({"wiki": {"$in": wikis}}, {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}) \
         .sort("derived.event_dt", -1).limit(25)
     estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
     return {
         "ahora": ahora.isoformat(),
-        "eventos_ultimo_minuto": db.events.count_documents({"derived.event_dt": {"$gte": hace_un_minuto}}),
+        "eventos_ultimo_minuto": db.events.count_documents(
+            {"derived.event_dt": {"$gte": hace_un_minuto}, "wiki": {"$in": wikis}}),
         "por_minuto": sorted(por_minuto, key=lambda x: x["t"]),
         "ultimos": [{
             "_id": d["_id"], "fecha": d["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat(),
@@ -261,31 +263,31 @@ def conteo_grafo() -> dict:
 
 
 @cacheado
-def ranking_revertidos(limite: int = 10) -> list[dict]:
+def ranking_revertidos(limite: int = 10, wiki: str | None = None) -> list[dict]:
     return _cypher(
-        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) "
+        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE $wiki IS NULL OR r.wiki = $wiki "
         "RETURN b.user AS editor, b.tipo AS tipo, sum(r.veces) AS reversiones, count(DISTINCT a) AS revertido_por "
-        "ORDER BY reversiones DESC, revertido_por DESC LIMIT $limite", limite=limite)
+        "ORDER BY reversiones DESC, revertido_por DESC LIMIT $limite", limite=limite, wiki=wiki)
 
 
 @cacheado
-def ranking_patrulleros(limite: int = 10) -> list[dict]:
+def ranking_patrulleros(limite: int = 10, wiki: str | None = None) -> list[dict]:
     return _cypher(
-        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) "
+        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE $wiki IS NULL OR r.wiki = $wiki "
         "RETURN a.user AS editor, a.tipo AS tipo, sum(r.veces) AS reversiones, count(DISTINCT b) AS editores_revertidos "
-        "ORDER BY reversiones DESC LIMIT $limite", limite=limite)
+        "ORDER BY reversiones DESC LIMIT $limite", limite=limite, wiki=wiki)
 
 
 @cacheado
-def paginas_disputadas(horas: int = 24, limite: int = 12) -> list[dict]:
+def paginas_disputadas(horas: int = 24, limite: int = 12, wiki: str | None = None) -> list[dict]:
     desde = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
     return _cypher(
-        "MATCH (p:Pagina) WHERE p.ultima_edicion >= datetime($desde) "
+        "MATCH (p:Pagina) WHERE p.ultima_edicion >= datetime($desde) AND ($wiki IS NULL OR p.wiki = $wiki) "
         "MATCH (e:Editor)-[r:EDITO]->(p) "
         "WITH p, count(e) AS editores, sum(r.ediciones) AS ediciones, "
         "     sum(CASE WHEN e.tipo = 'bot' THEN 0 ELSE 1 END) AS humanos "
         "RETURN p.key AS pagina, p.wiki AS wiki, p.titulo AS titulo, editores, humanos, ediciones "
-        "ORDER BY editores DESC LIMIT $limite", desde=desde, limite=limite)
+        "ORDER BY editores DESC LIMIT $limite", desde=desde, limite=limite, wiki=wiki)
 
 
 @cacheado
