@@ -51,7 +51,7 @@ export function TarjetaKpi(props: {
   )
 }
 
-export function Seccion(props: { titulo: string; descripcion?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string }) {
+export function Seccion(props: { titulo: string; descripcion?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string; contenidoClassName?: string }) {
   return (
     <Card className={cn("gap-4 py-5 shadow-xs", props.className)}>
       <CardHeader className="px-6">
@@ -63,7 +63,7 @@ export function Seccion(props: { titulo: string; descripcion?: ReactNode; accion
           {props.accion}
         </div>
       </CardHeader>
-      <CardContent className="px-6">{props.children}</CardContent>
+      <CardContent className={cn("px-6", props.contenidoClassName)}>{props.children}</CardContent>
     </Card>
   )
 }

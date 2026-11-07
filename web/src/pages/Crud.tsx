@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { CheckCircle2, Copy, Search, XCircle, ShieldCheck } from "lucide-react"
+import { Check, CheckCircle2, Copy, Search, XCircle, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
 import { Seccion, Vacio } from "@/components/common"
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EditorEvento, FormularioEvento, nuevoId, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
 import { Coincidencias, FichaDocumento, FiltrosConsulta, useConsultaEventos } from "@/components/consultar-evento"
+import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from "@/components/actualizar-evento"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
@@ -65,7 +66,7 @@ export default function CrudPage() {
   // ---------------------------------------------------------------- MongoDB
   const [base, setBase] = useState("mongo")
   const [mOp, setMOp] = useState("Crear")
-  const [m, setM] = useState({ id: nuevoId(), campo: "comment", valor: "Comentario actualizado desde el dashboard" })
+  const [m, setM] = useState({ id: nuevoId() })
   const evento = useEventoNuevo(wikiForm)
 
   /** Inserta el documento del editor. Si el validador lo rechaza, se muestra como resultado de la validación. */
@@ -103,25 +104,47 @@ export default function CrudPage() {
     setOcupado(true)
     const r = await consulta.buscar()
     setOcupado(false)
-    if (r) setLog((l) => [{ op: "READ" as Op, base: "MongoDB · events", detalle: `find · ${r.documentos.length}${r.hay_mas ? "+" : ""} documentos`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
+    if (r) setLog((l) => [{ op: "READ" as Op, base: "MongoDB · events", detalle: `find · ${r.documentos.length}${r.hay_mas ? "+" : ""} ${r.documentos.length === 1 && !r.hay_mas ? "documento" : "documentos"}`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
   }
   // Al entrar a Consultar se parte de cero: no se busca hasta que la persona presiona Buscar.
   useEffect(() => {
     if (base === "mongo" && mOp === "Consultar") consulta.limpiar()
   }, [base, mOp]) // eslint-disable-line react-hooks/exhaustive-deps
   /** Desde la ficha: lleva el documento a Actualizar o Eliminar. */
-  const irA = (op: string) => (id: string) => { setM((x) => ({ ...x, id })); setResultado(null); setMOp(op) }
+  const irA = (op: string) => (id: string) => {
+    setM((x) => ({ ...x, id })); setResultado(null); setMOp(op)
+    if (op === "Actualizar") actualizacion.cargar(id)
+  }
+
+  const actualizacion = useActualizacion()
+  async function guardarActualizacion() {
+    if (!actualizacion.nCambios) return
+    setOcupado(true)
+    try {
+      const r = await actualizacion.guardar()
+      const detalle = `${r.id} · ${r.campos.join(", ")}${r.recalculados.length ? ` (+${r.recalculados.length} recalculados)` : ""}`
+      setLog((l) => [{ op: "UPDATE" as Op, base: "MongoDB · events", detalle, hora: horaActual(), ok: true }, ...l].slice(0, 8))
+      toast.success(`Documento actualizado: ${r.campos.length} ${r.campos.length === 1 ? "campo" : "campos"}`)
+    } catch (e) {
+      const msg = (e as Error).message
+      setLog((l) => [{ op: "RECHAZADO" as Op, base: "MongoDB · events", detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
+      toast.error(msg)
+    } finally {
+      setOcupado(false)
+    }
+  }
 
   const enviarMongo = (e: FormEvent) => {
     e.preventDefault()
     const id = encodeURIComponent(m.id)
     if (mOp === "Crear") insertarEvento()
     if (mOp === "Consultar") buscarEventos()
-    if (mOp === "Actualizar") ejecutar("UPDATE", "MongoDB · events", `${m.id} · ${m.campo}`, () => api(`/api/crud/mongo/${id}`, { method: "PATCH", body: JSON.stringify({ campo: m.campo, valor: m.valor }) }))
+    if (mOp === "Actualizar") guardarActualizacion()
     if (mOp === "Eliminar") ejecutar("DELETE", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`, { method: "DELETE" }))
   }
   const creando = base === "mongo" && mOp === "Crear"
   const consultando = base === "mongo" && mOp === "Consultar"
+  const actualizando = base === "mongo" && mOp === "Actualizar"
 
   // ---------------------------------------------------------------- Cassandra
   const [cOp, setCOp] = useState("Insertar")
@@ -156,11 +179,24 @@ export default function CrudPage() {
     <Button type="submit" disabled={ocupado} variant={peligro ? "destructive" : "default"} className="h-10 w-full text-sm">{texto}</Button>
   )
 
+  const historial = log.length > 0 && (
+    <div className="flex flex-col gap-2.5 rounded-xl border px-5 py-4 shadow-xs">
+      <span className="text-[13px] font-medium">Operaciones de esta sesión</span>
+      {log.map((r, i) => (
+        <div key={i} className="grid grid-cols-[96px_64px_minmax(0,1fr)] items-center gap-2 text-[13px]">
+          <Badge variant="outline" className={cn("justify-center", r.op === "VALIDADOR" ? "border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400" : r.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400")}>{r.op}</Badge>
+          <span className="font-mono text-xs text-muted-foreground">{r.hora}</span>
+          <span className="truncate" title={`${r.base} · ${r.detalle}`}>{r.base} · {r.detalle}</span>
+        </div>
+      ))}
+    </div>
+  )
+
   return (
     <>
       <Header ruta={["Administración", "Operaciones CRUD"]} />
       <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
+        <div className={cn("grid grid-cols-1 gap-4 lg:grid-cols-5", actualizando ? "items-start lg:items-stretch" : "items-start")}>
           <Tabs value={base} onValueChange={setBase} className="gap-4 lg:col-span-2">
             <TabsList className="w-full">
               <TabsTrigger value="mongo">MongoDB</TabsTrigger>
@@ -169,21 +205,19 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" descripcion="insert_one · find · update_one ($set) · delete_one">
-                <form onSubmit={enviarMongo} className="flex flex-col gap-4">
+              <Seccion titulo="Colección events" descripcion="insert_one · find · update_one ($set) · delete_one" className="h-full" contenidoClassName="flex flex-1 flex-col">
+                <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
                     : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />
+                    : mOp === "Actualizar" ? <FormularioActualizacion a={actualizacion} id={m.id} setId={(id) => setM({ ...m, id })} />
                     : <Campo id="m-id" label="_id"><Input id="m-id" className="font-mono text-xs" value={m.id} onChange={(e) => setM({ ...m, id: e.target.value })} /></Campo>}
-                  {mOp === "Actualizar" && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Campo id="m-campo" label="Campo"><Input id="m-campo" value={m.campo} onChange={(e) => setM({ ...m, campo: e.target.value })} /></Campo>
-                      <Campo id="m-valor" label="Nuevo valor"><Input id="m-valor" value={m.valor} onChange={(e) => setM({ ...m, valor: e.target.value })} /></Campo>
-                    </div>
-                  )}
                   {mOp === "Consultar"
                     ? <Button type="submit" disabled={ocupado} className="h-10 w-full text-sm"><Search aria-hidden />Buscar</Button>
-                    : boton({ Crear: "Insertar documento", Actualizar: "Actualizar ($set)", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
+                    : mOp === "Actualizar"
+                      ? <Button type="submit" disabled={ocupado || !actualizacion.nCambios} className="h-10 w-full text-sm"><Check aria-hidden />
+                          {actualizacion.nCambios ? `Guardar ${actualizacion.nCambios} ${actualizacion.nCambios === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}</Button>
+                      : boton({ Crear: "Insertar documento", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
                   {mOp === "Consultar" && <Coincidencias c={consulta} />}
                 </form>
               </Seccion>
@@ -251,10 +285,11 @@ export default function CrudPage() {
             </TabsContent>
           </Tabs>
 
-          <div className="flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]">
+          <div className={cn("flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]", actualizando ? "self-stretch" : "self-start")}>
             {creando && <EditorEvento ev={evento} />}
+            {actualizando && <CambiosActualizacion a={actualizacion} />}
             {consultando && <FichaDocumento c={consulta} onActualizar={irA("Actualizar")} onEliminar={irA("Eliminar")} />}
-            {consultando ? null : resultado ? (
+            {consultando || actualizando ? null : resultado ? (
               <>
                 {resultado.validacion ? (
                   <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
@@ -286,22 +321,12 @@ export default function CrudPage() {
                   <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(resultado.json, null, 2)}</pre>
                 </div>
               </>
-            ) : !creando && log.length === 0 && (
+            ) : !creando && !actualizando && log.length === 0 && (
               <Vacio titulo="Sin operaciones todavía" texto="Elige una base y una operación; el resultado aparece aquí." />
             )}
-            {log.length > 0 && (
-              <div className="flex flex-col gap-2.5 rounded-xl border px-5 py-4 shadow-xs">
-                <span className="text-[13px] font-medium">Operaciones de esta sesión</span>
-                {log.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[96px_64px_minmax(0,1fr)] items-center gap-2 text-[13px]">
-                    <Badge variant="outline" className={cn("justify-center", r.op === "VALIDADOR" ? "border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400" : r.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400")}>{r.op}</Badge>
-                    <span className="font-mono text-xs text-muted-foreground">{r.hora}</span>
-                    <span className="truncate" title={`${r.base} · ${r.detalle}`}>{r.base} · {r.detalle}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {!actualizando && historial}
           </div>
+          {actualizando && <div className="lg:col-span-3 lg:col-start-3">{historial}</div>}
         </div>
       </Pagina>
     </>
