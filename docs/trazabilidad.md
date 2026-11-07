@@ -838,6 +838,8 @@ Antes, Consultar pedía un `_id` exacto y mostraba el JSON crudo. Se diseñaron 
 
 Verificación con Playwright en local: tres documentos creados y encontrados con "solo demostración", búsqueda real de la última hora con "Ver 10 más" sin repetidos, paso de la ficha a Eliminar, sin errores de JavaScript. Los documentos de prueba se borraron. Commits `feat: add filtered search endpoint for mongo crud` y `feat: search mongo events with filters in crud page`.
 
+**Ajuste:** al entrar a Consultar ya no se busca solo. Con los filtros por defecto la búsqueda automática solía no encontrar nada y mostraba "Sin coincidencias" y un READ que nadie pidió. Ahora la columna derecha dice "Realiza una consulta" hasta que se presiona Buscar, y "Sin coincidencias" aparece solo a la derecha (no repetido en la izquierda). Commit `fix: wait for search before querying in crud page`.
+
 ---
 
 ## Pendientes
