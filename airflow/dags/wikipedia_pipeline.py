@@ -94,7 +94,7 @@ def wikipedia_pipeline():
     @task
     def calcular_kpis(extraccion: dict, limpieza: dict, carga_mongo: dict, carga_cassandra: dict,
                       carga_neo4j: dict, data_interval_start=None, data_interval_end=None) -> dict:
-        from wikipipe import cassandra_store, kpis, mongo, neo4j_store
+        from wikipipe import cassandra_store, config, kpis, mongo, neo4j_store
         from wikipipe.extract import to_utc
 
         start, end = to_utc(data_interval_start), to_utc(data_interval_end)
@@ -104,6 +104,10 @@ def wikipedia_pipeline():
             session.set_keyspace("wikipipe")
             values = kpis.compute(start, end, limpieza, session, db, driver)
             cassandra_store.write_kpis(session, start, values)
+            por_wiki = {}
+            for wiki in sorted(config.WIKIS):
+                por_wiki[wiki] = kpis.compute(start, end, limpieza, session, db, driver, wiki)
+                cassandra_store.write_kpis(session, start, por_wiki[wiki], wiki)
             cassandra_store.write_run(session, start, extraccion, limpieza)
             mongo.record_run(db, {
                 "window_start": start.isoformat(),
@@ -114,6 +118,9 @@ def wikipedia_pipeline():
                 "carga_cassandra": carga_cassandra,
                 "carga_neo4j": carga_neo4j,
                 "kpis": {k: {"valor": v, "detalle": d} for k, (v, d) in values.items()},
+                "kpis_por_wiki": {w: {k: {"valor": v, "detalle": d} for k, (v, d) in vals.items()}
+                                  for w, vals in por_wiki.items()},
+                "grafo_por_wiki": neo4j_store.conteo_por_wiki(driver),
             })
             return {k: v for k, (v, _) in values.items()}
         finally:

@@ -138,6 +138,7 @@ def clean_file(raw_path: Path, clean_path: Path, rejected_path: Path) -> dict:
     reasons: Counter = Counter()
     seen: set[str] = set()
     stats = {"input": 0, "valid": 0, "duplicates": 0}
+    por_wiki: dict[str, Counter] = {}
 
     with gzip.open(raw_path, "rt", encoding="utf-8") as src, \
          gzip.open(clean_path, "wt", encoding="utf-8") as ok, \
@@ -150,6 +151,8 @@ def clean_file(raw_path: Path, clean_path: Path, rejected_path: Path) -> dict:
                 reasons["json_invalido"] += 1
                 bad.write(json.dumps({"reason": "json_invalido", "raw": line.strip()}) + "\n")
                 continue
+            cuenta = por_wiki.setdefault(str(event.get("wiki")), Counter()) if isinstance(event, dict) else Counter()
+            cuenta["input"] += 1
             reason = validate(event)
             if reason:
                 reasons[reason] += 1
@@ -164,10 +167,12 @@ def clean_file(raw_path: Path, clean_path: Path, rejected_path: Path) -> dict:
             event["derived"] = derive(event)
             ok.write(json.dumps(event, ensure_ascii=False) + "\n")
             stats["valid"] += 1
+            cuenta["valid"] += 1
 
     stats["rejected"] = sum(reasons.values())
     stats["rejected_by_reason"] = dict(reasons)
     stats["quality_pct"] = round(100 * stats["valid"] / stats["input"], 2) if stats["input"] else None
+    stats["quality_by_wiki"] = {w: round(100 * c["valid"] / c["input"], 2) for w, c in por_wiki.items() if c["input"]}
     log.info("Limpieza terminada: %s", stats)
     return stats
 

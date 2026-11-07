@@ -73,6 +73,16 @@ CREATE TABLE IF NOT EXISTS wikipipe.kpis (
   PRIMARY KEY ((kpi), ventana)
 ) WITH CLUSTERING ORDER BY (ventana DESC);
 
+-- Consulta: serie de tiempo de un KPI calculado solo sobre una wiki (enwiki o eswiki).
+CREATE TABLE IF NOT EXISTS wikipipe.kpis_por_wiki (
+  kpi text,
+  wiki text,
+  ventana timestamp,
+  valor double,
+  detalle text,
+  PRIMARY KEY ((kpi, wiki), ventana)
+) WITH CLUSTERING ORDER BY (ventana DESC);
+
 -- Consulta: registros procesados por cada ejecución del DAG en un día.
 CREATE TABLE IF NOT EXISTS wikipipe.ejecuciones (
   fecha date,

@@ -171,10 +171,14 @@ def load_window(session: Session, events) -> dict:
     return stats
 
 
-def write_kpis(session: Session, window_start: datetime, kpis: dict) -> None:
-    """kpis = {nombre: (valor, detalle)}"""
-    stmt = session.prepare("INSERT INTO kpis (kpi, ventana, valor, detalle) VALUES (?, ?, ?, ?)")
-    rows = [(name, window_start, None if v is None else float(v), det) for name, (v, det) in kpis.items()]
+def write_kpis(session: Session, window_start: datetime, kpis: dict, wiki: str | None = None) -> None:
+    """kpis = {nombre: (valor, detalle)}. Sin wiki van a `kpis`; con wiki, a `kpis_por_wiki`."""
+    if wiki is None:
+        stmt = session.prepare("INSERT INTO kpis (kpi, ventana, valor, detalle) VALUES (?, ?, ?, ?)")
+        rows = [(name, window_start, None if v is None else float(v), det) for name, (v, det) in kpis.items()]
+    else:
+        stmt = session.prepare("INSERT INTO kpis_por_wiki (kpi, wiki, ventana, valor, detalle) VALUES (?, ?, ?, ?, ?)")
+        rows = [(name, wiki, window_start, None if v is None else float(v), det) for name, (v, det) in kpis.items()]
     execute_concurrent_with_args(session, stmt, rows, concurrency=20, raise_on_first_error=True)
 
 

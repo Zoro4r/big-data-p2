@@ -252,3 +252,37 @@ def load_window(driver: Driver, events, ventana: str) -> dict:
     _run_batches(driver, Q_COEDITA, edited_pages, max_editores=MAX_EDITORS_COEDIT)
     log.info("Carga en Neo4j (filas por consulta): %s", stats)
     return stats
+
+
+Q_CONTEO_PAGINAS = """
+MATCH (:Wiki {nombre: $wiki})<-[:PERTENECE_A]-(p:Pagina)
+RETURN count(p) AS paginas, sum(COUNT { (p)<-[:EDITO]-() }) AS edito, sum(COUNT { (p)<-[:CREO]-() }) AS creo
+"""
+Q_CONTEO_EDITORES = """
+MATCH (:Wiki {nombre: $wiki})<-[:PERTENECE_A]-(:Pagina)<-[:EDITO]-(e:Editor)
+RETURN count(DISTINCT e) AS editores
+"""
+Q_CONTEO_CATEGORIAS = "MATCH (:Wiki {nombre: $wiki})<-[:PERTENECE_A]-(c:Categoria) RETURN count(c) AS n"
+Q_CONTEO_PARES = """
+MATCH ()-[r:REVIRTIO|MENSAJE_A|AGRADECIO|BLOQUEO]->() WHERE r.wiki = $wiki
+RETURN type(r) AS tipo, count(*) AS n
+"""
+
+
+def conteo_por_wiki(driver: Driver) -> dict:
+    """Totales del grafo de cada wiki para el dashboard. Recorre las páginas de cada wiki (unos
+    segundos), por eso lo calcula el DAG una vez por hora y no la API en cada consulta.
+    COEDITA no guarda la wiki, así que no se puede separar."""
+    out = {}
+    with driver.session() as s:
+        for wiki in sorted(config.WIKIS):
+            pag = s.run(Q_CONTEO_PAGINAS, wiki=wiki).single()
+            rels = {r["tipo"]: r["n"] for r in s.run(Q_CONTEO_PARES, wiki=wiki)}
+            out[wiki] = {
+                "nodos": {"Editor": s.run(Q_CONTEO_EDITORES, wiki=wiki).single()["editores"],
+                          "Pagina": pag["paginas"],
+                          "Categoria": s.run(Q_CONTEO_CATEGORIAS, wiki=wiki).single()["n"]},
+                "relaciones": {"EDITO": pag["edito"], "CREO": pag["creo"],
+                               **{t: rels.get(t, 0) for t in ("REVIRTIO", "MENSAJE_A", "AGRADECIO", "BLOQUEO")}},
+            }
+    return out
