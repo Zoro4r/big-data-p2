@@ -47,6 +47,40 @@ def mongo_eliminar(db, event_id: str) -> int:
     return db.events.delete_one({"_id": event_id}).deleted_count
 
 
+CAMPOS_TEXTO = ("_id", "wiki", "title", "user")
+TIPOS = ("edit", "new", "categorize", "log")
+
+
+def preparar_evento(documento: dict) -> tuple[dict, list[str]]:
+    """Prepara un evento escrito a mano (página CRUD) para insertarlo en `events`.
+
+    Calcula `derived` con la misma función que usa el pipeline (clean.derive). Si faltan campos,
+    no inventa nada: devuelve el documento sin `derived` y la lista de lo que falta, y al insertarlo
+    el validador $jsonSchema de MongoDB lo rechaza.
+    """
+    from wikipipe import mongo
+    from wikipipe.clean import derive
+
+    doc = {k: v for k, v in documento.items() if k != "derived"}
+    faltan = [k for k in CAMPOS_TEXTO if not isinstance(doc.get(k), str) or not doc[k].strip()]
+    if doc.get("type") not in TIPOS:
+        faltan.append("type")
+    if not isinstance(doc.get("namespace"), int) or isinstance(doc.get("namespace"), bool):
+        faltan.append("namespace")
+    meta = doc.get("meta")
+    if not isinstance(meta, dict) or not isinstance(meta.get("dt"), str):
+        faltan.append("meta.dt")
+    else:
+        meta.setdefault("id", doc.get("_id"))
+    if faltan:
+        return mongo.sanitize(doc), faltan
+    try:
+        doc["derived"] = derive(doc)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return mongo.sanitize(doc), ["derived (revisa meta.dt)"]
+    return mongo.to_document(doc), []
+
+
 def evento_demo(event_id: str) -> dict:
     """Documento con la misma estructura que un evento real del stream (pasa el validador)."""
     ahora = datetime.now(timezone.utc).replace(microsecond=0)

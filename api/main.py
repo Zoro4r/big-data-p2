@@ -13,7 +13,7 @@ import hmac
 import os
 from datetime import date, datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError, WriteError
@@ -169,42 +169,34 @@ def ego(nombre: str, limite: int = 30):
 # ---------------------------------------------------------------- CRUD (reutiliza wikipipe.crud)
 
 
-class DocMongo(BaseModel):
-    id: str = Field(alias="_id")
-    titulo: str
-    editor: str
-    comentario: str = ""
-
-
 class CambioMongo(BaseModel):
     campo: str
     valor: str | int | float | bool
 
 
+@app.post("/api/crud/mongo/previa")
+def mongo_previa(doc: dict = Body(...)):
+    """Lo que se guardaría: el bloque derived calculado y los campos que el validador echaría en falta."""
+    preparado, faltan = crud.preparar_evento(doc)
+    return {"derived": preparado.get("derived"), "faltan": faltan}
+
+
 @app.post("/api/crud/mongo")
-def mongo_crear(body: DocMongo):
-    doc = crud.evento_demo(body.id)
-    doc.update(title=body.titulo, user=body.editor, comment=body.comentario)
-    doc["derived"]["page_key"] = f"enwiki:{body.titulo}"
+def mongo_crear(doc: dict = Body(...)):
+    """Inserta el documento tal como viene, con derived calculado por el servidor.
+
+    Si le faltan campos, se envía igual: el validador $jsonSchema de MongoDB lo rechaza y la
+    respuesta lo indica con rechazado=True (no es un error de la API, es la demostración del validador).
+    """
+    preparado, faltan = crud.preparar_evento(doc)
     try:
-        crud.mongo_crear(q.mongo_db(), doc)
+        crud.mongo_crear(q.mongo_db(), preparado)
     except DuplicateKeyError:
         raise HTTPException(409, "Ya existe un documento con ese _id")
     except WriteError as exc:
-        raise HTTPException(422, f"MongoDB rechazó el documento: {exc.details.get('errmsg')}")
+        return {"rechazado": True, "faltan": faltan, "motivo": exc.details.get("errmsg")}
     q.limpiar_cache()
-    return crud.mongo_consultar(q.mongo_db(), body.id)
-
-
-@app.post("/api/crud/mongo/invalido")
-def mongo_invalido():
-    """Intenta insertar un documento sin 'derived' para mostrar el validador $jsonSchema."""
-    try:
-        crud.mongo_crear(q.mongo_db(), {"_id": f"demo-invalido-{datetime.now(timezone.utc):%H%M%S}",
-                                        "type": "edit", "wiki": "enwiki", "title": "x", "user": "x", "meta": {}})
-    except WriteError as exc:
-        return {"rechazado": True, "motivo": exc.details.get("errmsg")}
-    return {"rechazado": False}
+    return {"rechazado": False, "documento": crud.mongo_consultar(q.mongo_db(), preparado["_id"])}
 
 
 @app.get("/api/crud/mongo/{event_id}")
