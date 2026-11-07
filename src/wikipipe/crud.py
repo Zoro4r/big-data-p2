@@ -187,6 +187,26 @@ def cassandra_eliminar(session, editor: str, fecha: date | None = None, hora: in
             (editor, fecha, hora, wiki))
 
 
+COLUMNAS_METRICAS = ("tipo_editor", "eventos", "ediciones", "paginas", "delta_bytes", "reversiones_hechas", "reversiones_recibidas")
+
+
+def cassandra_fila(session, editor: str, fecha: date, hora: int, wiki: str):
+    """Una fila por su clave primaria completa, o None."""
+    return session.execute(
+        "SELECT * FROM actividad_editor WHERE editor = %s AND fecha = %s AND hora = %s AND wiki = %s",
+        (editor, fecha, hora, wiki)).one()
+
+
+def cassandra_actualizar_columnas(session, editor: str, fecha: date, hora: int, wiki: str, cambios: dict) -> None:
+    """UPDATE solo de las columnas que cambian (la clave no se puede cambiar: sería otra fila)."""
+    if not cambios or any(c not in COLUMNAS_METRICAS for c in cambios):
+        raise ValueError("Solo se pueden cambiar las métricas y el tipo de editor")
+    # Los nombres de columna se validan contra una lista fija antes de entrar a la consulta.
+    sets = ", ".join(f"{c} = %s" for c in cambios)
+    session.execute(f"UPDATE actividad_editor SET {sets} WHERE editor = %s AND fecha = %s AND hora = %s AND wiki = %s",
+                    (*cambios.values(), editor, fecha, hora, wiki))
+
+
 # ============================== Neo4j ==============================
 
 RELACIONES_EDITOR = {"REVIRTIO", "MENSAJE_A", "AGRADECIO", "BLOQUEO"}
@@ -204,6 +224,46 @@ def neo4j_crear_pagina(driver, wiki: str, titulo: str) -> dict:
             "MERGE (w:Wiki {nombre: $wiki}) "
             "MERGE (p:Pagina {key: $wiki + ':' + $titulo}) SET p.wiki = $wiki, p.titulo = $titulo "
             "MERGE (p)-[:PERTENECE_A]->(w) RETURN properties(p) AS p", wiki=wiki, titulo=titulo).single()["p"]
+
+
+def neo4j_asegurar_editor(driver, user: str, tipo: str = "registrado") -> bool:
+    """Crea el editor si no existe (sin tocar su tipo si ya existía). Devuelve True si lo creó."""
+    with driver.session() as s:
+        return s.run("MERGE (e:Editor {user: $user}) ON CREATE SET e.tipo = $tipo",
+                     user=user, tipo=tipo).consume().counters.nodes_created > 0
+
+
+def neo4j_buscar_editores(driver, prefijo: str, tipo: str | None, limite: int) -> list[dict]:
+    """Editores cuyo nombre empieza con el prefijo (usa el índice único de user), con su cantidad de relaciones."""
+    filtro = "AND e.tipo = $tipo " if tipo else ""
+    with driver.session() as s:
+        return [dict(r) for r in s.run(
+            "MATCH (e:Editor) WHERE e.user STARTS WITH $p " + filtro +
+            "RETURN e.user AS user, e.tipo AS tipo, COUNT { (e)--() } AS relaciones ORDER BY user LIMIT $limite",
+            p=prefijo, tipo=tipo, limite=limite)]
+
+
+def _plano(v):
+    """Fechas de Neo4j (DateTime, Date) a texto ISO, para poder enviarlas como JSON."""
+    if hasattr(v, "iso_format"):
+        return v.iso_format()
+    if isinstance(v, dict):
+        return {k: _plano(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_plano(x) for x in v]
+    return v
+
+
+def neo4j_detalle_editor(driver, user: str, limite: int = 40) -> dict | None:
+    """Propiedades del editor, sus relaciones (salientes y entrantes, hasta `limite` de cada lado) y los totales."""
+    with driver.session() as s:
+        rec = s.run(
+            "MATCH (e:Editor {user: $u}) "
+            "RETURN properties(e) AS editor, COUNT { (e)-->() } AS n_salientes, COUNT { (e)<--() } AS n_entrantes, "
+            "  [(e)-[r]->(x) | {tipo: type(r), con: coalesce(x.user, x.titulo, x.key, x.nombre), etiqueta: labels(x)[0], props: properties(r)}][..$l] AS salientes, "
+            "  [(e)<-[r]-(x) | {tipo: type(r), con: coalesce(x.user, x.titulo, x.key, x.nombre), etiqueta: labels(x)[0], props: properties(r)}][..$l] AS entrantes",
+            u=user, l=limite).single()
+    return _plano(dict(rec)) if rec else None
 
 
 def neo4j_crear_relacion(driver, origen: str, destino: str, tipo: str, props: dict | None = None) -> dict:
@@ -236,7 +296,7 @@ def neo4j_actualizar_editor(driver, user: str, props: dict) -> dict | None:
     with driver.session() as s:
         rec = s.run("MATCH (e:Editor {user: $user}) SET e += $props RETURN properties(e) AS e",
                     user=user, props=props).single()
-        return rec["e"] if rec else None
+        return _plano(rec["e"]) if rec else None
 
 
 def neo4j_eliminar_relacion(driver, origen: str, destino: str, tipo: str) -> int:

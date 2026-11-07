@@ -264,42 +264,103 @@ def mongo_eliminar(event_id: str):
     return {"eliminados": n}
 
 
+# Cassandra y Neo4j guardan datos que calcula el pipeline: las escrituras del CRUD se limitan a nombres
+# de demostración («Demo_…») para no alterar los datos reales que alimentan los KPIs. Consultar no tiene límite.
+PREFIJO_DEMO = "Demo_"
+
+
+def solo_demo(nombre: str) -> None:
+    if not nombre.startswith(PREFIJO_DEMO):
+        raise HTTPException(403, f"Para no alterar los datos reales, solo se puede escribir sobre nombres que empiezan con «{PREFIJO_DEMO}»")
+
+
+def _fila_cass(r) -> dict:
+    d = q._fila(r)
+    d["fecha"] = str(r.fecha)
+    return d
+
+
 class FilaCassandra(BaseModel):
     editor: str
     fecha: date
     hora: int = Field(ge=0, le=23)
     wiki: str
-    eventos: int = 0
-    ediciones: int = 0
+    tipo_editor: str = "registrado"
+    eventos: int = Field(0, ge=0)
+    ediciones: int = Field(0, ge=0)
+    paginas: int = Field(0, ge=0)
+    delta_bytes: int = 0
+    reversiones_hechas: int = Field(0, ge=0)
+    reversiones_recibidas: int = Field(0, ge=0)
+
+
+class CambiosCassandra(BaseModel):
+    editor: str
+    fecha: date
+    hora: int = Field(ge=0, le=23)
+    wiki: str
+    cambios: dict[str, str | int]
 
 
 @app.post("/api/crud/cassandra")
 def cassandra_insertar(f: FilaCassandra):
-    crud.cassandra_insertar(q.cassandra(), {
-        "editor": f.editor, "fecha": f.fecha, "hora": f.hora, "wiki": f.wiki, "tipo_editor": "registrado",
-        "eventos": f.eventos, "ediciones": f.ediciones, "paginas": 1, "delta_bytes": 0,
-        "reversiones_hechas": 0, "reversiones_recibidas": 0})
+    """INSERT de una fila completa. En Cassandra, si la clave ya existe la fila se reemplaza (upsert)."""
+    solo_demo(f.editor)
+    s = q.cassandra()
+    existia = crud.cassandra_fila(s, f.editor, f.fecha, f.hora, f.wiki) is not None
+    crud.cassandra_insertar(s, f.model_dump())
     q.limpiar_cache()
-    return cassandra_leer(f.editor)
+    return {"reemplazo": existia, "fila": _fila_cass(crud.cassandra_fila(s, f.editor, f.fecha, f.hora, f.wiki))}
+
+
+@app.get("/api/crud/cassandra/fila")
+def cassandra_una_fila(editor: str, fecha: date, hora: int, wiki: str):
+    r = crud.cassandra_fila(q.cassandra(), editor, fecha, hora, wiki)
+    if r is None:
+        raise HTTPException(404, "No hay una fila con esa clave")
+    return _fila_cass(r)
 
 
 @app.get("/api/crud/cassandra")
-def cassandra_leer(editor: str):
-    return [q._fila(r) for r in crud.cassandra_consultar(q.cassandra(), editor, limite=50)]
+def cassandra_leer(editor: str, fecha: date | None = None, hora: int | None = None, wiki: str | None = None, limite: int = 50):
+    """SELECT por partición (el editor), opcionalmente de un día; la hora y la wiki se filtran sobre esa partición."""
+    filas = crud.cassandra_consultar(q.cassandra(), editor, fecha, limite=min(limite, 200) if hora is None and wiki is None else 500)
+    out = [_fila_cass(r) for r in filas if (hora is None or r.hora == hora) and (wiki is None or r.wiki == wiki)]
+    return out[:limite]
 
 
 @app.patch("/api/crud/cassandra")
-def cassandra_actualizar(f: FilaCassandra):
-    crud.cassandra_actualizar(q.cassandra(), f.editor, f.fecha, f.hora, f.wiki, f.eventos, f.ediciones)
+def cassandra_actualizar(body: CambiosCassandra):
+    solo_demo(body.editor)
+    s = q.cassandra()
+    if crud.cassandra_fila(s, body.editor, body.fecha, body.hora, body.wiki) is None:
+        raise HTTPException(404, "No hay una fila con esa clave (en Cassandra, UPDATE la crearía)")
+    try:
+        crud.cassandra_actualizar_columnas(s, body.editor, body.fecha, body.hora, body.wiki, body.cambios)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     q.limpiar_cache()
-    return cassandra_leer(f.editor)
+    return _fila_cass(crud.cassandra_fila(s, body.editor, body.fecha, body.hora, body.wiki))
 
 
 @app.delete("/api/crud/cassandra")
-def cassandra_eliminar(editor: str, fecha: date, hora: int, wiki: str):
-    crud.cassandra_eliminar(q.cassandra(), editor, fecha, hora, wiki)
+def cassandra_eliminar(editor: str, fecha: date | None = None, hora: int | None = None, wiki: str | None = None):
+    """Sin fecha, hora ni wiki borra la partición entera del editor; con las tres, una sola fila."""
+    solo_demo(editor)
+    s = q.cassandra()
+    if fecha is None:
+        n = len(crud.cassandra_consultar(s, editor, limite=10000))
+        crud.cassandra_eliminar(s, editor)
+    else:
+        if hora is None or wiki is None:
+            raise HTTPException(400, "Para borrar una fila hacen falta fecha, hora y wiki")
+        n = 1 if crud.cassandra_fila(s, editor, fecha, hora, wiki) is not None else 0
+        crud.cassandra_eliminar(s, editor, fecha, hora, wiki)
     q.limpiar_cache()
-    return cassandra_leer(editor)
+    return {"filas_eliminadas": n}
+
+
+TIPOS_EDITOR = ("registrado", "temporal", "bot")
 
 
 class NodoEditor(BaseModel):
@@ -311,45 +372,62 @@ class Relacion(BaseModel):
     origen: str
     destino: str
     tipo: str
-    veces: int = 1
+    veces: int = Field(1, ge=1)
+    wiki: str | None = None
 
 
-class Propiedad(BaseModel):
-    clave: str
-    valor: str | int | float | bool
+class CambiosNodo(BaseModel):
+    cambios: dict[str, str | int | float | bool]
 
 
 @app.post("/api/crud/neo4j/editor")
 def neo_crear_editor(n: NodoEditor):
+    solo_demo(n.user)
+    if n.tipo not in TIPOS_EDITOR:
+        raise HTTPException(400, "Tipo de editor no válido")
+    existia = crud.neo4j_detalle_editor(q.neo4j(), n.user, 0) is not None
     q.limpiar_cache()
-    return crud.neo4j_crear_editor(q.neo4j(), n.user, n.tipo)
+    return {"creado": not existia, "editor": crud.neo4j_crear_editor(q.neo4j(), n.user, n.tipo)}
 
 
 @app.post("/api/crud/neo4j/relacion")
 def neo_crear_relacion(r: Relacion):
-    try:
-        res = crud.neo4j_crear_relacion(q.neo4j(), r.origen, r.destino, r.tipo, {"veces": r.veces})
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
-    if res is None:
-        raise HTTPException(404, "Alguno de los dos editores no existe")
+    """MERGE de la relación; si alguno de los dos editores no existe, se crea con él."""
+    solo_demo(r.origen)
+    solo_demo(r.destino)
+    if r.tipo not in crud.RELACIONES_EDITOR:
+        raise HTTPException(400, "Tipo de relación no permitido")
+    d = q.neo4j()
+    nuevos = [u for u in (r.origen, r.destino) if crud.neo4j_asegurar_editor(d, u)]
+    props = {"veces": r.veces, **({"wiki": r.wiki} if r.wiki else {})}
+    res = crud.neo4j_crear_relacion(d, r.origen, r.destino, r.tipo, props)
     q.limpiar_cache()
-    return res
+    return {"relacion": res, "nodos_nuevos": nuevos}
+
+
+@app.get("/api/crud/neo4j/editores")
+def neo_buscar(prefijo: str = PREFIJO_DEMO, tipo: str | None = None, limite: int = 10):
+    if not prefijo.strip():
+        raise HTTPException(400, "Escribe el comienzo del nombre del editor")
+    return crud.neo4j_buscar_editores(q.neo4j(), prefijo.strip(), tipo if tipo in TIPOS_EDITOR else None, min(max(limite, 1), 50))
 
 
 @app.get("/api/crud/neo4j/editor/{user}")
 def neo_leer(user: str):
-    res = crud.neo4j_consultar_editor(q.neo4j(), user)
+    res = crud.neo4j_detalle_editor(q.neo4j(), user)
     if res is None:
         raise HTTPException(404, "Ese editor no existe")
     return res
 
 
 @app.patch("/api/crud/neo4j/editor/{user}")
-def neo_actualizar(user: str, p: Propiedad):
-    if p.clave == "user":
-        raise HTTPException(400, "La clave única no se puede cambiar")
-    res = crud.neo4j_actualizar_editor(q.neo4j(), user, {p.clave: p.valor})
+def neo_actualizar(user: str, body: CambiosNodo):
+    solo_demo(user)
+    if "user" in body.cambios:
+        raise HTTPException(400, "La clave única (user) no se puede cambiar")
+    if "tipo" in body.cambios and body.cambios["tipo"] not in TIPOS_EDITOR:
+        raise HTTPException(400, "Tipo de editor no válido")
+    res = crud.neo4j_actualizar_editor(q.neo4j(), user, body.cambios)
     if res is None:
         raise HTTPException(404, "Ese editor no existe")
     q.limpiar_cache()
@@ -358,6 +436,7 @@ def neo_actualizar(user: str, p: Propiedad):
 
 @app.delete("/api/crud/neo4j/relacion")
 def neo_eliminar_relacion(origen: str, destino: str, tipo: str):
+    solo_demo(origen)
     try:
         n = crud.neo4j_eliminar_relacion(q.neo4j(), origen, destino, tipo)
     except ValueError as exc:
@@ -368,6 +447,8 @@ def neo_eliminar_relacion(origen: str, destino: str, tipo: str):
 
 @app.delete("/api/crud/neo4j/editor/{user}")
 def neo_eliminar_editor(user: str):
+    solo_demo(user)
+    d = crud.neo4j_detalle_editor(q.neo4j(), user, 0)
     n = crud.neo4j_eliminar_nodo(q.neo4j(), "Editor", "user", user)
     q.limpiar_cache()
-    return {"nodos_eliminados": n}
+    return {"nodos_eliminados": n, "relaciones_eliminadas": (d["n_salientes"] + d["n_entrantes"]) if d else 0}
