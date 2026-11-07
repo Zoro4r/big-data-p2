@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { Activity, ChartLine, Database, LayoutDashboard, Moon, Radio, Search, Share2, Sun } from "lucide-react"
+import { Activity, ChartLine, Database, LayoutDashboard, Moon, Network, Radio, Search, Share2, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -51,6 +51,8 @@ export function Sidebar() {
       <nav aria-label="Secciones" className="flex flex-col gap-0.5">
         <span className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground">Panel</span>
         {PANEL.map((e) => <Enlace key={e.to} {...e} />)}
+        <span className="px-2.5 pt-4 pb-1.5 text-xs font-medium text-muted-foreground">Proyecto</span>
+        <Enlace to="/arquitectura" label="Arquitectura" icon={Network} />
         <span className="px-2.5 pt-4 pb-1.5 text-xs font-medium text-muted-foreground">Administración</span>
         <Enlace to="/crud" label="Operaciones CRUD" icon={Database} />
       </nav>

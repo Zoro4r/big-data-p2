@@ -17,6 +17,7 @@ const Actividad = lazy(() => import("@/pages/Actividad"))
 const Explorador = lazy(() => import("@/pages/Explorador"))
 const Red = lazy(() => import("@/pages/Red"))
 const Crud = lazy(() => import("@/pages/Crud"))
+const Arquitectura = lazy(() => import("@/pages/Arquitectura"))
 
 function Login({ onOk }: { onOk: () => void }) {
   const [clave, setClave] = useState("")
@@ -66,6 +67,7 @@ function Dashboard() {
           <Route path="/explorador" element={<Explorador />} />
           <Route path="/red" element={<Red />} />
           <Route path="/crud" element={<Crud />} />
+          <Route path="/arquitectura" element={<Arquitectura />} />
           <Route path="*" element={<Resumen />} />
         </Routes>
         </Suspense>
