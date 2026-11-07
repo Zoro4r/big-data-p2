@@ -852,6 +852,16 @@ Antes, Actualizar pedía un `_id`, el nombre de un campo y un valor, sin mostrar
 
 Verificación: con la API, un cambio de bytes y título recalculó `delta_bytes` y `page_key`, y los intentos de cambiar `_id` o dejar el editor vacío se rechazaron. Con Playwright: crear → Consultar → "Actualizar este" → editar tres campos → deshacer uno → guardar 2 cambios, sin errores de JavaScript; las dos columnas terminan a la misma altura. Los documentos de prueba se borraron. Commits `feat: recalculate derived fields on mongo update` y `feat: edit mongo events with a prefilled form in crud page`.
 
+### 30. Eliminar eventos de MongoDB con doble confirmación
+
+Antes, Eliminar borraba directo con solo escribir un `_id`, sin mostrar qué documento era. Se diseñaron en Claude Design (canvas "Eliminar eventos en MongoDB") tres opciones: confirmar escribiendo el `_id`, limpiar varios documentos de demostración, y diálogo de confirmación con "Deshacer". Se eligió combinar la confirmación escrita con el diálogo, sin "Deshacer": borrar no se puede revertir.
+
+**Columna izquierda** (`web/src/components/eliminar-evento.tsx`): "Documento a eliminar" con `_id` y Cargar ("Eliminar" desde Consultar lo carga solo), ficha del documento y el campo "Para confirmar, escribe el _id". El botón rojo "Eliminar documento…" se activa solo cuando el texto coincide y abre un diálogo "¿Eliminar «…»?" con Cancelar y Eliminar.
+
+**Columna derecha:** "Qué pasa al eliminarlo" (MongoDB lo borra con `delete_one`; Cassandra y Neo4j no cambian porque sus datos ya se calcularon) y el documento que se va a eliminar. Después de borrar: "Documento eliminado · deleted_count: 1".
+
+Verificación con Playwright: crear → Consultar → "Eliminar" → el botón está deshabilitado hasta escribir el `_id` → diálogo → eliminar; el documento ya no existe y no hay errores de JavaScript. Commit `feat: confirm mongo deletes by typing the id and in a dialog`.
+
 ---
 
 ## Pendientes
