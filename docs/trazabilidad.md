@@ -868,6 +868,24 @@ Se diseñaron en Claude Design las mismas mejoras del CRUD para Cassandra y Neo4
 
 Se creó `docs/requerimientos.md`: recorre cada sección de las instrucciones (fuente de datos, arquitectura multimodelo, Airflow, CRUD, dashboard, KPIs y entregables) y describe cómo la cumple el proyecto, con las cifras de la VM al 7 de noviembre (2,570,895 eventos en MongoDB, ~945 mil nodos y ~2.8 millones de relaciones en Neo4j, 163 corridas del DAG). Marca como pendientes el informe en PDF, las capturas del dashboard y el video. Commit `docs: add project requirements checklist`.
 
+### 32. Sección «Arquitectura» del dashboard
+
+Nueva página **Arquitectura** (grupo "Proyecto" del menú), diseñada en Claude Design (canvas "Sección Arquitectura"). Se compararon una página larga, pestañas y un diagrama clicable, y se eligió el diagrama: cada componente abre un modal con su detalle, con la caja "Capa por lotes" compacta ("DAG de Airflow · cada hora · extraer → validar → cargar → KPIs").
+
+**Diagrama** (`web/src/pages/Arquitectura.tsx`): Wikimedia EventStreams → capa rápida y capa por lotes → MongoDB, Cassandra y Neo4j → API FastAPI → dashboard. Debajo, cuatro cifras en vivo (eventos guardados, ritmo de llegada, corridas del DAG y calidad de la última hora) que abren el modal relacionado. Cada modal tiene navegación anterior/siguiente por los 8 componentes.
+
+**Modales:**
+
+- **Wikimedia EventStreams:** los datos que llegan. Volumen, velocidad, variedad y calidad; origen (fuente, endpoint, SSE, esquema, wikis guardadas, licencia); un evento real de MongoDB con filtro por tipo y "Ver otro"; campos comunes y los 4 tipos con su porcentaje de las últimas 24 h y sus campos extra.
+- **Capa rápida:** cómo trabaja el servicio stream, qué escribe y por qué existe junto al DAG (arquitectura Lambda).
+- **Capa por lotes:** el flujo de Airflow: qué es un DAG, las 6 tareas dibujadas en orden (con Cassandra y Neo4j en paralelo), qué hace cada una y dónde escribe, idempotencia y las últimas corridas.
+- **MongoDB, Cassandra y Neo4j:** qué guarda cada una, por qué ahí y quién escribe. Además: tamaño, validador e índices de `events`; las 7 tablas de Cassandra con su clave primaria; nodos y los 11 tipos de relación de Neo4j con su cantidad.
+- **API y Dashboard:** qué bases consulta cada vista y cómo está construido y desplegado.
+
+**API:** `GET /api/arquitectura` (cifras con caché de 60 s; la mezcla de tipos sale de `resumen_por_hora` en Cassandra y, si no hay horas recientes, de MongoDB) y `GET /api/arquitectura/ejemplo?tipo=` (un evento reciente al azar).
+
+Verificación con Playwright: recorrido de los 8 modales con anterior/siguiente, en modo claro y oscuro, sin errores de JavaScript. Commits `feat: add architecture endpoints` y `feat: add architecture page with clickable diagram`.
+
 ---
 
 ## Pendientes

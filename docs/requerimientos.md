@@ -26,7 +26,7 @@ Este documento recorre, sección por sección, lo que piden las instrucciones de
 - **Semiestructurado:** cada evento es un JSON con campos comunes y campos que dependen del tipo (`edit`, `new`, `categorize`, `log`), con objetos anidados (`meta`, `length`, `revision`, `log_params`). No todos los registros tienen la misma forma.
 - **Volumen:** MongoDB guarda **2,570,895 eventos** de enwiki y eswiki, del 31 de octubre al 7 de noviembre de 2026. Es unas 50 veces el mínimo pedido.
 - **Actualización periódica:** los datos llegan solos. El servicio de streaming los guarda cada ~2 segundos y el DAG procesa cada hora completa.
-- **Documentación:** `docs/justificacion-dataset.md` describe el origen, el protocolo, la licencia, la estructura de cada tipo de evento y una captura de prueba (~37 eventos/s).
+- **Documentación:** la página **Arquitectura** del dashboard lo muestra con cifras en vivo, y `docs/justificacion-dataset.md` describe el origen, el protocolo, la licencia, la estructura de cada tipo de evento y una captura de prueba (~37 eventos/s).
 
 ## 2. Arquitectura multimodelo
 
@@ -115,13 +115,14 @@ Las operaciones están en la página **Operaciones CRUD** del dashboard (`web/sr
 
 - **Tecnología:** React + shadcn/ui sobre una API FastAPI, desplegado en una VM de GCP (puerto 8501, con contraseña). Se migró desde una primera versión en Streamlit.
 - **Las tres bases conectadas:** cada vista lee de la base que corresponde. Los logos de MongoDB, Cassandra y Neo4j indican de dónde sale cada dato.
-- **Seis vistas:**
+- **Siete vistas:**
   - **Resumen y KPIs:** los 12 KPIs de la última hora con variación frente a la hora anterior, ritmo de ediciones del día y los "protagonistas" que salen de Neo4j.
   - **En vivo:** eventos por segundo y últimas ediciones al instante (capa rápida), con filtros por tipo de evento y de editor, y detalle de cada evento.
   - **Actividad en el tiempo:** serie por minuto del día y el historial de un editor (Cassandra).
   - **Explorador de eventos:** búsqueda y conteos por tipo sobre MongoDB.
   - **Red de editores:** totales del grafo, rankings de editores revertidos y patrulleros, páginas disputadas y la red alrededor de un editor (Neo4j).
   - **Operaciones CRUD** (sección 4).
+  - **Arquitectura:** diagrama clicable del flujo de datos; cada componente abre su detalle: origen, estructura y características del dataset, el flujo de Airflow paso a paso y qué guarda cada base.
 - **Claridad:**
   - todas las tarjetas abren un modal con definición, cálculo, lectura y origen del dato;
   - un filtro global de wiki (Ambas, enwiki, eswiki) aplica a todas las vistas;
