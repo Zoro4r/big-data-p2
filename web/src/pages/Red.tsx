@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import ForceGraph2D from "react-force-graph-2d"
+import { useTheme } from "next-themes"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
@@ -37,6 +38,11 @@ function useAncho<T extends HTMLElement>() {
 
 export default function RedPage() {
   const { wiki, etiqueta } = useWiki()
+  // El canvas del grafo no lee variables CSS: colores según el tema activo
+  const oscuro = useTheme().resolvedTheme === "dark"
+  const lienzo = oscuro
+    ? { fondo: "#18181b", enlace: "#52525b", borde: "#18181b", etiquetaFondo: "rgba(24,24,27,0.85)", texto: "#fafafa" }
+    : { fondo: "#fafafa", enlace: "#a1a1aa", borde: "#ffffff", etiquetaFondo: "rgba(255,255,255,0.9)", texto: "#18181b" }
   const { data } = useApi<Red>(`/api/red?wiki=${wiki}`)
   const [busqueda, setBusqueda] = useState("")
   const [usuario, setUsuario] = useState<string | null>(null)
@@ -91,7 +97,7 @@ export default function RedPage() {
               <Button type="submit" variant="outline">Ver red</Button>
             </form>
           }>
-          <div ref={ref} className="relative h-[480px] overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50">
+          <div ref={ref} className="relative h-[480px] overflow-hidden rounded-lg border border-border bg-muted/50">
             {ego.cargando ? <Cargando alto={480} /> : !ego.data?.centro ? (
               <div className="p-6"><Vacio titulo="Editor no encontrado" texto="Revisa el nombre exacto (mayúsculas incluidas)." /></div>
             ) : (
@@ -101,9 +107,9 @@ export default function RedPage() {
                 width={ancho}
                 height={480}
                 graphData={grafo}
-                backgroundColor="#fafafa"
+                backgroundColor={lienzo.fondo}
                 cooldownTicks={120}
-                linkColor={() => "#a1a1aa"}
+                linkColor={() => lienzo.enlace}
                 linkWidth={(l) => 1 + Math.min((l as { peso: number }).peso, 10) / 4}
                 linkDirectionalArrowLength={(l) => ((l as { tipo: string }).tipo === "COEDITA" ? 0 : 5)}
                 linkDirectionalArrowRelPos={0.9}
@@ -117,16 +123,16 @@ export default function RedPage() {
                   ctx.fillStyle = colorTipo(nodo.tipo)
                   ctx.fill()
                   ctx.lineWidth = 2 / escala
-                  ctx.strokeStyle = "#ffffff"
+                  ctx.strokeStyle = lienzo.borde
                   ctx.stroke()
                   const fuente = (nodo.centro ? 13 : 11) / escala
                   ctx.font = `${nodo.centro ? 600 : 400} ${fuente}px Geist, system-ui, sans-serif`
                   ctx.textAlign = "center"
                   ctx.textBaseline = "top"
                   const w = ctx.measureText(nodo.id).width
-                  ctx.fillStyle = "rgba(255,255,255,0.9)"
+                  ctx.fillStyle = lienzo.etiquetaFondo
                   ctx.fillRect((nodo.x ?? 0) - w / 2 - 2 / escala, (nodo.y ?? 0) + r + 2 / escala, w + 4 / escala, fuente + 2 / escala)
-                  ctx.fillStyle = "#18181b"
+                  ctx.fillStyle = lienzo.texto
                   ctx.fillText(nodo.id, nodo.x ?? 0, (nodo.y ?? 0) + r + 3 / escala)
                 }}
                 nodePointerAreaPaint={(n, color, ctx) => {
@@ -138,7 +144,7 @@ export default function RedPage() {
                 }}
               />
             )}
-            <div className="absolute bottom-3 left-3 rounded-lg border bg-white px-3 py-1.5">
+            <div className="absolute bottom-3 left-3 rounded-lg border bg-card px-3 py-1.5">
               <Leyenda items={[{ nombre: "registrado", color: COLOR.registrado }, { nombre: "cuenta temporal", color: COLOR.temporal }, { nombre: "bot", color: COLOR.bot }]} />
             </div>
           </div>
@@ -149,7 +155,7 @@ export default function RedPage() {
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
                 {data.revertidos.map((r) => (
-                  <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-zinc-50" title={`Revertido por ${r.revertido_por} editor(es) · ver su red`}>
+                  <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-muted/50" title={`Revertido por ${r.revertido_por} editor(es) · ver su red`}>
                     <FilaBarra nombre={r.editor} valor={r.reversiones} max={data.revertidos[0].reversiones} color={colorTipo(r.tipo)} mono />
                   </button>
                 ))}
@@ -160,7 +166,7 @@ export default function RedPage() {
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
                 {data.patrulleros.map((r) => (
-                  <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-zinc-50" title={`Revirtió a ${r.editores_revertidos} editor(es) · ver su red`}>
+                  <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-muted/50" title={`Revirtió a ${r.editores_revertidos} editor(es) · ver su red`}>
                     <FilaBarra nombre={r.editor} valor={r.reversiones} max={data.patrulleros[0].reversiones} color={colorTipo(r.tipo)} mono />
                   </button>
                 ))}
@@ -180,7 +186,7 @@ export default function RedPage() {
                     <TableCell><span className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: COLOR[p.wiki as "enwiki"] ?? COLOR.otro }} />{p.wiki}</span></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-zinc-800" style={{ width: `${(p.editores / data.disputadas[0].editores) * 100}%` }} /></div>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-foreground/75" style={{ width: `${(p.editores / data.disputadas[0].editores) * 100}%` }} /></div>
                         <span className="w-6 text-right tabular-nums">{p.editores}</span>
                       </div>
                     </TableCell>

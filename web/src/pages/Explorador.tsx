@@ -62,9 +62,9 @@ export default function ExploradorPage() {
           {!data ? <Cargando alto={240} /> : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={porTipo} margin={{ top: 20, left: 0, right: 8 }} barGap={4}>
-                <CartesianGrid vertical={false} stroke="#f4f4f5" />
-                <XAxis dataKey="tipo" tickLine={false} axisLine={false} fontSize={12} stroke="#71717a" />
-                <Tooltip cursor={{ fill: "#f4f4f5" }} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="tipo" tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
+                <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 {wikis.includes("enwiki") && <Bar dataKey="enwiki" fill={COLOR.enwiki} radius={[5, 5, 0, 0]}><LabelList dataKey="enwiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>}
                 {wikis.includes("eswiki") && <Bar dataKey="eswiki" fill={COLOR.eswiki} radius={[5, 5, 0, 0]}><LabelList dataKey="eswiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>}
               </BarChart>
@@ -102,20 +102,20 @@ export default function ExploradorPage() {
             {cargando || !data ? <Cargando alto={360} /> : data.eventos.length === 0 ? <Vacio titulo="Sin resultados" texto="Ningún evento coincide con los filtros." /> : (
               <div className="max-h-[520px] overflow-auto rounded-md border">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-white">
+                  <TableHeader className="sticky top-0 bg-card">
                     <TableRow><TableHead>Fecha (UTC)</TableHead><TableHead>Tipo</TableHead><TableHead>Título</TableHead><TableHead>Editor</TableHead><TableHead className="text-right">Δ bytes</TableHead></TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.eventos.map((ev) => (
-                      <TableRow key={ev._id} onClick={() => setElegido(ev._id)} className={cn("cursor-pointer", elegido === ev._id && "bg-zinc-100")}>
+                      <TableRow key={ev._id} onClick={() => setElegido(ev._id)} className={cn("cursor-pointer", elegido === ev._id && "bg-muted")}>
                         <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{horaUTC(ev.fecha)}</TableCell>
                         <TableCell><span className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: COLOR[ev.wiki as "enwiki"] ?? COLOR.otro }} />{ev.tipo}</span></TableCell>
                         <TableCell className="max-w-64 truncate" title={ev.titulo}>
                           <button type="button" className="truncate text-left hover:underline" onClick={() => setElegido(ev._id)}>{ev.titulo}</button>
-                          {ev.revierte_a && <Badge variant="outline" className="ml-2 border-red-200 bg-red-50 text-red-700">revierte a {ev.revierte_a}</Badge>}
+                          {ev.revierte_a && <Badge variant="outline" className="ml-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400">revierte a {ev.revierte_a}</Badge>}
                         </TableCell>
                         <TableCell className="max-w-40 truncate"><span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: colorTipo(ev.tipo_editor) }} />{ev.editor}</TableCell>
-                        <TableCell className={cn("text-right tabular-nums", (ev.delta_bytes ?? 0) < 0 ? "text-red-700" : "text-zinc-700")}>{ev.delta_bytes == null ? "—" : `${ev.delta_bytes > 0 ? "+" : ""}${entero(ev.delta_bytes)}`}</TableCell>
+                        <TableCell className={cn("text-right tabular-nums", (ev.delta_bytes ?? 0) < 0 ? "text-red-700 dark:text-red-400" : "text-foreground/80")}>{ev.delta_bytes == null ? "—" : `${ev.delta_bytes > 0 ? "+" : ""}${entero(ev.delta_bytes)}`}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -126,7 +126,7 @@ export default function ExploradorPage() {
 
           <Seccion className="xl:col-span-2" titulo="Documento completo" descripcion="Así se guarda en MongoDB: campos originales + derived">
             {!elegido ? <Vacio icono={<FileJson2 className="size-5" aria-hidden />} titulo="Elige un evento" texto="El documento JSON aparece aquí." /> : doc.cargando || !doc.data ? <Cargando alto={360} /> : (
-              <pre className="max-h-[520px] overflow-auto rounded-lg border bg-zinc-50 p-4 font-mono text-xs leading-relaxed text-zinc-800">{JSON.stringify(doc.data, null, 2)}</pre>
+              <pre className="max-h-[520px] overflow-auto rounded-lg border bg-muted/50 p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(doc.data, null, 2)}</pre>
             )}
           </Seccion>
         </div>

@@ -7,9 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 const TONO = {
-  bueno: "border-green-200 bg-green-50 text-green-700",
-  malo: "border-red-200 bg-red-50 text-red-700",
-  neutro: "border-zinc-200 bg-white text-zinc-700",
+  bueno: "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400",
+  malo: "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400",
+  neutro: "border-border bg-card text-foreground/80",
 }
 
 export function TarjetaKpi(props: {
@@ -67,9 +67,9 @@ export function Cargando({ alto = 240 }: { alto?: number }) {
 
 export function Vacio({ titulo, texto, icono }: { titulo: string; texto: string; icono?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 px-4 py-7 text-center text-[13px] text-muted-foreground">
+    <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-border px-4 py-7 text-center text-[13px] text-muted-foreground">
       {icono}
-      <span className="font-medium text-zinc-700">{titulo}</span>
+      <span className="font-medium text-foreground/80">{titulo}</span>
       <span>{texto}</span>
     </div>
   )
@@ -77,7 +77,7 @@ export function Vacio({ titulo, texto, icono }: { titulo: string; texto: string;
 
 export function Leyenda({ items }: { items: { nombre: string; color: string }[] }) {
   return (
-    <div className="flex flex-wrap items-center gap-4 text-[13px] text-zinc-700">
+    <div className="flex flex-wrap items-center gap-4 text-[13px] text-foreground/80">
       {items.map((i) => (
         <span key={i.nombre} className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-[3px]" style={{ background: i.color }} />
@@ -93,7 +93,7 @@ export function FilaBarra({ nombre, valor, max, color, mono = false }: { nombre:
   return (
     <div className="grid grid-cols-[minmax(0,160px)_minmax(0,1fr)_40px] items-center gap-3 text-[13px]">
       <span className={cn("truncate", mono && "font-mono text-xs")} title={nombre}>{nombre}</span>
-      <div className="h-2.5 overflow-hidden rounded-full bg-zinc-100">
+      <div className="h-2.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full" style={{ width: `${Math.max(2, (valor / Math.max(max, 1)) * 100)}%`, background: color }} />
       </div>
       <span className="text-right font-medium tabular-nums">{valor}</span>

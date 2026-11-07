@@ -31,10 +31,10 @@ function Login({ onOk }: { onOk: () => void }) {
     }
   }
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-muted/50 p-6">
       <Card className="w-full max-w-sm shadow-sm">
         <CardHeader>
-          <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-zinc-900 text-white"><Activity className="size-5" aria-hidden /></div>
+          <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Activity className="size-5" aria-hidden /></div>
           <CardTitle className="text-xl">Wikipedia en vivo</CardTitle>
           <CardDescription>Dashboard del Proyecto Grupal II de Big Data. Ingresa la contraseña del equipo.</CardDescription>
         </CardHeader>
@@ -42,7 +42,7 @@ function Login({ onOk }: { onOk: () => void }) {
           <form onSubmit={entrar} className="flex flex-col gap-3">
             <Label htmlFor="clave">Contraseña</Label>
             <Input id="clave" type="password" autoFocus value={clave} onChange={(e) => setClave(e.target.value)} aria-invalid={Boolean(error)} />
-            {error && <p className="text-sm text-red-700">{error}</p>}
+            {error && <p className="text-sm text-red-700 dark:text-red-400">{error}</p>}
             <Button type="submit" className="mt-1">Entrar</Button>
           </form>
         </CardContent>

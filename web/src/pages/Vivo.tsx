@@ -76,7 +76,7 @@ export default function VivoPage() {
     <>
       <Header ruta={["Panel", "En vivo"]} />
       <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada edición de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
-        {error && <p className="text-sm text-red-700">No se pudo actualizar: {error}</p>}
+        {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
@@ -92,10 +92,10 @@ export default function VivoPage() {
           {!data ? <Cargando alto={240} /> : (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={serie} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid vertical={false} stroke="#f4f4f5" />
-                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="#71717a" />
-                <YAxis tickLine={false} axisLine={false} width={40} fontSize={11} stroke="#71717a" />
-                <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={40} fontSize={11} stroke="var(--muted-foreground)" />
+                <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 {wikis.includes("enwiki") && <Area type="monotone" dataKey="enwiki" stackId="a" stroke={COLOR.enwiki} fill={COLOR.enwiki} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />}
                 {wikis.includes("eswiki") && <Area type="monotone" dataKey="eswiki" stackId="a" stroke={COLOR.eswiki} fill={COLOR.eswiki} fillOpacity={0.25} strokeWidth={2} isAnimationActive={false} />}
               </AreaChart>
@@ -107,7 +107,7 @@ export default function VivoPage() {
           {!data ? <Cargando alto={400} /> : (
             <ul className="flex flex-col divide-y divide-zinc-100" aria-live="polite">
               {data.ultimos.map((e) => (
-                <li key={e._id} className={cn("grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2.5 text-[13px] transition-colors duration-1000", nuevos.has(e._id) ? "bg-blue-50" : "bg-transparent")}>
+                <li key={e._id} className={cn("grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2.5 text-[13px] transition-colors duration-1000", nuevos.has(e._id) ? "bg-blue-50 dark:bg-blue-950/40" : "bg-transparent")}>
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">{hace(e.fecha, reloj)}</span>
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="flex min-w-0 items-center gap-2">
@@ -122,11 +122,11 @@ export default function VivoPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {e.revierte_a && (
-                      <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-700"><Undo2 className="size-3" aria-hidden />revierte a {e.revierte_a}</Badge>
+                      <Badge variant="outline" className="gap-1 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400"><Undo2 className="size-3" aria-hidden />revierte a {e.revierte_a}</Badge>
                     )}
-                    {e.tipo_editor === "bot" && <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">bot</Badge>}
+                    {e.tipo_editor === "bot" && <Badge variant="outline" className="border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">bot</Badge>}
                     {e.delta_bytes != null && (
-                      <span className={cn("w-16 text-right font-mono text-xs tabular-nums", e.delta_bytes < 0 ? "text-red-700" : "text-zinc-600")}>{e.delta_bytes > 0 ? "+" : ""}{entero(e.delta_bytes)}</span>
+                      <span className={cn("w-16 text-right font-mono text-xs tabular-nums", e.delta_bytes < 0 ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>{e.delta_bytes > 0 ? "+" : ""}{entero(e.delta_bytes)}</span>
                     )}
                   </div>
                 </li>

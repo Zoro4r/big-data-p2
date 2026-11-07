@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { Activity, ChartLine, Database, LayoutDashboard, Radio, Search, Share2 } from "lucide-react"
+import { Activity, ChartLine, Database, LayoutDashboard, Moon, Radio, Search, Share2, Sun } from "lucide-react"
+import { useTheme } from "next-themes"
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useEstado, useWiki, type Wiki } from "@/lib/estado"
@@ -23,7 +24,7 @@ function Enlace({ to, label, icon: Icon }: { to: string; label: string; icon: ty
       className={({ isActive }) =>
         cn(
           "flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors",
-          isActive ? "bg-zinc-100 font-medium text-zinc-950" : "text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-950",
+          isActive ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
         )
       }
     >
@@ -39,7 +40,7 @@ export function Sidebar() {
   return (
     <aside className="flex w-full flex-col gap-6 border-b bg-sidebar px-3.5 py-5 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-r md:border-b-0">
       <div className="flex items-center gap-2.5 px-2">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-zinc-900 text-white">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <Activity className="size-[18px]" aria-hidden />
         </div>
         <div className="flex flex-col leading-tight">
@@ -53,7 +54,7 @@ export function Sidebar() {
         <span className="px-2.5 pt-4 pb-1.5 text-xs font-medium text-muted-foreground">Administración</span>
         <Enlace to="/crud" label="Operaciones CRUD" icon={Database} />
       </nav>
-      <div className="mt-auto hidden flex-col gap-1.5 rounded-xl border bg-white p-3.5 md:flex">
+      <div className="mt-auto hidden flex-col gap-1.5 rounded-xl border bg-card p-3.5 md:flex">
         <div className="flex items-center gap-2 text-[13px] font-medium">
           <span className="relative flex size-2">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60" />
@@ -87,18 +88,30 @@ function EstadoPipeline() {
   const ultimo = estado?.stream_ultimo_evento
   const enVivo = ultimo != null && ahora - new Date(ultimo).getTime() < 120_000
   return (
-    <div className="flex h-8 items-center gap-2.5 rounded-full border bg-white px-3 text-xs text-zinc-600" title="Capa rápida: último evento guardado por el streaming · Lote: última hora consolidada por el DAG">
+    <div className="flex h-8 items-center gap-2.5 rounded-full border bg-card px-3 text-xs text-muted-foreground" title="Capa rápida: último evento guardado por el streaming · Lote: última hora consolidada por el DAG">
       <span className="flex items-center gap-1.5">
         <span className="relative flex size-2">
           {enVivo && <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60" />}
           <span className={cn("relative inline-flex size-2 rounded-full", enVivo ? "bg-green-600" : "bg-amber-500")} />
         </span>
-        <span className={cn("font-medium", enVivo ? "text-green-800" : "text-amber-800")}>{enVivo ? "En vivo" : "Sin datos nuevos"}</span>
+        <span className={cn("font-medium", enVivo ? "text-green-800 dark:text-green-300" : "text-amber-800 dark:text-amber-300")}>{enVivo ? "En vivo" : "Sin datos nuevos"}</span>
         <span className="tabular-nums">{ultimo ? hace(ultimo, ahora) : "…"}</span>
       </span>
-      <span className="h-3.5 w-px bg-zinc-200" aria-hidden />
+      <span className="h-3.5 w-px bg-border" aria-hidden />
       <span className="tabular-nums">Lote {estado?.ultima_hora ? horaUTC(estado.ultima_hora) : "…"} UTC</span>
     </div>
+  )
+}
+
+/** Alterna claro / oscuro; la primera vez sigue la preferencia del sistema. */
+function BotonTema() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const oscuro = resolvedTheme === "dark"
+  return (
+    <button type="button" onClick={() => setTheme(oscuro ? "light" : "dark")} aria-label={oscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"} title={oscuro ? "Modo claro" : "Modo oscuro"}
+      className="flex size-8 items-center justify-center rounded-md border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+      {oscuro ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
+    </button>
   )
 }
 
@@ -126,6 +139,7 @@ export function Header({ ruta }: { ruta: [string, string] }) {
       <div className="flex flex-wrap items-center gap-2">
         <FiltroWiki />
         <EstadoPipeline />
+        <BotonTema />
       </div>
     </header>
   )
@@ -139,7 +153,7 @@ export function Pagina(props: { titulo: string; descripcion: ReactNode; aviso?: 
         <div className="flex max-w-3xl flex-col gap-1">
           <h1 className="text-[26px] font-semibold tracking-tight">{titulo}</h1>
           <p className="text-sm text-muted-foreground">{descripcion}</p>
-          {aviso && <p className="mt-2 w-fit rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[13px] text-amber-900">{aviso}</p>}
+          {aviso && <p className="mt-2 w-fit rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 text-[13px] text-amber-900 dark:text-amber-200">{aviso}</p>}
         </div>
         {acciones && <div className="flex items-center gap-2">{acciones}</div>}
       </div>

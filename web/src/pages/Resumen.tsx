@@ -31,7 +31,7 @@ const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
 function TooltipChart({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length || !label) return null
   return (
-    <div className="rounded-lg border bg-white px-3 py-2 text-xs shadow-md">
+    <div className="rounded-lg border bg-card px-3 py-2 text-xs shadow-md">
       <div className="mb-1 font-medium">{horaUTC(label)} UTC</div>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
@@ -93,9 +93,9 @@ export default function ResumenPage() {
                     <stop offset="100%" stopColor={colorWiki(wiki)} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} stroke="#f4f4f5" />
-                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="#71717a" />
-                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="#71717a" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip content={<TooltipChart />} />
                 <Area type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={2} fill="url(#relleno)" />
                 <Area type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} fill="none" />
@@ -109,15 +109,15 @@ export default function ResumenPage() {
             {!data ? <Cargando alto={200} /> : (
               <div className="flex flex-col">
                 {([
-                  ["pagina_mas_disputada", FileText, "bg-orange-50 text-orange-700", "editores"],
-                  ["editor_mas_conectado", Share2, "bg-blue-50 text-blue-700", "coeditores"],
-                  ["editor_mas_revertido", Undo2, "bg-red-50 text-red-700", "reversiones"],
+                  ["pagina_mas_disputada", FileText, "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400", "editores"],
+                  ["editor_mas_conectado", Share2, "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400", "coeditores"],
+                  ["editor_mas_revertido", Undo2, "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400", "reversiones"],
                 ] as const).map(([kpi, Icono, estilo, unidad], i) => {
                   const p = data.kpis[kpi][0]
                   const nombre = (p?.detalle ?? "—").split(" (")[0].replace(/^(en|es)wiki:/, "")
                   const extra = p?.detalle?.match(/\((.*)\)/)?.[1]
                   return (
-                    <div key={kpi} className={`flex items-center gap-3 py-3 ${i < 2 ? "border-b border-zinc-100" : ""}`}>
+                    <div key={kpi} className={`flex items-center gap-3 py-3 ${i < 2 ? "border-b border-border" : ""}`}>
                       <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${estilo}`}><Icono className="size-[18px]" aria-hidden /></div>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-xs text-muted-foreground">{KPIS[kpi].nombre}</span>
@@ -152,13 +152,13 @@ export default function ResumenPage() {
                         <TableCell className="text-right tabular-nums">{entero(f.eventos)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: COLOR.bot }} /></div>
-                            <span className="w-12 text-zinc-600 tabular-nums">{pct.toFixed(1)} %</span>
+                            <div className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: COLOR.bot }} /></div>
+                            <span className="w-12 text-muted-foreground tabular-nums">{pct.toFixed(1)} %</span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{f.rev}</TableCell>
                         <TableCell className="text-right">
-                          <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">{f.ejec?.calidad_pct != null ? `${f.ejec.calidad_pct.toFixed(0)} %` : "ok"}</Badge>
+                          <Badge variant="outline" className="border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400">{f.ejec?.calidad_pct != null ? `${f.ejec.calidad_pct.toFixed(0)} %` : "ok"}</Badge>
                         </TableCell>
                       </TableRow>
                     )
@@ -183,10 +183,10 @@ export default function ResumenPage() {
           {evolucion.length < 2 ? <p className="text-sm text-muted-foreground">Hace falta más de una hora con este KPI para ver su evolución.</p> : (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={evolucion} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid vertical={false} stroke="#f4f4f5" />
-                <XAxis dataKey="ventana" tickFormatter={(t) => horaUTC(t)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="#71717a" />
-                <YAxis tickLine={false} axisLine={false} width={52} fontSize={11} stroke="#71717a" />
-                <Tooltip formatter={(v: number) => [formatoKpi(kpiElegido, v), KPIS[kpiElegido].nombre]} labelFormatter={(t) => `${horaUTC(String(t))} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="ventana" tickFormatter={(t) => horaUTC(t)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={52} fontSize={11} stroke="var(--muted-foreground)" />
+                <Tooltip formatter={(v: number) => [formatoKpi(kpiElegido, v), KPIS[kpiElegido].nombre]} labelFormatter={(t) => `${horaUTC(String(t))} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} />
                 <Line type="monotone" dataKey="valor" stroke={COLOR.enwiki} strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>

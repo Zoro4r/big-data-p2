@@ -89,10 +89,10 @@ export default function ActividadPage() {
           {!data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%">
-                <CartesianGrid vertical={false} stroke="#f4f4f5" />
-                <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} fontSize={11} stroke="#71717a" />
-                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="#71717a" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
-                <Tooltip cursor={{ fill: "#f4f4f5" }} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
+                <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado} />
                 <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -104,10 +104,10 @@ export default function ActividadPage() {
           {!data ? <Cargando alto={200} /> : (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={data.minutos} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid vertical={false} stroke="#f4f4f5" />
-                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="#71717a" />
-                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="#71717a" />
-                <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
+                <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 <Line type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} dot={false} />
               </LineChart>
@@ -157,7 +157,7 @@ export default function ActividadPage() {
                     <Badge variant="outline">{hist.filas.reduce((s, f) => s + f.reversiones_recibidas, 0)} recibidas</Badge>
                   </div>
                   <ResponsiveContainer width="100%" height={110}>
-                    <BarChart data={hist.serie}><XAxis dataKey="t" hide /><Tooltip labelFormatter={(t) => `${horaUTC(String(t))} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                    <BarChart data={hist.serie}><XAxis dataKey="t" hide /><Tooltip labelFormatter={(t) => `${horaUTC(String(t))} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} />
                       <Bar dataKey="eventos" name="eventos" fill={colorTipo(hist.filas[0].tipo_editor)} radius={[3, 3, 0, 0]} /></BarChart>
                   </ResponsiveContainer>
                   <Table>

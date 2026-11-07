@@ -211,21 +211,21 @@ export default function CrudPage() {
           <div className="flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]">
             {resultado ? (
               <>
-                <div role="status" className={cn("flex items-start gap-3 rounded-xl border px-4 py-3.5", resultado.ok ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")}>
-                  {resultado.ok ? <CheckCircle2 className="mt-0.5 size-[18px] shrink-0 text-green-700" aria-hidden /> : <XCircle className="mt-0.5 size-[18px] shrink-0 text-red-700" aria-hidden />}
+                <div role="status" className={cn("flex items-start gap-3 rounded-xl border px-4 py-3.5", resultado.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40")}>
+                  {resultado.ok ? <CheckCircle2 className="mt-0.5 size-[18px] shrink-0 text-green-700 dark:text-green-400" aria-hidden /> : <XCircle className="mt-0.5 size-[18px] shrink-0 text-red-700 dark:text-red-400" aria-hidden />}
                   <div className="flex flex-col">
-                    <span className={cn("text-sm font-medium", resultado.ok ? "text-green-900" : "text-red-900")}>{resultado.ok ? "Operación realizada" : "Operación rechazada"}</span>
-                    <span className={cn("text-[13px]", resultado.ok ? "text-green-800" : "text-red-800")}>{resultado.titulo}</span>
+                    <span className={cn("text-sm font-medium", resultado.ok ? "text-green-900 dark:text-green-200" : "text-red-900 dark:text-red-200")}>{resultado.ok ? "Operación realizada" : "Operación rechazada"}</span>
+                    <span className={cn("text-[13px]", resultado.ok ? "text-green-800 dark:text-green-300" : "text-red-800 dark:text-red-300")}>{resultado.titulo}</span>
                   </div>
                 </div>
                 <div className="overflow-hidden rounded-xl border shadow-xs">
-                  <div className="flex items-center justify-between border-b bg-zinc-50 px-4 py-2.5">
+                  <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-2.5">
                     <span className="text-[13px] font-medium">Resultado</span>
                     <Button type="button" variant="outline" size="icon" className="size-8" aria-label="Copiar JSON" onClick={() => { navigator.clipboard.writeText(JSON.stringify(resultado.json, null, 2)); toast("JSON copiado") }}>
                       <Copy className="size-3.5" aria-hidden />
                     </Button>
                   </div>
-                  <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-zinc-800">{JSON.stringify(resultado.json, null, 2)}</pre>
+                  <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(resultado.json, null, 2)}</pre>
                 </div>
               </>
             ) : (
@@ -236,7 +236,7 @@ export default function CrudPage() {
                 <span className="text-[13px] font-medium">Operaciones de esta sesión</span>
                 {log.map((r, i) => (
                   <div key={i} className="grid grid-cols-[96px_64px_minmax(0,1fr)] items-center gap-2 text-[13px]">
-                    <Badge variant="outline" className={cn("justify-center", r.ok ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700")}>{r.op}</Badge>
+                    <Badge variant="outline" className={cn("justify-center", r.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400")}>{r.op}</Badge>
                     <span className="font-mono text-xs text-muted-foreground">{r.hora}</span>
                     <span className="truncate" title={`${r.base} · ${r.detalle}`}>{r.base} · {r.detalle}</span>
                   </div>
