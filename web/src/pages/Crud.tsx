@@ -10,16 +10,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { EditorEvento, FormularioEvento, nuevoId, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
 
 type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO" | "VALIDADOR"
 interface Registro { op: Op; base: string; detalle: string; hora: string; ok: boolean }
-/** validacion: el validador de MongoDB rechazó el documento de prueba, que es lo esperado */
-interface Resultado { titulo: string; ok: boolean; validacion?: boolean; json: unknown }
+/** validacion: el validador $jsonSchema de MongoDB rechazó el documento (no es un fallo de la API) */
+interface Resultado { titulo: string; ok: boolean; validacion?: boolean; faltan?: string[]; json: unknown }
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 const horaActual = () => new Date().toISOString().slice(11, 19)
@@ -58,45 +58,57 @@ export default function CrudPage() {
     }
   }
 
-  /** Envía un documento sin "derived": el $jsonSchema de events debe rechazarlo y no guardarlo. */
-  async function probarValidador() {
+  const { wiki } = useWiki()
+  const wikiForm: WikiCrud = wiki === "ambas" ? "enwiki" : wiki  // con "Ambas" en la cabecera, los formularios usan enwiki
+
+  // ---------------------------------------------------------------- MongoDB
+  const [base, setBase] = useState("mongo")
+  const [mOp, setMOp] = useState("Crear")
+  const [m, setM] = useState({ id: nuevoId(), campo: "comment", valor: "Comentario actualizado desde el dashboard" })
+  const evento = useEventoNuevo(wikiForm)
+
+  /** Inserta el documento del editor. Si el validador lo rechaza, se muestra como resultado de la validación. */
+  async function insertarEvento() {
+    if (!evento.doc) { toast.error("Corrige el JSON antes de insertar"); return }
+    const doc = evento.doc
+    const destino = "MongoDB · events"
+    const id = String(doc._id ?? "")
     setOcupado(true)
-    const base = "MongoDB · validador $jsonSchema"
     try {
-      const r = await api<{ rechazado: boolean; motivo?: string }>("/api/crud/mongo/invalido", { method: "POST" })
+      const r = await api<{ rechazado: boolean; faltan?: string[]; motivo?: string; documento?: unknown }>("/api/crud/mongo", { method: "POST", body: JSON.stringify(doc) })
       if (r.rechazado) {
-        setResultado({ titulo: base, ok: true, validacion: true, json: r })
-        setLog((l) => [{ op: "VALIDADOR" as Op, base, detalle: "documento sin derived rechazado", hora: horaActual(), ok: true }, ...l].slice(0, 8))
-        toast.success("El validador rechazó el documento inválido, como se esperaba")
+        setResultado({ titulo: destino, ok: true, validacion: true, faltan: r.faltan, json: r })
+        setLog((l) => [{ op: "VALIDADOR" as Op, base: destino, detalle: `rechazado: falta ${r.faltan?.join(", ") || "un campo"}`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
+        toast.info("El validador de MongoDB rechazó el documento")
       } else {
-        setResultado({ titulo: base, ok: false, json: r })
-        setLog((l) => [{ op: "RECHAZADO" as Op, base, detalle: "el validador aceptó un documento inválido", hora: horaActual(), ok: false }, ...l].slice(0, 8))
-        toast.error("El validador aceptó un documento inválido")
+        setResultado({ titulo: `CREATE · ${destino}`, ok: true, json: r.documento })
+        setLog((l) => [{ op: "CREATE" as Op, base: destino, detalle: id, hora: horaActual(), ok: true }, ...l].slice(0, 8))
+        setM((x) => ({ ...x, id }))  // así Consultar, Actualizar y Eliminar apuntan al documento recién creado
+        evento.renovarId()
+        toast.success(`Documento ${id} insertado`)
       }
     } catch (e) {
-      setResultado({ titulo: base, ok: false, json: { error: (e as Error).message } })
-      toast.error((e as Error).message)
+      const msg = (e as Error).message
+      setResultado({ titulo: `CREATE · ${destino}`, ok: false, json: { error: msg } })
+      setLog((l) => [{ op: "RECHAZADO" as Op, base: destino, detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
+      toast.error(msg)
     } finally {
       setOcupado(false)
     }
   }
 
-  // ---------------------------------------------------------------- MongoDB
-  const [mOp, setMOp] = useState("Crear")
-  const [m, setM] = useState({ id: `demo-crud-${Date.now()}`, titulo: "Demo CRUD", editor: "Demo_Editor", comentario: "Edición creada para la demostración del CRUD", campo: "comment", valor: "Comentario actualizado desde el dashboard" })
   const enviarMongo = (e: FormEvent) => {
     e.preventDefault()
     const id = encodeURIComponent(m.id)
-    if (mOp === "Crear") ejecutar("CREATE", "MongoDB · events", m.id, () => api("/api/crud/mongo", { method: "POST", body: JSON.stringify({ _id: m.id, titulo: m.titulo, editor: m.editor, comentario: m.comentario, wiki: wikiForm }) }))
+    if (mOp === "Crear") insertarEvento()
     if (mOp === "Consultar") ejecutar("READ", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`))
     if (mOp === "Actualizar") ejecutar("UPDATE", "MongoDB · events", `${m.id} · ${m.campo}`, () => api(`/api/crud/mongo/${id}`, { method: "PATCH", body: JSON.stringify({ campo: m.campo, valor: m.valor }) }))
     if (mOp === "Eliminar") ejecutar("DELETE", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`, { method: "DELETE" }))
   }
+  const creando = base === "mongo" && mOp === "Crear"
 
   // ---------------------------------------------------------------- Cassandra
   const [cOp, setCOp] = useState("Insertar")
-  const { wiki } = useWiki()
-  const wikiForm = wiki === "ambas" ? "enwiki" : wiki  // con "Ambas" en la cabecera, los formularios usan enwiki
   const [c, setC] = useState({ editor: "Demo_Editor", fecha: hoy(), hora: String(new Date().getUTCHours()), wiki: wikiForm as string, eventos: "10", ediciones: "8" })
   useEffect(() => setC((x) => ({ ...x, wiki: wikiForm })), [wikiForm])
   const filaC = () => ({ editor: c.editor, fecha: c.fecha, hora: Number(c.hora), wiki: c.wiki, eventos: Number(c.eventos), ediciones: Number(c.ediciones) })
@@ -133,7 +145,7 @@ export default function CrudPage() {
       <Header ruta={["Administración", "Operaciones CRUD"]} />
       <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
-          <Tabs defaultValue="mongo" className="gap-4 lg:col-span-2">
+          <Tabs value={base} onValueChange={setBase} className="gap-4 lg:col-span-2">
             <TabsList className="w-full">
               <TabsTrigger value="mongo">MongoDB</TabsTrigger>
               <TabsTrigger value="cassandra">Cassandra</TabsTrigger>
@@ -141,19 +153,12 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" descripcion={`insert_one · find_one · update_one ($set) · delete_one · wiki del documento: ${wikiForm}`}>
+              <Seccion titulo="Colección events" descripcion="insert_one · find_one · update_one ($set) · delete_one">
                 <form onSubmit={enviarMongo} className="flex flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
-                  <Campo id="m-id" label="_id"><Input id="m-id" className="font-mono text-xs" value={m.id} onChange={(e) => setM({ ...m, id: e.target.value })} /></Campo>
-                  {mOp === "Crear" && (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Campo id="m-titulo" label="Título de la página"><Input id="m-titulo" value={m.titulo} onChange={(e) => setM({ ...m, titulo: e.target.value })} /></Campo>
-                        <Campo id="m-editor" label="Editor"><Input id="m-editor" value={m.editor} onChange={(e) => setM({ ...m, editor: e.target.value })} /></Campo>
-                      </div>
-                      <Campo id="m-com" label="Comentario"><Textarea id="m-com" rows={3} value={m.comentario} onChange={(e) => setM({ ...m, comentario: e.target.value })} /></Campo>
-                    </>
-                  )}
+                  {mOp === "Crear"
+                    ? <FormularioEvento ev={evento} />
+                    : <Campo id="m-id" label="_id"><Input id="m-id" className="font-mono text-xs" value={m.id} onChange={(e) => setM({ ...m, id: e.target.value })} /></Campo>}
                   {mOp === "Actualizar" && (
                     <div className="grid grid-cols-2 gap-3">
                       <Campo id="m-campo" label="Campo"><Input id="m-campo" value={m.campo} onChange={(e) => setM({ ...m, campo: e.target.value })} /></Campo>
@@ -161,14 +166,6 @@ export default function CrudPage() {
                     </div>
                   )}
                   {boton({ Crear: "Insertar documento", Consultar: "Consultar", Actualizar: "Actualizar ($set)", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
-                  {mOp === "Crear" && (
-                    <div className="mt-1 flex flex-col gap-2 border-t pt-4">
-                      <p className="text-xs leading-relaxed text-muted-foreground">Prueba de validación: intenta insertar un evento sin el campo «derived». El validador de la colección debe rechazarlo.</p>
-                      <Button type="button" variant="outline" disabled={ocupado} onClick={probarValidador} className="h-10 w-full">
-                        <ShieldCheck aria-hidden />Probar el validador
-                      </Button>
-                    </div>
-                  )}
                 </form>
               </Seccion>
             </TabsContent>
@@ -236,14 +233,18 @@ export default function CrudPage() {
           </Tabs>
 
           <div className="flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]">
+            {creando && <EditorEvento ev={evento} />}
             {resultado ? (
               <>
                 {resultado.validacion ? (
                   <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
                     <ShieldCheck className="mt-0.5 size-[18px] shrink-0 text-blue-700 dark:text-blue-400" aria-hidden />
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">El validador rechazó el documento (resultado esperado)</span>
-                      <span className="text-[13px] text-blue-800 dark:text-blue-300">El documento de prueba no tiene el campo «derived», que el $jsonSchema de la colección events exige. MongoDB no lo guardó.</span>
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">El validador de MongoDB rechazó el documento</span>
+                      <span className="text-[13px] text-blue-800 dark:text-blue-300">
+                        {resultado.faltan?.length ? `Le falta ${resultado.faltan.map((f) => `«${f}»`).join(", ")}. ` : ""}
+                        El $jsonSchema de la colección events no lo aceptó, así que MongoDB no guardó nada.
+                      </span>
                     </div>
                   </div>
                 ) : (
@@ -265,7 +266,7 @@ export default function CrudPage() {
                   <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(resultado.json, null, 2)}</pre>
                 </div>
               </>
-            ) : (
+            ) : !creando && (
               <Vacio titulo="Sin operaciones todavía" texto="Elige una base y una operación; el resultado aparece aquí." />
             )}
             {log.length > 0 && (
