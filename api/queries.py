@@ -229,7 +229,7 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     db = mongo_db()
     hace_un_minuto = ahora - timedelta(seconds=60)
     ultimos = db.events.find({"wiki": {"$in": wikis}}, {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}) \
-        .sort("derived.event_dt", -1).limit(25)
+        .sort("derived.event_dt", -1).limit(100)  # el dashboard filtra y muestra 25
     estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
     return {
         "ahora": ahora.isoformat(),
