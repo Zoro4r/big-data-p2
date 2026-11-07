@@ -3,6 +3,7 @@ import ForceGraph2D from "react-force-graph-2d"
 import { useTheme } from "next-themes"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
+import type { Base } from "@/components/fuente"
 import { Header, Pagina } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -75,6 +76,8 @@ export default function RedPage() {
   }
 
   const c = data?.conteo
+  // Con una wiki elegida, los totales los calcula el DAG en Neo4j y quedan en MongoDB (pipeline_runs)
+  const rutaRed: Base[] = c?.ventana ? ["neo4j", "mongo"] : ["neo4j"]
   return (
     <>
       <Header ruta={["Panel", "Red de editores"]} />
@@ -84,12 +87,12 @@ export default function RedPage() {
             <div className="col-span-full"><Vacio titulo="Totales por wiki pendientes" texto="Se calculan en la próxima ejecución del DAG." /></div>
           ) : (
             <>
-              <TarjetaKpi etiqueta="Editores" base="neo4j" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente={c.ventana ? `${etiqueta} · al lote de ${horaUTC(c.ventana)} UTC` : "(:Editor) · (:Pagina) · (:Categoria)"} />
-              <TarjetaKpi etiqueta="Ediciones" base="neo4j" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} fuente="-[:EDITO]-> · -[:CREO]->" />
-              <TarjetaKpi etiqueta="Reversiones" base="neo4j" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} fuente="-[:REVIRTIO]-> · -[:MENSAJE_A]->" />
+              <TarjetaKpi etiqueta="Editores" titulo={c.ventana ? `Totales de ${etiqueta} al lote de ${horaUTC(c.ventana)} UTC` : undefined} valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} ruta={rutaRed} />
+              <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} ruta={rutaRed} />
+              <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} ruta={rutaRed} />
               {c.relaciones.COEDITA != null
-                ? <TarjetaKpi etiqueta="Colaboración" base="neo4j" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} fuente="-[:COEDITA]- · -[:AGRADECIO]->" />
-                : <TarjetaKpi etiqueta="Agradecimientos" base="neo4j" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" fuente="-[:AGRADECIO]->" />}
+                ? <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} ruta={rutaRed} />
+                : <TarjetaKpi etiqueta="Agradecimientos" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" ruta={rutaRed} />}
             </>
           )}
         </div>

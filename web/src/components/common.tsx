@@ -4,7 +4,7 @@ import { TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Fuente, type Base } from "@/components/fuente"
+import { Ruta, type Base } from "@/components/fuente"
 import { cn } from "@/lib/utils"
 
 const TONO = {
@@ -18,11 +18,11 @@ export function TarjetaKpi(props: {
   valor: string
   cambio?: { texto: string; tono: keyof typeof TONO; sube: boolean } | null
   pie: ReactNode
-  fuente: string
-  base?: Base
+  /** De dónde sale el dato: [base] o [base de cálculo, base donde se guarda] */
+  ruta: Base[]
   titulo?: string
 }) {
-  const { etiqueta, valor, cambio, pie, fuente, base, titulo } = props
+  const { etiqueta, valor, cambio, pie, ruta, titulo } = props
   const Icono = cambio?.sube ? TrendingUp : TrendingDown
   return (
     <Card className="gap-3 py-[18px] shadow-xs" title={titulo}>
@@ -38,9 +38,9 @@ export function TarjetaKpi(props: {
         </div>
         <CardTitle className="text-[28px] font-semibold tracking-tight tabular-nums">{valor}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-0.5 px-5 text-[13px]">
+      <CardContent className="flex flex-1 flex-col gap-2.5 px-5 text-[13px]">
         <span className="font-medium">{pie}</span>
-        <Fuente texto={fuente} base={base} className="text-muted-foreground" />
+        <Ruta bases={ruta} className="mt-auto border-t pt-2.5 text-xs text-muted-foreground" />
       </CardContent>
     </Card>
   )

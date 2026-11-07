@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { siApacheairflow, siApachecassandra, siMongodb, siNeo4j, type SimpleIcon } from "simple-icons"
 
 import { cn } from "@/lib/utils"
@@ -21,28 +22,33 @@ export function LogoBase({ base, className }: { base: Base; className?: string }
   )
 }
 
-/** Separa "Cassandra · resumen_por_hora" en base y detalle. Los patrones Cypher se asignan a Neo4j. */
-function separar(texto: string): { base: Base | null; resto: string } {
-  const prefijos: [string, Base][] = [["MongoDB", "mongo"], ["Cassandra", "cassandra"], ["Neo4j", "neo4j"], ["Limpieza", "airflow"]]
-  for (const [p, base] of prefijos) {
-    if (texto.startsWith(p)) {
-      const resto = texto.slice(p.length).replace(/^\s*·\s*/, "")
-      return { base, resto: base === "airflow" ? `limpieza${resto ? ` · ${resto}` : ""}` : resto }
-    }
-  }
-  if (texto.startsWith("-[") || texto.startsWith("(:")) return { base: "neo4j", resto: texto }
-  return { base: null, resto: texto }
+/** Base donde se calcula un KPI según su campo `fuente` ("MongoDB · events", "Limpieza · DAG"…). */
+export function baseDeCalculo(fuente: string): Base {
+  if (fuente.startsWith("MongoDB")) return "mongo"
+  if (fuente.startsWith("Neo4j")) return "neo4j"
+  if (fuente.startsWith("Limpieza")) return "airflow"
+  return "cassandra"
 }
 
-/** Fuente de un dato: logo de la base + tabla, colección o patrón. El nombre completo queda en el tooltip. */
-export function Fuente({ texto, base, className }: { texto: string; base?: Base; className?: string }) {
-  const s = separar(texto)
-  const b = base ?? s.base
+/** Recorrido de un KPI: dónde se calcula → Cassandra, donde se guarda (una sola base si coinciden). */
+export function rutaKpi(fuente: string): Base[] {
+  const calculo = baseDeCalculo(fuente)
+  return calculo === "cassandra" ? ["cassandra"] : [calculo, "cassandra"]
+}
+
+/** Recorrido del dato con logos: "MongoDB → Cassandra" (calcula → guarda) o una sola base. */
+export function Ruta({ bases, className }: { bases: Base[]; className?: string }) {
+  const nombres = bases.map((b) => BASES[b].nombre)
+  const titulo = bases.length > 1 ? `Se calcula en ${nombres[0]} y se guarda en ${nombres.at(-1)}` : `Se lee de ${nombres[0]}`
   return (
-    <span className={cn("inline-flex items-center gap-1.5", className)} title={b ? `${BASES[b].nombre} · ${s.resto}` : texto}>
-      {b && <LogoBase base={b} />}
-      {b && <span className="sr-only">{BASES[b].nombre}:</span>}
-      <span>{s.resto}</span>
+    <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)} title={titulo}>
+      <span className="sr-only">{titulo}</span>
+      {bases.map((b, i) => (
+        <Fragment key={b}>
+          {i > 0 && <span className="text-muted-foreground/60" aria-hidden>→</span>}
+          <span className="inline-flex items-center gap-1.5" aria-hidden><LogoBase base={b} />{BASES[b].nombre}</span>
+        </Fragment>
+      ))}
     </span>
   )
 }

@@ -3,7 +3,7 @@ import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, T
 import { BookOpen, FileText, Share2, Undo2 } from "lucide-react"
 
 import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
-import { Fuente, LogoBase, type Base } from "@/components/fuente"
+import { LogoBase, Ruta, rutaKpi, type Base } from "@/components/fuente"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,7 @@ function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: s
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Definición de los KPIs</DialogTitle>
-          <DialogDescription>Qué mide cada indicador, cómo se calcula y cómo leerlo. Valores de la última hora procesada · {etiqueta}.</DialogDescription>
+          <DialogDescription>Qué mide cada indicador, cómo se calcula y cómo leerlo. Valores de la última hora procesada · {etiqueta}. Cada KPI se calcula en la base que mejor lo responde y se guarda en Cassandra, desde donde lo lee el dashboard.</DialogDescription>
         </DialogHeader>
         <div className="-mx-6 flex flex-col gap-5 overflow-y-auto px-6 pb-1">
           {GRUPOS.map(([g, base, nombre]) => (
@@ -51,7 +51,7 @@ function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: s
                       </div>
                       <div className="flex flex-col gap-0.5 sm:items-end">
                         <span className="max-w-56 truncate text-sm font-semibold tabular-nums" title={valor}>{valor}</span>
-                        <Fuente texto={KPIS[k].fuente} className="text-xs text-muted-foreground" />
+                        <Ruta bases={rutaKpi(KPIS[k].fuente)} className="text-xs text-muted-foreground" />
                       </div>
                     </div>
                   )
@@ -131,7 +131,7 @@ export default function ResumenPage() {
             : TARJETAS.map(({ kpi, pie }) => (
                 <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
                   cambio={kpi === "total_eventos_acumulados" ? null : cambio(kpi, data.kpis[kpi])}
-                  pie={pie(data)} fuente={KPIS[kpi].fuente} titulo={`${KPIS[kpi].formula} · ${KPIS[kpi].lectura}`} />
+                  pie={pie(data)} ruta={rutaKpi(KPIS[kpi].fuente)} titulo={`${KPIS[kpi].formula} · ${KPIS[kpi].lectura}`} />
               ))}
         </div>
 
