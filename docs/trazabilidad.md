@@ -840,6 +840,18 @@ Verificación con Playwright en local: tres documentos creados y encontrados con
 
 **Ajuste:** al entrar a Consultar ya no se busca solo. Con los filtros por defecto la búsqueda automática solía no encontrar nada y mostraba "Sin coincidencias" y un READ que nadie pidió. Ahora la columna derecha dice "Realiza una consulta" hasta que se presiona Buscar, y "Sin coincidencias" aparece solo a la derecha (no repetido en la izquierda). Commit `fix: wait for search before querying in crud page`.
 
+### 29. Actualizar eventos de MongoDB con el formulario y los cambios a la vista
+
+Antes, Actualizar pedía un `_id`, el nombre de un campo y un valor, sin mostrar el documento. Además, el `$set` dejaba `derived` desactualizado: si cambiaban los bytes, `delta_bytes` seguía con el valor viejo. Se diseñó en Claude Design (canvas "Actualizar eventos en MongoDB"); se eligió la opción B3: formulario con los valores actuales en tonos neutros, sin "Se ejecutará" ni el valor anterior repetido en la columna izquierda.
+
+**Columna izquierda** (`web/src/components/actualizar-evento.tsx`): "Documento a actualizar" con `_id` y botón Cargar ("Actualizar este" desde Consultar lo carga solo), una ficha corta del documento y sus campos con los valores actuales: título, editor, tipo de editor, bytes (en ediciones y páginas nuevas) y comentario. Un campo cambiado muestra "· editado" en gris, un borde algo más oscuro y un botón para deshacer dentro del campo. El comentario ocupa el espacio que sobra, así la columna termina a la misma altura que la derecha. El botón dice "Guardar N cambios".
+
+**Columna derecha:** "Cambios a guardar" (campo, antes tachado, después), con los campos de `derived` que se recalculan marcados como "recalculado"; con más de 4 filas aparece scroll y el encabezado queda fijo. Debajo, "Documento después de guardar" con las líneas cambiadas y recalculadas marcadas en gris.
+
+**API:** `PATCH /api/crud/mongo/{id}` recibe `{"cambios": {"ruta.con.punto": valor}}`. `crud.preparar_actualizacion` aplica los cambios a una copia, recalcula `derived` con `clean.derive` y arma un único `update_one` con `$set` (cambios + `derived` que cambió) y `$unset` (derivados que ya no aplican). No deja modificar `_id`, `meta.id` ni `derived` a mano, y rechaza cambios que dejarían el documento incompleto (p. ej. editor vacío). La vista previa del recálculo usa `POST /api/crud/mongo/previa`.
+
+Verificación: con la API, un cambio de bytes y título recalculó `delta_bytes` y `page_key`, y los intentos de cambiar `_id` o dejar el editor vacío se rechazaron. Con Playwright: crear → Consultar → "Actualizar este" → editar tres campos → deshacer uno → guardar 2 cambios, sin errores de JavaScript; las dos columnas terminan a la misma altura. Los documentos de prueba se borraron. Commits `feat: recalculate derived fields on mongo update` y `feat: edit mongo events with a prefilled form in crud page`.
+
 ---
 
 ## Pendientes
