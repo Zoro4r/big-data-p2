@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis } from "recharts"
 import { FileJson2 } from "lucide-react"
 
@@ -27,6 +27,7 @@ export default function ExploradorPage() {
   const [elegido, setElegido] = useState<string | null>(null)
   const qs = new URLSearchParams({ wiki, tipo: filtro.tipo, editor: filtro.editor, titulo: filtro.titulo, solo_reversiones: String(filtro.solo), limite: "60" })
   const { data, cargando } = useApi<Respuesta>(`/api/eventos?${qs}`)
+  useEffect(() => setElegido(null), [wiki])
   const doc = useApi<Record<string, unknown>>(elegido ? `/api/eventos/${encodeURIComponent(elegido)}` : null)
 
   const porTipo = useMemo(() => {
@@ -39,7 +40,7 @@ export default function ExploradorPage() {
       m.set(t.tipo, f)
     }
     return [...m.values()].sort((a, b) => b.total - a.total)
-  }, [data])
+  }, [data, wikis])
   const total24 = porTipo.reduce((s, t) => s + t.total, 0)
 
   const aplicar = (e: FormEvent) => {

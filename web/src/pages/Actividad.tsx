@@ -24,7 +24,7 @@ interface Actividad {
 interface FilaEditor { fecha: string; hora: number; wiki: string; tipo_editor: string; eventos: number; ediciones: number; reversiones_hechas: number; reversiones_recibidas: number }
 
 export default function ActividadPage() {
-  const { wiki, etiqueta } = useWiki()
+  const { wiki, wikis, etiqueta } = useWiki()
   const [fecha, setFecha] = useState<string | null>(null)
   const [hora, setHora] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState("")
@@ -47,14 +47,14 @@ export default function ActividadPage() {
   const top = (data?.top ?? []).filter((t) => t.hora === horaSel).sort((a, b) => a.posicion - b.posicion).slice(0, 10)
 
   const hist = useMemo(() => {
-    const filas = historial.data ?? []
+    const filas = (historial.data ?? []).filter((f) => wikis.includes(f.wiki))
     const porHora = new Map<string, number>()
     for (const f of filas) {
       const k = `${f.fecha}T${String(f.hora).padStart(2, "0")}:00:00Z`
       porHora.set(k, (porHora.get(k) ?? 0) + f.eventos)
     }
     return { filas, serie: [...porHora.entries()].sort().map(([t, eventos]) => ({ t, eventos })) }
-  }, [historial.data])
+  }, [historial.data, wikis])
 
   const buscar = (e: FormEvent) => {
     e.preventDefault()

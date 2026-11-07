@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, entero } from "@/lib/format"
+import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
 
 interface Ranking { editor: string; tipo: string; reversiones: number }
 interface Red {
-  conteo: { nodos: Record<string, number>; relaciones: Record<string, number> }
+  conteo: { nodos: Record<string, number>; relaciones: Record<string, number>; ventana?: string } | null
   revertidos: (Ranking & { revertido_por: number })[]
   patrulleros: (Ranking & { editores_revertidos: number })[]
   disputadas: { pagina: string; wiki: string; titulo: string; editores: number; humanos: number; ediciones: number }[]
@@ -80,12 +80,16 @@ export default function RedPage() {
       <Header ruta={["Panel", "Red de editores"]} />
       <Pagina titulo="Red de editores" descripcion="Quién interactúa con quién: reversiones, avisos, agradecimientos y bloqueos entre editores. Aquí aparecen los patrulleros, el vandalismo y las páginas en disputa. El grafo en Neo4j tiene 4 tipos de nodo y 11 tipos de relación.">
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          {!c ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : (
+          {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : !c ? (
+            <div className="col-span-full"><Vacio titulo="Totales por wiki pendientes" texto="Se calculan en la próxima ejecución del DAG." /></div>
+          ) : (
             <>
-              <TarjetaKpi etiqueta="Editores" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente="Totales del grafo (ambas wikis)" />
+              <TarjetaKpi etiqueta="Editores" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente={c.ventana ? `${etiqueta} · al lote de ${horaUTC(c.ventana)} UTC` : "(:Editor) · (:Pagina) · (:Categoria)"} />
               <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} fuente="-[:EDITO]-> · -[:CREO]->" />
               <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} fuente="-[:REVIRTIO]-> · -[:MENSAJE_A]->" />
-              <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} fuente="-[:COEDITA]- · -[:AGRADECIO]->" />
+              {c.relaciones.COEDITA != null
+                ? <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} fuente="-[:COEDITA]- · -[:AGRADECIO]->" />
+                : <TarjetaKpi etiqueta="Agradecimientos" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" fuente="-[:AGRADECIO]->" />}
             </>
           )}
         </div>
