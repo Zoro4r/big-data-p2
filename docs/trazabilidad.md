@@ -899,6 +899,8 @@ Las tres imágenes de `docs/img/` se copiaron a `web/public/img/` (no a `/arquit
 
 `docs/requerimientos.md` se actualizó para reflejar la página Arquitectura: la documentación del dataset (sección 1) y la justificación de cada base (sección 2) ahora también están en sus modales, y la tabla de material para el informe la incluye como fuente. Commit `docs: reflect architecture page in requirements`.
 
+En `docs/requerimientos.md`, cada referencia a otro archivo indica ahora su sección o líneas y lleva un enlace directo: encabezados de los `.md`, líneas exactas del código (`#L…`), la página del PDF de instrucciones (`#page=…`) y las páginas del dashboard desplegado. Un script verificó los 104 enlaces locales (archivos, anclas y líneas). Commit `docs: link file references in requirements`.
+
 ---
 
 ## Pendientes
