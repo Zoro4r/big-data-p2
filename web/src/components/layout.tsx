@@ -95,7 +95,8 @@ function EstadoPipeline() {
           <span className={cn("relative inline-flex size-2 rounded-full", enVivo ? "bg-green-600" : "bg-amber-500")} />
         </span>
         <span className={cn("font-medium", enVivo ? "text-green-800 dark:text-green-300" : "text-amber-800 dark:text-amber-300")}>{enVivo ? "En vivo" : "Sin datos nuevos"}</span>
-        <span className="tabular-nums">{ultimo ? hace(ultimo, ahora) : "…"}</span>
+        {/* Ancho fijo: "hace 9 s", "hace 10 s" o "hace 12 min" no cambian el tamaño de la pastilla */}
+        <span className="inline-block w-[4.75rem] tabular-nums">{ultimo ? hace(ultimo, ahora) : "…"}</span>
       </span>
       <span className="h-3.5 w-px bg-border" aria-hidden />
       <span className="tabular-nums">Lote {estado?.ultima_hora ? horaUTC(estado.ultima_hora) : "…"} UTC</span>
@@ -150,7 +151,7 @@ export function Pagina(props: { titulo: string; descripcion: ReactNode; aviso?: 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-6 pt-7 pb-12 md:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex max-w-3xl flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h1 className="text-[26px] font-semibold tracking-tight">{titulo}</h1>
           <p className="text-sm text-muted-foreground">{descripcion}</p>
           {aviso && <p className="mt-2 w-fit rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 text-[13px] text-amber-900 dark:text-amber-200">{aviso}</p>}
