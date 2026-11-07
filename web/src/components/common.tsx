@@ -23,31 +23,29 @@ export function TarjetaKpi(props: {
 }) {
   const { etiqueta, valor, cambio, pie, titulo, onAbrir } = props
   const Icono = cambio?.sube ? TrendingUp : TrendingDown
+  // Subgrid: la tarjeta ocupa 3 filas de la grilla padre (nombre, valor, contexto), así las tarjetas
+  // de una misma fila alinean su valor aunque algún nombre ocupe dos líneas.
   const tarjeta = (
-    <Card className={cn("h-full gap-3 py-[18px] shadow-xs", onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
-      <CardHeader className="px-5">
-        <div className="flex items-start justify-between gap-2">
-          <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
-            {etiqueta}
-            {onAbrir && <ArrowUpRight className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />}
-          </CardDescription>
-          {cambio && (
-            <Badge variant="outline" className={cn("gap-1 font-medium", TONO[cambio.tono])}>
-              <Icono className="size-3" aria-hidden />
-              {cambio.texto}
-            </Badge>
-          )}
-        </div>
-        <CardTitle className="text-[28px] font-semibold tracking-tight tabular-nums">{valor}</CardTitle>
-      </CardHeader>
-      <CardContent className="px-5 text-[13px]">
-        <span className="font-medium">{pie}</span>
-      </CardContent>
+    <Card className={cn("row-span-3 grid grid-rows-subgrid gap-x-0 gap-y-3 py-[18px] shadow-xs", onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
+      <div className="flex items-start justify-between gap-2 px-5">
+        <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
+          {etiqueta}
+          {onAbrir && <ArrowUpRight className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />}
+        </CardDescription>
+        {cambio && (
+          <Badge variant="outline" className={cn("gap-1 font-medium", TONO[cambio.tono])}>
+            <Icono className="size-3" aria-hidden />
+            {cambio.texto}
+          </Badge>
+        )}
+      </div>
+      <CardTitle className="self-end px-5 text-[28px] leading-none font-semibold tracking-tight tabular-nums">{valor}</CardTitle>
+      <span className="px-5 text-[13px] font-medium">{pie}</span>
     </Card>
   )
   if (!onAbrir) return tarjeta
   return (
-    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className="group rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className="group row-span-3 grid grid-rows-subgrid gap-0 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
       {tarjeta}
     </button>
   )

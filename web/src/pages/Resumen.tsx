@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { BookOpen, FileText, Share2, Undo2 } from "lucide-react"
+import { FileText, Share2, Undo2 } from "lucide-react"
 
 import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
 import { DetalleKpi } from "@/components/detalle-kpi"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
@@ -77,8 +76,7 @@ export default function ResumenPage() {
   return (
     <>
       <Header ruta={["Panel", "Resumen"]} />
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}
-        acciones={<Button variant="outline" size="sm" onClick={() => setKpiAbierto("eventos_procesados")}><BookOpen aria-hidden />Definición de los KPIs</Button>}>
+      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
