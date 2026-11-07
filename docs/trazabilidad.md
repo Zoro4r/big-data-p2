@@ -732,6 +732,23 @@ Commit `feat: show database logos as data sources`, desplegado con `./deploy.sh`
 
 El pie queda separado por una línea y alineado al fondo de la tarjeta; el tooltip dice "Se calcula en X y se guarda en Y". El modal de definiciones usa el mismo recorrido y lo explica en su descripción. Commit `feat: show where each kpi is computed and stored`.
 
+### 25. Tarjetas compactas y detalle de cada KPI
+
+Las tarjetas se veían grandes con el pie "MongoDB → Cassandra". Se diseñaron varias alternativas en Claude Design (tarjetas clickeables, modal, panel lateral, detalle desplegado, globo, botón de información) y se eligió la "F4": un modal en dos columnas.
+
+**Tarjetas.** Quedan solo con nombre, cambio, valor y una línea de contexto, en todas las vistas. En el Resumen, cada tarjeta de KPI es un botón: al pasar el mouse se marca y muestra una flecha junto al nombre, y al hacer clic abre su detalle. Los protagonistas de Neo4j también se pueden clickear.
+
+**Modal de detalle** (`web/src/components/detalle-kpi.tsx`):
+
+- Izquierda: hora del lote, valor grande, cambio frente a la hora anterior dicho en palabras ("0.28 pp menos que la hora anterior"), mini gráfica de las últimas horas (hasta 24) y datos de apoyo: detalle de la hora, valor de la hora anterior y promedio. En los KPIs de Neo4j el dato principal es el nombre de la página o del editor.
+- Derecha: Definición, Cómo se calcula (como fracción cuando el KPI es un cociente), Cómo leerlo y De dónde sale ("Se calcula en MongoDB y se guarda en Cassandra", con los logos).
+- Pie: anterior/siguiente para recorrer los 12 KPIs sin cerrar el modal.
+- El botón "Definición de los KPIs" abre este mismo modal desde el primer KPI; reemplaza a la lista con todas las definiciones.
+
+Cada KPI tiene ahora una definición propia en `web/src/lib/kpis.ts`, además de fórmula e interpretación, que es lo que piden las indicaciones del proyecto para cada indicador.
+
+Verificación: `tsc` y `npm run build` sin errores; con Playwright se abrió un KPI desde su tarjeta, se navegó hasta un KPI de Neo4j, se cerró con Esc y se probó en ancho de celular, sin errores de JavaScript. Commit `feat: open kpi details from compact cards`.
+
 ---
 
 ## Pendientes
