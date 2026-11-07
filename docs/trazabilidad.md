@@ -775,6 +775,13 @@ La lista "Últimas ediciones" de la vista En vivo se rediseñó en Claude Design
 
 Componentes nuevos de shadcn/ui: `popover` y `checkbox`. Verificación con Playwright: filtro "Bots" (23 de 100 eventos), apertura del modal, navegación y "Ver completo", en claro y oscuro, sin errores de JavaScript. Commit `feat: redesign live edits list with filters and event detail`.
 
+**Ajustes:**
+
+- Las cuatro tarjetas de En vivo (eventos por segundo, últimos 30 minutos, hechos por bots, reversiones) abren el mismo modal de detalle que los KPIs: valor, mini gráfica de los últimos 30 minutos, datos de apoyo (promedio, minuto más activo, bots y humanos, reversiones por cada 100 ediciones), definición, cálculo, lectura y origen (MongoDB para el ritmo del último minuto; Cassandra `eventos_por_minuto` para el resto). La parte visual del modal se separó en `web/src/components/modal-metrica.tsx`, que usan tanto los KPIs del Resumen como estas tarjetas.
+- Se quitó el resaltado azul de los eventos nuevos en la lista.
+
+Commit `feat: open live metric details and drop new-row highlight`.
+
 ---
 
 ## Pendientes
