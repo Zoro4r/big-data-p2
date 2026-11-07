@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { FileText, Share2, Undo2 } from "lucide-react"
+import { BookOpen, FileText, Share2, Undo2 } from "lucide-react"
 
 import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
@@ -14,6 +16,53 @@ import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
 interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null }
+
+const GRUPOS = ["Cassandra", "MongoDB", "Neo4j", "Limpieza"] as const
+
+/** Definición, fórmula, fuente e interpretación de los KPIs, agrupados por la base que los calcula. */
+function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: string }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><BookOpen aria-hidden />Definición de los KPIs</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Definición de los KPIs</DialogTitle>
+          <DialogDescription>Qué mide cada indicador, cómo se calcula y cómo leerlo. Valores de la última hora procesada · {etiqueta}.</DialogDescription>
+        </DialogHeader>
+        <div className="-mx-6 flex flex-col gap-5 overflow-y-auto px-6 pb-1">
+          {GRUPOS.map((g) => (
+            <section key={g} className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{g === "Limpieza" ? "Limpieza (DAG)" : g}</h3>
+              <div className="divide-y rounded-lg border">
+                {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].fuente.startsWith(g)).map((k) => {
+                  const p = data?.kpis[k]?.[0]
+                  const valor = KPIS[k].unidad === "entidad"
+                    ? `${p?.detalle?.split(" (")[0].replace(/^(en|es)wiki:/, "") ?? "—"} (${entero(p?.valor)})`
+                    : formatoKpi(k, p?.valor)
+                  return (
+                    <div key={k} className="grid gap-1.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-6">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-medium">{KPIS[k].nombre}</span>
+                        <code className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{KPIS[k].formula}</code>
+                        <span className="text-[13px] text-muted-foreground">{KPIS[k].lectura}</span>
+                      </div>
+                      <div className="flex flex-col gap-0.5 sm:items-end">
+                        <span className="max-w-56 truncate text-sm font-semibold tabular-nums" title={valor}>{valor}</span>
+                        <span className="text-xs text-muted-foreground">{KPIS[k].fuente}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number }
 interface Serie10 { fecha: string; serie: { t: string; eventos: number; eventos_bot: number }[] }
 
@@ -47,7 +96,7 @@ function TooltipChart({ active, payload, label }: { active?: boolean; payload?: 
 export default function ResumenPage() {
   const { wiki, wikis, etiqueta } = useWiki()
   const [kpiElegido, setKpiElegido] = useState<Kpi>("tasa_automatizacion_pct")
-  const { data, cargando } = useApi<Resumen>("/api/resumen")
+  const { data, cargando } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
   const serie = useApi<Serie10>(`/api/serie10?wiki=${wiki}`)
 
   const ultima = data?.kpis.eventos_procesados[0]?.ventana
@@ -59,9 +108,10 @@ export default function ResumenPage() {
       f.eventos += h.eventos; f.bots += h.eventos_bot; f.rev += h.reversiones
       m.set(h.hora_utc, f)
     }
-    const calidad = new Map(data.ejecuciones.map((e) => [e.ventana.slice(0, 13), e]))
+    // La calidad sale de la serie del KPI, que ya viene calculada para la wiki elegida
+    const calidad = new Map(data.kpis.calidad_datos_pct.map((p) => [p.ventana.slice(0, 13), p.valor]))
     return [...m.values()].sort((a, b) => b.hora.localeCompare(a.hora)).slice(0, 8)
-      .map((f) => ({ ...f, ejec: calidad.get(f.hora.slice(0, 13)) }))
+      .map((f) => ({ ...f, calidad: calidad.get(f.hora.slice(0, 13)) ?? null }))
   }, [data, wikis])
 
   const evolucion = useMemo(
@@ -72,7 +122,8 @@ export default function ResumenPage() {
   return (
     <>
       <Header ruta={["Panel", "Resumen"]} />
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de enwiki y eswiki en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Los KPIs se calculan sobre ambas wikis; el filtro de wiki aplica al ritmo de ediciones y a las ejecuciones.` : "Cargando…"}>
+      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior.` : "Cargando…"}
+        acciones={<DefinicionesKpi data={data} etiqueta={etiqueta} />}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
@@ -105,7 +156,7 @@ export default function ResumenPage() {
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion="Calculados en Neo4j sobre el grafo acumulado">
+          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${etiqueta} · calculados en Neo4j sobre el grafo acumulado`}>
             {!data ? <Cargando alto={200} /> : (
               <div className="flex flex-col">
                 {([
@@ -158,7 +209,7 @@ export default function ResumenPage() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{f.rev}</TableCell>
                         <TableCell className="text-right">
-                          <Badge variant="outline" className="border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400">{f.ejec?.calidad_pct != null ? `${f.ejec.calidad_pct.toFixed(0)} %` : "ok"}</Badge>
+                          <Badge variant="outline" className="border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400">{f.calidad != null ? `${f.calidad.toFixed(0)} %` : "—"}</Badge>
                         </TableCell>
                       </TableRow>
                     )
@@ -169,7 +220,7 @@ export default function ResumenPage() {
           </Seccion>
         </div>
 
-        <Seccion titulo="Evolución de un KPI" descripcion={`${KPIS[kpiElegido].formula} · ${KPIS[kpiElegido].lectura}`}
+        <Seccion titulo={`Evolución de un KPI · ${etiqueta}`} descripcion={`${KPIS[kpiElegido].formula} · ${KPIS[kpiElegido].lectura}`}
           accion={
             <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
               <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
@@ -187,36 +238,12 @@ export default function ResumenPage() {
                 <XAxis dataKey="ventana" tickFormatter={(t) => horaUTC(t)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={52} fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip formatter={(v: number) => [formatoKpi(kpiElegido, v), KPIS[kpiElegido].nombre]} labelFormatter={(t) => `${horaUTC(String(t))} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} />
-                <Line type="monotone" dataKey="valor" stroke={COLOR.enwiki} strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="valor" stroke={colorWiki(wiki)} strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           )}
         </Seccion>
 
-        <Seccion titulo="Definición de los KPIs" descripcion="Definición, fórmula de cálculo, fuente e interpretación (sección 6 del curso)">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow><TableHead>KPI</TableHead><TableHead>Última hora</TableHead><TableHead>Fórmula</TableHead><TableHead>Fuente</TableHead><TableHead>Interpretación</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {(Object.keys(KPIS) as Kpi[]).map((k) => {
-                  const p = data?.kpis[k]?.[0]
-                  const valor = KPIS[k].unidad === "entidad" ? `${p?.detalle?.split(" (")[0] ?? "—"} (${entero(p?.valor)})` : formatoKpi(k, p?.valor)
-                  return (
-                    <TableRow key={k}>
-                      <TableCell className="font-medium whitespace-nowrap">{KPIS[k].nombre}</TableCell>
-                      <TableCell className="max-w-56 truncate tabular-nums" title={valor}>{valor}</TableCell>
-                      <TableCell className="font-mono text-xs whitespace-normal">{KPIS[k].formula}</TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">{KPIS[k].fuente}</TableCell>
-                      <TableCell className="min-w-64 whitespace-normal text-muted-foreground">{KPIS[k].lectura}</TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </Seccion>
       </Pagina>
     </>
   )
