@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorWiki, entero, horaUTC } from "@/lib/format"
+import { COLOR, colorWiki, ejeDia, entero, horaMs, horaUTC } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
@@ -30,11 +30,11 @@ const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
   { kpi: "calidad_datos_pct", pie: () => "eventos válidos / extraídos" },
 ]
 
-function TooltipChart({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+function TooltipChart({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: number }) {
   if (!active || !payload?.length || !label) return null
   return (
     <div className="rounded-lg border bg-card px-3 py-2 text-xs shadow-md">
-      <div className="mb-1 font-medium">{horaUTC(label)} UTC</div>
+      <div className="mb-1 font-medium">{horaUTC(new Date(label).toISOString())} UTC</div>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <span className="size-2 rounded-full" style={{ background: p.color }} />
@@ -53,6 +53,7 @@ export default function ResumenPage() {
   const { data, cargando } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
   const serie = useApi<Serie10>(`/api/serie10?wiki=${wiki}`)
 
+  const ejeRitmo = useMemo(() => ejeDia(serie.data?.serie ?? []), [serie.data])
   const ultima = data?.kpis.eventos_procesados[0]?.ventana
   const porHora = useMemo(() => {
     if (!data) return []
@@ -90,7 +91,7 @@ export default function ResumenPage() {
         <Seccion titulo={`Ritmo de ediciones · ${etiqueta}`} descripcion={`Eventos cada 10 minutos · ${serie.data?.fecha ?? ""} UTC · Cassandra eventos_por_minuto`}>
           {!serie.data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={serie.data.serie} margin={{ left: 0, right: 8, top: 8 }}>
+              <AreaChart data={ejeRitmo.datos} margin={{ left: 0, right: 16, top: 8 }}>
                 <defs>
                   <linearGradient id="relleno" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={colorWiki(wiki)} stopOpacity={0.22} />
@@ -98,7 +99,7 @@ export default function ResumenPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="var(--muted-foreground)" />
+                <XAxis dataKey="ms" type="number" scale="time" domain={ejeRitmo.dominio} ticks={ejeRitmo.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip content={<TooltipChart />} />
                 <Area type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={2} fill="url(#relleno)" />

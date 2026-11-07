@@ -32,6 +32,20 @@ export function horaUTC(iso: string, conDia = true): string {
   return `${d.getUTCDate()} ${mes} · ${hh}:${mm}`
 }
 
+/** Eje de tiempo de un día completo (UTC): agrega `ms` a cada punto y fija marcas cada `horas` horas en punto
+ *  (00:00, 02:00, 04:00…), en lugar de las que Recharts elige según el espacio (01:46, 03:38…). */
+export function ejeDia<T extends { t: string }>(serie: T[], horas = 2) {
+  const datos = serie.map((p) => ({ ...p, ms: new Date(p.t).getTime() }))
+  const inicio = new Date(datos[0]?.ms ?? Date.now())
+  inicio.setUTCHours(0, 0, 0, 0)
+  const dia = inicio.getTime(), paso = horas * 3_600_000
+  const ticks = Array.from({ length: 24 / horas }, (_, i) => dia + i * paso)
+  return { datos, ticks, dominio: [dia, dia + 24 * 3_600_000] as [number, number] }
+}
+
+/** Hora UTC "HH:MM" de una marca de tiempo en milisegundos. */
+export const horaMs = (ms: number | string) => horaUTC(new Date(Number(ms)).toISOString(), false)
+
 export const COLOR = {
   enwiki: "#2a78d6",
   eswiki: "#eb6834",

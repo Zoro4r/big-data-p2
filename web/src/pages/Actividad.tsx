@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, colorWiki, entero, horaUTC } from "@/lib/format"
+import { COLOR, colorTipo, colorWiki, entero, horaUTC, ejeDia, horaMs } from "@/lib/format"
 
 interface Actividad {
   fecha: string
@@ -41,6 +41,7 @@ export default function ActividadPage() {
     return { ev, bots, rev: data.minutos.reduce((s, m) => s + m.reversiones, 0), min: data.minutos.length, pico }
   }, [data])
 
+  const ejeMinutos = useMemo(() => ejeDia(data?.minutos ?? []), [data])
   const horas = useMemo(() => (data?.horas ?? []).slice().sort((a, b) => a.hora - b.hora).map((h) => ({ ...h, etiqueta: `${String(h.hora).padStart(2, "0")}:00` })), [data])
   const horasTop = useMemo(() => [...new Set((data?.top ?? []).map((t) => t.hora))].sort((a, b) => b - a), [data])
   const horaSel = hora ?? horasTop[0] ?? null
@@ -103,11 +104,11 @@ export default function ActividadPage() {
         <Seccion titulo="Eventos por minuto" descripcion="Cada punto es un minuto; los picos suelen ser bots en ráfaga o una noticia">
           {!data ? <Cargando alto={200} /> : (
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={data.minutos} margin={{ left: 0, right: 8, top: 8 }}>
+              <LineChart data={ejeMinutos.datos} margin={{ left: 0, right: 16, top: 8 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={50} fontSize={11} stroke="var(--muted-foreground)" />
+                <XAxis dataKey="ms" type="number" scale="time" domain={ejeMinutos.dominio} ticks={ejeMinutos.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
-                <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 <Line type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} dot={false} />
               </LineChart>
