@@ -26,7 +26,9 @@ Este documento recorre, sección por sección, lo que piden las instrucciones de
 - **Semiestructurado:** cada evento es un JSON con campos comunes y campos que dependen del tipo (`edit`, `new`, `categorize`, `log`), con objetos anidados (`meta`, `length`, `revision`, `log_params`). No todos los registros tienen la misma forma.
 - **Volumen:** MongoDB guarda **2,570,895 eventos** de enwiki y eswiki, del 31 de octubre al 7 de noviembre de 2026. Es unas 50 veces el mínimo pedido.
 - **Actualización periódica:** los datos llegan solos. El servicio de streaming los guarda cada ~2 segundos y el DAG procesa cada hora completa.
-- **Documentación:** la página **Arquitectura** del dashboard lo muestra con cifras en vivo, y `docs/justificacion-dataset.md` describe el origen, el protocolo, la licencia, la estructura de cada tipo de evento y una captura de prueba (~37 eventos/s).
+- **Documentación:** está en dos lugares con el mismo contenido.
+  - `docs/justificacion-dataset.md`: origen, protocolo, licencia, estructura de cada tipo de evento y una captura de prueba (~37 eventos/s).
+  - La página **Arquitectura** del dashboard, en el modal de Wikimedia EventStreams. Muestra el problema que planteamos, el origen completo (fuente, endpoint, SSE, esquema versionado, autenticación, datos pasados con `?since=`, licencia y documentación oficial), los campos comunes y los de cada tipo, un evento real de MongoDB, la captura de prueba del 31 de octubre con su gráfico y la tabla de cumplimiento de estos cuatro requisitos. Suma cifras en vivo: volumen, velocidad, mezcla de tipos de las últimas 24 h y calidad.
 
 ## 2. Arquitectura multimodelo
 
@@ -56,7 +58,13 @@ Este documento recorre, sección por sección, lo que piden las instrucciones de
 - Encaja con Neo4j porque las preguntas son de relaciones: quién revierte a quién, qué editores comparten páginas, qué página atrae a más editores. En un grafo se responden recorriendo vecinos, sin joins costosos.
 - **Restricciones de unicidad e índices:** `db/neo4j/constraints.cypher`.
 
-**Justificación técnica:** en `docs/justificacion-dataset.md` (qué guarda cada base y por qué) y en el informe técnico.
+**Justificación técnica:** está en tres lugares.
+- `docs/justificacion-dataset.md`: qué guarda cada base y por qué.
+- La página **Arquitectura** del dashboard: cada base abre un modal con qué guarda, por qué ahí y quién escribe.
+  - MongoDB: además, el validador y los índices.
+  - Cassandra: las 7 tablas con su clave primaria.
+  - Neo4j: el esquema del grafo, de qué parte del evento sale cada relación y un ejemplo real de reversiones.
+- El informe técnico.
 
 **Arquitectura Lambda:**
 - **Capa rápida:** el servicio `stream` guarda los eventos en MongoDB y los contadores por minuto en Cassandra en ~2 segundos.
@@ -122,7 +130,11 @@ Las operaciones están en la página **Operaciones CRUD** del dashboard (`web/sr
   - **Explorador de eventos:** búsqueda y conteos por tipo sobre MongoDB.
   - **Red de editores:** totales del grafo, rankings de editores revertidos y patrulleros, páginas disputadas y la red alrededor de un editor (Neo4j).
   - **Operaciones CRUD** (sección 4).
-  - **Arquitectura:** diagrama clicable del flujo de datos; cada componente abre su detalle: origen, estructura y características del dataset, el flujo de Airflow paso a paso y qué guarda cada base.
+  - **Arquitectura:** diagrama clicable del flujo de datos. Cada componente abre su detalle:
+    - la fuente: origen, estructura, características y captura de prueba del dataset;
+    - las dos capas: el servicio stream y el flujo de Airflow paso a paso;
+    - las tres bases: qué guarda cada una, por qué ahí y su tamaño;
+    - la API y el dashboard: qué base consulta cada vista.
 - **Claridad:**
   - todas las tarjetas abren un modal con definición, cálculo, lectura y origen del dato;
   - un filtro global de wiki (Ambas, enwiki, eswiki) aplica a todas las vistas;
@@ -158,11 +170,11 @@ Calculamos **12 KPIs** cada hora, global y por wiki. Las definiciones, fórmulas
 
 | Sección del informe | Material disponible |
 | --- | --- |
-| Introducción y descripción del problema | `docs/justificacion-dataset.md` (monitorear la actividad colaborativa en Wikimedia) |
-| Arquitectura propuesta | `README.md` (arquitectura Lambda) y `docs/despliegue.md` (GCP) |
-| Descripción del dataset | `docs/justificacion-dataset.md` |
+| Introducción y descripción del problema | `docs/justificacion-dataset.md` (monitorear la actividad colaborativa en Wikimedia) y la página Arquitectura |
+| Arquitectura propuesta | Diagrama de la página Arquitectura, `README.md` (arquitectura Lambda) y `docs/despliegue.md` (GCP) |
+| Descripción del dataset | `docs/justificacion-dataset.md` y el modal de Wikimedia EventStreams de la página Arquitectura |
 | Modelos de MongoDB, Cassandra y Neo4j | `db/mongo/schema.json`, `db/cassandra/schema.cql`, `db/neo4j/constraints.cypher`, `docs/img/esquema-grafo.png` |
-| Explicación del DAG | `airflow/dags/wikipedia_pipeline.py` y `README.md` |
+| Explicación del DAG | `airflow/dags/wikipedia_pipeline.py`, `README.md` y el modal «Capa por lotes» de la página Arquitectura |
 | KPIs implementados | Sección 6 de este documento |
 | Capturas del dashboard | Pendientes |
 | Conclusiones | Pendientes |
