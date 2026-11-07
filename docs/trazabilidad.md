@@ -886,6 +886,17 @@ Nueva página **Arquitectura** (grupo "Proyecto" del menú), diseñada en Claude
 
 Verificación con Playwright: recorrido de los 8 modales con anterior/siguiente, en modo claro y oscuro, sin errores de JavaScript. Commits `feat: add architecture endpoints` y `feat: add architecture page with clickable diagram`.
 
+**Ajuste: todo el contenido de la justificación del dataset en la página.** Se comparó el modal de Wikimedia EventStreams con `docs/justificacion-dataset.md` y se agregó lo que faltaba:
+
+- El problema que planteamos (monitorear la actividad colaborativa en Wikipedia).
+- En el origen: cobertura (todos los proyectos e idiomas), autenticación (solo `User-Agent`), datos pasados con `?since=`, licencia completa y el enlace a la documentación en Wikitech. El esquema se indica como público y versionado (`1.0.x`).
+- Campos comunes `id` y `server_name`, y los campos extra completos de cada tipo (`patrolled`, `notify_url`, `log_id`, `log_params` de estructura libre).
+- La captura de prueba del 31 de octubre (134 s, 4,915 eventos, ~37/s) con su tabla de métricas y el gráfico de eventos por wiki.
+- La tabla de cumplimiento de los requisitos del dataset.
+- En el modal de Neo4j: de qué parte del evento sale cada relación, el esquema del grafo y el ejemplo real de reversiones.
+
+Las tres imágenes de `docs/img/` se copiaron a `web/public/img/` (no a `/arquitectura/`, que chocaría con la ruta de la página al recargarla). Commit `feat: show dataset justification in architecture modals`.
+
 ---
 
 ## Pendientes
