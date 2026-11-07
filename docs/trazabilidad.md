@@ -713,6 +713,17 @@ Verificación: `tsc` y `npm run build` sin errores; capturas con Playwright en m
 
 Verificación: capturas con Playwright en eswiki (KPIs, protagonistas, evolución y totales de la Red cambian) y del modal, sin errores de JavaScript. Commits `feat: compute kpis per wiki`, `feat: serve kpis and graph totals per wiki`, `fix: make every section follow the wiki filter` y `feat: show kpi definitions in a modal`.
 
+En la VM, `python -m wikipipe.kpis` (contenedor de Airflow, que tiene los archivos crudos) rellenó las 150 ventanas procesadas hasta el 7 nov 00:00 UTC sin errores.
+
+### 24. Logos de las bases como fuente de los datos
+
+La fuente de cada tarjeta ("Cassandra · resumen_por_hora", "MongoDB · events", patrones Cypher de Neo4j, "Limpieza · DAG") se muestra ahora con el logo del servicio y el nombre de la tabla, colección o patrón. El texto completo queda en el tooltip y para lectores de pantalla.
+
+- Logos de Simple Icons (licencia CC0, paquete `simple-icons@16.36.0`) con su color de marca: MongoDB, Apache Cassandra, Neo4j y Apache Airflow (la limpieza corre en el DAG). Solo se incluyen los cuatro usados.
+- Componente `web/src/components/fuente.tsx`. Se usa en todas las tarjetas de KPIs y en el modal de definiciones, cuyos grupos también llevan el logo.
+
+Commit `feat: show database logos as data sources`, desplegado con `./deploy.sh`.
+
 ---
 
 ## Pendientes
