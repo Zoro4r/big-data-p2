@@ -105,9 +105,9 @@ export default function CrudPage() {
     setOcupado(false)
     if (r) setLog((l) => [{ op: "READ" as Op, base: "MongoDB · events", detalle: `find · ${r.documentos.length}${r.hay_mas ? "+" : ""} documentos`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
   }
-  // Al entrar a Consultar se busca con los filtros actuales, así aparece lo que se acaba de crear.
+  // Al entrar a Consultar se parte de cero: no se busca hasta que la persona presiona Buscar.
   useEffect(() => {
-    if (base === "mongo" && mOp === "Consultar") buscarEventos()
+    if (base === "mongo" && mOp === "Consultar") consulta.limpiar()
   }, [base, mOp]) // eslint-disable-line react-hooks/exhaustive-deps
   /** Desde la ficha: lleva el documento a Actualizar o Eliminar. */
   const irA = (op: string) => (id: string) => { setM((x) => ({ ...x, id })); setResultado(null); setMOp(op) }

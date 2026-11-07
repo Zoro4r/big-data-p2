@@ -83,7 +83,9 @@ export function useConsultaEventos(wikiCabecera: WikiCrud) {
       .catch((e) => { toast.error((e as Error).message); setDoc(null) })
   }
 
-  return { f, setF, res, elegido, doc, cargando, buscar, verMas, elegir }
+  const limpiar = () => { setRes(null); elegir(null) }
+
+  return { f, setF, res, elegido, doc, cargando, buscar, verMas, elegir, limpiar }
 }
 export type ConsultaEventos = ReturnType<typeof useConsultaEventos>
 
@@ -150,9 +152,8 @@ export function FiltrosConsulta({ c }: { c: ConsultaEventos }) {
 /** Lista de coincidencias, solo cuando hay más de una. */
 export function Coincidencias({ c }: { c: ConsultaEventos }) {
   const docs = c.res?.documentos ?? []
-  if (!c.res) return null
-  if (docs.length === 0) return <p className="border-t pt-4 text-[13px] text-muted-foreground">Sin coincidencias con estos filtros.</p>
-  if (docs.length === 1 && !c.res.hay_mas) return null
+  // Sin resultados o con uno solo no hay lista: la columna derecha ya lo muestra.
+  if (!c.res || docs.length === 0 || (docs.length === 1 && !c.res.hay_mas)) return null
   return (
     <div className="flex flex-col gap-2 border-t pt-4">
       <div className="flex items-baseline justify-between">
@@ -183,7 +184,7 @@ export function Coincidencias({ c }: { c: ConsultaEventos }) {
 export function FichaDocumento({ c, onActualizar, onEliminar }: { c: ConsultaEventos; onActualizar: (id: string) => void; onEliminar: (id: string) => void }) {
   const d = c.doc
   const docs = c.res?.documentos ?? []
-  if (!c.res) return <Vacio titulo="Busca para ver documentos" texto="Usa los filtros de la izquierda y presiona Buscar." />
+  if (!c.res) return <Vacio titulo="Realiza una consulta" texto="Elige los filtros de la izquierda y presiona Buscar; el documento aparecerá aquí." />
   if (!docs.length) return <Vacio titulo="Sin coincidencias" texto="Prueba con otro periodo, otra wiki o quita «Solo documentos de demostración»." />
   if (!d) return <Vacio titulo="Cargando documento…" texto=" " />
 
