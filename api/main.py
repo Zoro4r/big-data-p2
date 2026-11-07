@@ -154,6 +154,21 @@ def evento(event_id: str):
     return doc
 
 
+@app.get("/api/arquitectura")
+def arquitectura():
+    return q.arquitectura()
+
+
+@app.get("/api/arquitectura/ejemplo")
+def arquitectura_ejemplo(tipo: str | None = None):
+    if tipo not in (None, "edit", "new", "categorize", "log"):
+        raise HTTPException(400, "Tipo no válido")
+    doc = q.ejemplo_evento(tipo)
+    if doc is None:
+        raise HTTPException(404, "No hay eventos de ese tipo")
+    return doc
+
+
 @app.get("/api/red")
 def red(wiki: str = "ambas"):
     w = None if wiki == "ambas" else wikis_de(wiki)[0]

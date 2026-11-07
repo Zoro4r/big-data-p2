@@ -302,6 +302,50 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     }
 
 
+# ---------------------------------------------------------------- Arquitectura
+
+
+@cacheado
+def arquitectura() -> dict:
+    """Cifras en vivo para la página Arquitectura: volumen, ritmo, tipos, DAG y tamaño de cada base."""
+    db = mongo_db()
+    primero = db.events.find_one({}, {"derived.event_dt": 1}, sort=[("derived.event_dt", 1)])
+    stats = db.command("collStats", "events")
+    serie = kpis(24)
+    eventos_h = [p["valor"] for p in serie.get("eventos_procesados", []) if p["valor"] is not None]
+    calidad = [p["valor"] for p in serie.get("calidad_datos_pct", []) if p["valor"] is not None]
+    # Mezcla de tipos de las últimas 24 h: de Cassandra (ya agregada por hora); si no hay, de MongoDB.
+    tipos: dict = defaultdict(int)
+    limite = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H")
+    for r in resumen_por_hora(2):
+        if r["hora_utc"][:13] >= limite:
+            for campo, tipo in (("ediciones", "edit"), ("creaciones", "new"), ("categorizaciones", "categorize"), ("logs", "log")):
+                tipos[tipo] += r.get(campo) or 0
+    if not sum(tipos.values()):
+        for t in tipos_por_wiki(24):
+            tipos[t["tipo"]] += t["eventos"]
+    desde = primero["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat() if primero else None
+    return {
+        "mongo": {"eventos": total_eventos(), "desde": desde, "tamano_bytes": stats.get("size"),
+                  "disco_bytes": stats.get("storageSize"), "indices": [ix["name"] for ix in db.events.list_indexes()]},
+        "ritmo": {"promedio_hora": sum(eventos_h) / len(eventos_h) if eventos_h else None,
+                  "min_hora": min(eventos_h, default=None), "max_hora": max(eventos_h, default=None), "horas": len(eventos_h)},
+        "calidad_pct": calidad[0] if calidad else None,
+        "tipos_24h": dict(tipos),
+        "dag": {"corridas": cassandra().execute("SELECT count(*) FROM ejecuciones").one()[0], "ultimas": ejecuciones(2)[:6]},
+        "grafo": conteo_grafo(),
+        "stream": estado(),
+    }
+
+
+def ejemplo_evento(tipo: str | None = None) -> dict | None:
+    """Un evento reciente al azar (de entre los últimos 50 del tipo pedido), para mostrar su estructura."""
+    import random
+
+    filtro = {"type": tipo} if tipo else {}
+    return next(mongo_db().events.find(filtro).sort("derived.event_dt", -1).skip(random.randint(0, 49)).limit(1), None)
+
+
 # ---------------------------------------------------------------- Neo4j
 
 
