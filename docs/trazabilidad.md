@@ -792,6 +792,14 @@ Commit `feat: open live metric details and drop new-row highlight`.
 
 Todos usan `ModalMetrica`, con navegación anterior/siguiente entre las tarjetas de la vista. Las consultas (Cypher, MongoDB) se muestran en letra de código. Commit `feat: open detail modal from every dashboard card`.
 
+**Ajustes en Operaciones CRUD:**
+
+- Se quitó la pastilla amarilla "Estas operaciones escriben en las bases de producción"; la descripción ya pide usar nombres «Demo_».
+- El botón de cada operación ocupa todo el ancho del formulario.
+- **Prueba del validador:** el botón envía a propósito un evento sin el campo `derived`, y el `$jsonSchema` de la colección `events` lo rechaza sin guardarlo. Antes la interfaz lo mostraba como "CREATE · Operación realizada" en verde, como si se hubiera insertado. Ahora aparece en azul como "El validador rechazó el documento (resultado esperado)", con la explicación, y en el historial con la etiqueta VALIDADOR. Si el validador llegara a aceptar el documento, se muestra como error. El botón quedó separado del botón principal, con una línea que explica qué prueba.
+
+Commit `fix: clarify mongo validator test in crud page`.
+
 ---
 
 ## Pendientes
