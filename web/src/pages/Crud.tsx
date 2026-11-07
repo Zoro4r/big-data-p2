@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { CheckCircle2, Copy, XCircle } from "lucide-react"
+import { CheckCircle2, Copy, XCircle, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
 import { Seccion, Vacio } from "@/components/common"
@@ -16,9 +16,10 @@ import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
 
-type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO"
+type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO" | "VALIDADOR"
 interface Registro { op: Op; base: string; detalle: string; hora: string; ok: boolean }
-interface Resultado { titulo: string; ok: boolean; json: unknown }
+/** validacion: el validador de MongoDB rechazó el documento de prueba, que es lo esperado */
+interface Resultado { titulo: string; ok: boolean; validacion?: boolean; json: unknown }
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 const horaActual = () => new Date().toISOString().slice(11, 19)
@@ -52,6 +53,29 @@ export default function CrudPage() {
       setResultado({ titulo: `${op} · ${base}`, ok: false, json: { error: msg } })
       setLog((l) => [{ op: "RECHAZADO" as Op, base, detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
       toast.error(msg)
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  /** Envía un documento sin "derived": el $jsonSchema de events debe rechazarlo y no guardarlo. */
+  async function probarValidador() {
+    setOcupado(true)
+    const base = "MongoDB · validador $jsonSchema"
+    try {
+      const r = await api<{ rechazado: boolean; motivo?: string }>("/api/crud/mongo/invalido", { method: "POST" })
+      if (r.rechazado) {
+        setResultado({ titulo: base, ok: true, validacion: true, json: r })
+        setLog((l) => [{ op: "VALIDADOR" as Op, base, detalle: "documento sin derived rechazado", hora: horaActual(), ok: true }, ...l].slice(0, 8))
+        toast.success("El validador rechazó el documento inválido, como se esperaba")
+      } else {
+        setResultado({ titulo: base, ok: false, json: r })
+        setLog((l) => [{ op: "RECHAZADO" as Op, base, detalle: "el validador aceptó un documento inválido", hora: horaActual(), ok: false }, ...l].slice(0, 8))
+        toast.error("El validador aceptó un documento inválido")
+      }
+    } catch (e) {
+      setResultado({ titulo: base, ok: false, json: { error: (e as Error).message } })
+      toast.error((e as Error).message)
     } finally {
       setOcupado(false)
     }
@@ -101,13 +125,13 @@ export default function CrudPage() {
   }
 
   const boton = (texto: string, peligro = false) => (
-    <div className="flex justify-end"><Button type="submit" disabled={ocupado} variant={peligro ? "destructive" : "default"}>{texto}</Button></div>
+    <Button type="submit" disabled={ocupado} variant={peligro ? "destructive" : "default"} className="h-10 w-full text-sm">{texto}</Button>
   )
 
   return (
     <>
       <Header ruta={["Administración", "Operaciones CRUD"]} />
-      <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar." aviso="Estas operaciones escriben en las bases de producción.">
+      <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
           <Tabs defaultValue="mongo" className="gap-4 lg:col-span-2">
             <TabsList className="w-full">
@@ -138,9 +162,12 @@ export default function CrudPage() {
                   )}
                   {boton({ Crear: "Insertar documento", Consultar: "Consultar", Actualizar: "Actualizar ($set)", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
                   {mOp === "Crear" && (
-                    <Button type="button" variant="outline" disabled={ocupado} onClick={() => ejecutar("CREATE", "MongoDB · validador", "documento sin derived", () => api("/api/crud/mongo/invalido", { method: "POST" }))}>
-                      Probar el validador con un documento inválido
-                    </Button>
+                    <div className="mt-1 flex flex-col gap-2 border-t pt-4">
+                      <p className="text-xs leading-relaxed text-muted-foreground">Prueba de validación: intenta insertar un evento sin el campo «derived». El validador de la colección debe rechazarlo.</p>
+                      <Button type="button" variant="outline" disabled={ocupado} onClick={probarValidador} className="h-10 w-full">
+                        <ShieldCheck aria-hidden />Probar el validador
+                      </Button>
+                    </div>
                   )}
                 </form>
               </Seccion>
@@ -211,13 +238,23 @@ export default function CrudPage() {
           <div className="flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]">
             {resultado ? (
               <>
-                <div role="status" className={cn("flex items-start gap-3 rounded-xl border px-4 py-3.5", resultado.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40")}>
-                  {resultado.ok ? <CheckCircle2 className="mt-0.5 size-[18px] shrink-0 text-green-700 dark:text-green-400" aria-hidden /> : <XCircle className="mt-0.5 size-[18px] shrink-0 text-red-700 dark:text-red-400" aria-hidden />}
-                  <div className="flex flex-col">
-                    <span className={cn("text-sm font-medium", resultado.ok ? "text-green-900 dark:text-green-200" : "text-red-900 dark:text-red-200")}>{resultado.ok ? "Operación realizada" : "Operación rechazada"}</span>
-                    <span className={cn("text-[13px]", resultado.ok ? "text-green-800 dark:text-green-300" : "text-red-800 dark:text-red-300")}>{resultado.titulo}</span>
+                {resultado.validacion ? (
+                  <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
+                    <ShieldCheck className="mt-0.5 size-[18px] shrink-0 text-blue-700 dark:text-blue-400" aria-hidden />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">El validador rechazó el documento (resultado esperado)</span>
+                      <span className="text-[13px] text-blue-800 dark:text-blue-300">El documento de prueba no tiene el campo «derived», que el $jsonSchema de la colección events exige. MongoDB no lo guardó.</span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div role="status" className={cn("flex items-start gap-3 rounded-xl border px-4 py-3.5", resultado.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40")}>
+                    {resultado.ok ? <CheckCircle2 className="mt-0.5 size-[18px] shrink-0 text-green-700 dark:text-green-400" aria-hidden /> : <XCircle className="mt-0.5 size-[18px] shrink-0 text-red-700 dark:text-red-400" aria-hidden />}
+                    <div className="flex flex-col">
+                      <span className={cn("text-sm font-medium", resultado.ok ? "text-green-900 dark:text-green-200" : "text-red-900 dark:text-red-200")}>{resultado.ok ? "Operación realizada" : "Operación rechazada"}</span>
+                      <span className={cn("text-[13px]", resultado.ok ? "text-green-800 dark:text-green-300" : "text-red-800 dark:text-red-300")}>{resultado.titulo}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="overflow-hidden rounded-xl border shadow-xs">
                   <div className="flex items-center justify-between border-b bg-muted/50 px-4 py-2.5">
                     <span className="text-[13px] font-medium">Resultado</span>
@@ -236,7 +273,7 @@ export default function CrudPage() {
                 <span className="text-[13px] font-medium">Operaciones de esta sesión</span>
                 {log.map((r, i) => (
                   <div key={i} className="grid grid-cols-[96px_64px_minmax(0,1fr)] items-center gap-2 text-[13px]">
-                    <Badge variant="outline" className={cn("justify-center", r.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400")}>{r.op}</Badge>
+                    <Badge variant="outline" className={cn("justify-center", r.op === "VALIDADOR" ? "border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400" : r.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400")}>{r.op}</Badge>
                     <span className="font-mono text-xs text-muted-foreground">{r.hora}</span>
                     <span className="truncate" title={`${r.base} · ${r.detalle}`}>{r.base} · {r.detalle}</span>
                   </div>
