@@ -1,4 +1,3 @@
-import { Fragment } from "react"
 import { siApacheairflow, siApachecassandra, siMongodb, siNeo4j, type SimpleIcon } from "simple-icons"
 
 import { cn } from "@/lib/utils"
@@ -28,27 +27,4 @@ export function baseDeCalculo(fuente: string): Base {
   if (fuente.startsWith("Neo4j")) return "neo4j"
   if (fuente.startsWith("Limpieza")) return "airflow"
   return "cassandra"
-}
-
-/** Recorrido de un KPI: dónde se calcula → Cassandra, donde se guarda (una sola base si coinciden). */
-export function rutaKpi(fuente: string): Base[] {
-  const calculo = baseDeCalculo(fuente)
-  return calculo === "cassandra" ? ["cassandra"] : [calculo, "cassandra"]
-}
-
-/** Recorrido del dato con logos: "MongoDB → Cassandra" (calcula → guarda) o una sola base. */
-export function Ruta({ bases, className }: { bases: Base[]; className?: string }) {
-  const nombres = bases.map((b) => BASES[b].nombre)
-  const titulo = bases.length > 1 ? `Se calcula en ${nombres[0]} y se guarda en ${nombres.at(-1)}` : `Se lee de ${nombres[0]}`
-  return (
-    <span className={cn("inline-flex flex-wrap items-center gap-1.5", className)} title={titulo}>
-      <span className="sr-only">{titulo}</span>
-      {bases.map((b, i) => (
-        <Fragment key={b}>
-          {i > 0 && <span className="text-muted-foreground/60" aria-hidden>→</span>}
-          <span className="inline-flex items-center gap-1.5" aria-hidden><LogoBase base={b} />{BASES[b].nombre}</span>
-        </Fragment>
-      ))}
-    </span>
-  )
 }

@@ -77,10 +77,10 @@ export default function ActividadPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} ruta={["cassandra"]} />
-              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaUTC(tot.pico.t, false)}`} ruta={["cassandra"]} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} ruta={["cassandra"]} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" ruta={["cassandra"]} />
+              <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} />
+              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaUTC(tot.pico.t, false)}`} />
+              <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} />
+              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" />
             </>
           )}
         </div>

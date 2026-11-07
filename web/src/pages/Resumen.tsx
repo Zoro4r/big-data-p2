@@ -3,11 +3,10 @@ import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, T
 import { BookOpen, FileText, Share2, Undo2 } from "lucide-react"
 
 import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
-import { LogoBase, Ruta, rutaKpi, type Base } from "@/components/fuente"
+import { DetalleKpi } from "@/components/detalle-kpi"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
@@ -18,52 +17,6 @@ import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
 interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null }
 
-const GRUPOS: [string, Base, string][] = [["Cassandra", "cassandra", "Cassandra"], ["MongoDB", "mongo", "MongoDB"], ["Neo4j", "neo4j", "Neo4j"], ["Limpieza", "airflow", "Limpieza en el DAG de Airflow"]]
-
-/** Definición, fórmula, fuente e interpretación de los KPIs, agrupados por la base que los calcula. */
-function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: string }) {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm"><BookOpen aria-hidden />Definición de los KPIs</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Definición de los KPIs</DialogTitle>
-          <DialogDescription>Qué mide cada indicador, cómo se calcula y cómo leerlo. Valores de la última hora procesada · {etiqueta}. Cada KPI se calcula en la base que mejor lo responde y se guarda en Cassandra, desde donde lo lee el dashboard.</DialogDescription>
-        </DialogHeader>
-        <div className="-mx-6 flex flex-col gap-5 overflow-y-auto px-6 pb-1">
-          {GRUPOS.map(([g, base, nombre]) => (
-            <section key={g} className="flex flex-col gap-2">
-              <h3 className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase"><LogoBase base={base} className="size-4" />{nombre}</h3>
-              <div className="divide-y rounded-lg border">
-                {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].fuente.startsWith(g)).map((k) => {
-                  const p = data?.kpis[k]?.[0]
-                  const valor = KPIS[k].unidad === "entidad"
-                    ? `${p?.detalle?.split(" (")[0].replace(/^(en|es)wiki:/, "") ?? "—"} (${entero(p?.valor)})`
-                    : formatoKpi(k, p?.valor)
-                  return (
-                    <div key={k} className="grid gap-1.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-6">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium">{KPIS[k].nombre}</span>
-                        <code className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{KPIS[k].formula}</code>
-                        <span className="text-[13px] text-muted-foreground">{KPIS[k].lectura}</span>
-                      </div>
-                      <div className="flex flex-col gap-0.5 sm:items-end">
-                        <span className="max-w-56 truncate text-sm font-semibold tabular-nums" title={valor}>{valor}</span>
-                        <Ruta bases={rutaKpi(KPIS[k].fuente)} className="text-xs text-muted-foreground" />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number }
 interface Serie10 { fecha: string; serie: { t: string; eventos: number; eventos_bot: number }[] }
 
@@ -97,6 +50,7 @@ function TooltipChart({ active, payload, label }: { active?: boolean; payload?: 
 export default function ResumenPage() {
   const { wiki, wikis, etiqueta } = useWiki()
   const [kpiElegido, setKpiElegido] = useState<Kpi>("tasa_automatizacion_pct")
+  const [kpiAbierto, setKpiAbierto] = useState<Kpi | null>(null)
   const { data, cargando } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
   const serie = useApi<Serie10>(`/api/serie10?wiki=${wiki}`)
 
@@ -123,15 +77,15 @@ export default function ResumenPage() {
   return (
     <>
       <Header ruta={["Panel", "Resumen"]} />
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior.` : "Cargando…"}
-        acciones={<DefinicionesKpi data={data} etiqueta={etiqueta} />}>
+      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}
+        acciones={<Button variant="outline" size="sm" onClick={() => setKpiAbierto("eventos_procesados")}><BookOpen aria-hidden />Definición de los KPIs</Button>}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
             : TARJETAS.map(({ kpi, pie }) => (
                 <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
                   cambio={kpi === "total_eventos_acumulados" ? null : cambio(kpi, data.kpis[kpi])}
-                  pie={pie(data)} ruta={rutaKpi(KPIS[kpi].fuente)} titulo={`${KPIS[kpi].formula} · ${KPIS[kpi].lectura}`} />
+                  pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
               ))}
         </div>
 
@@ -169,14 +123,14 @@ export default function ResumenPage() {
                   const nombre = (p?.detalle ?? "—").split(" (")[0].replace(/^(en|es)wiki:/, "")
                   const extra = p?.detalle?.match(/\((.*)\)/)?.[1]
                   return (
-                    <div key={kpi} className={`flex items-center gap-3 py-3 ${i < 2 ? "border-b border-border" : ""}`}>
+                    <button type="button" key={kpi} onClick={() => setKpiAbierto(kpi)} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${i < 2 ? "border-b border-border" : ""}`}>
                       <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${estilo}`}><Icono className="size-[18px]" aria-hidden /></div>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-xs text-muted-foreground">{KPIS[kpi].nombre}</span>
                         <span className="truncate text-sm font-medium" title={nombre}>{nombre}</span>
                       </div>
                       <Badge variant="outline" className="shrink-0 font-medium">{p?.valor != null ? `${entero(p.valor)} ${unidad}` : "—"}{extra ? ` · ${extra.replace("revertido por ", "por ")}` : ""}</Badge>
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -246,6 +200,7 @@ export default function ResumenPage() {
         </Seccion>
 
       </Pagina>
+      <DetalleKpi kpi={kpiAbierto} series={data?.kpis ?? null} etiqueta={etiqueta} onCambiar={setKpiAbierto} />
     </>
   )
 }

@@ -1,10 +1,9 @@
 import type { ReactNode } from "react"
-import { TrendingDown, TrendingUp } from "lucide-react"
+import { ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Ruta, type Base } from "@/components/fuente"
 import { cn } from "@/lib/utils"
 
 const TONO = {
@@ -18,17 +17,20 @@ export function TarjetaKpi(props: {
   valor: string
   cambio?: { texto: string; tono: keyof typeof TONO; sube: boolean } | null
   pie: ReactNode
-  /** De dónde sale el dato: [base] o [base de cálculo, base donde se guarda] */
-  ruta: Base[]
   titulo?: string
+  /** Si se pasa, la tarjeta se puede clickear (abre el detalle del KPI) */
+  onAbrir?: () => void
 }) {
-  const { etiqueta, valor, cambio, pie, ruta, titulo } = props
+  const { etiqueta, valor, cambio, pie, titulo, onAbrir } = props
   const Icono = cambio?.sube ? TrendingUp : TrendingDown
-  return (
-    <Card className="gap-3 py-[18px] shadow-xs" title={titulo}>
+  const tarjeta = (
+    <Card className={cn("h-full gap-3 py-[18px] shadow-xs", onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
       <CardHeader className="px-5">
         <div className="flex items-start justify-between gap-2">
-          <CardDescription className="text-[13px]">{etiqueta}</CardDescription>
+          <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
+            {etiqueta}
+            {onAbrir && <ArrowUpRight className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />}
+          </CardDescription>
           {cambio && (
             <Badge variant="outline" className={cn("gap-1 font-medium", TONO[cambio.tono])}>
               <Icono className="size-3" aria-hidden />
@@ -38,11 +40,16 @@ export function TarjetaKpi(props: {
         </div>
         <CardTitle className="text-[28px] font-semibold tracking-tight tabular-nums">{valor}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-2.5 px-5 text-[13px]">
+      <CardContent className="px-5 text-[13px]">
         <span className="font-medium">{pie}</span>
-        <Ruta bases={ruta} className="mt-auto border-t pt-2.5 text-xs text-muted-foreground" />
       </CardContent>
     </Card>
+  )
+  if (!onAbrir) return tarjeta
+  return (
+    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className="group rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {tarjeta}
+    </button>
   )
 }
 

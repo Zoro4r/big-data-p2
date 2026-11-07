@@ -80,10 +80,10 @@ export default function VivoPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} ruta={["mongo"]} />
-              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie={`eventos de ${etiqueta}`} ruta={["cassandra"]} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} ruta={["cassandra"]} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" ruta={["cassandra"]} />
+              <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} />
+              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie={`eventos de ${etiqueta}`} />
+              <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} />
+              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" />
             </>
           )}
         </div>
