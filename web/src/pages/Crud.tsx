@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { CheckCircle2, Copy, XCircle, ShieldCheck } from "lucide-react"
+import { CheckCircle2, Copy, Search, XCircle, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
 import { Seccion, Vacio } from "@/components/common"
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EditorEvento, FormularioEvento, nuevoId, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
+import { Coincidencias, FichaDocumento, FiltrosConsulta, useConsultaEventos } from "@/components/consultar-evento"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
@@ -97,15 +98,30 @@ export default function CrudPage() {
     }
   }
 
+  const consulta = useConsultaEventos(wikiForm)
+  async function buscarEventos() {
+    setOcupado(true)
+    const r = await consulta.buscar()
+    setOcupado(false)
+    if (r) setLog((l) => [{ op: "READ" as Op, base: "MongoDB · events", detalle: `find · ${r.documentos.length}${r.hay_mas ? "+" : ""} documentos`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
+  }
+  // Al entrar a Consultar se busca con los filtros actuales, así aparece lo que se acaba de crear.
+  useEffect(() => {
+    if (base === "mongo" && mOp === "Consultar") buscarEventos()
+  }, [base, mOp]) // eslint-disable-line react-hooks/exhaustive-deps
+  /** Desde la ficha: lleva el documento a Actualizar o Eliminar. */
+  const irA = (op: string) => (id: string) => { setM((x) => ({ ...x, id })); setResultado(null); setMOp(op) }
+
   const enviarMongo = (e: FormEvent) => {
     e.preventDefault()
     const id = encodeURIComponent(m.id)
     if (mOp === "Crear") insertarEvento()
-    if (mOp === "Consultar") ejecutar("READ", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`))
+    if (mOp === "Consultar") buscarEventos()
     if (mOp === "Actualizar") ejecutar("UPDATE", "MongoDB · events", `${m.id} · ${m.campo}`, () => api(`/api/crud/mongo/${id}`, { method: "PATCH", body: JSON.stringify({ campo: m.campo, valor: m.valor }) }))
     if (mOp === "Eliminar") ejecutar("DELETE", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`, { method: "DELETE" }))
   }
   const creando = base === "mongo" && mOp === "Crear"
+  const consultando = base === "mongo" && mOp === "Consultar"
 
   // ---------------------------------------------------------------- Cassandra
   const [cOp, setCOp] = useState("Insertar")
@@ -153,11 +169,11 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" descripcion="insert_one · find_one · update_one ($set) · delete_one">
+              <Seccion titulo="Colección events" descripcion="insert_one · find · update_one ($set) · delete_one">
                 <form onSubmit={enviarMongo} className="flex flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
-                  {mOp === "Crear"
-                    ? <FormularioEvento ev={evento} />
+                  {mOp === "Crear" ? <FormularioEvento ev={evento} />
+                    : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />
                     : <Campo id="m-id" label="_id"><Input id="m-id" className="font-mono text-xs" value={m.id} onChange={(e) => setM({ ...m, id: e.target.value })} /></Campo>}
                   {mOp === "Actualizar" && (
                     <div className="grid grid-cols-2 gap-3">
@@ -165,7 +181,10 @@ export default function CrudPage() {
                       <Campo id="m-valor" label="Nuevo valor"><Input id="m-valor" value={m.valor} onChange={(e) => setM({ ...m, valor: e.target.value })} /></Campo>
                     </div>
                   )}
-                  {boton({ Crear: "Insertar documento", Consultar: "Consultar", Actualizar: "Actualizar ($set)", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
+                  {mOp === "Consultar"
+                    ? <Button type="submit" disabled={ocupado} className="h-10 w-full text-sm"><Search aria-hidden />Buscar</Button>
+                    : boton({ Crear: "Insertar documento", Actualizar: "Actualizar ($set)", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
+                  {mOp === "Consultar" && <Coincidencias c={consulta} />}
                 </form>
               </Seccion>
             </TabsContent>
@@ -234,7 +253,8 @@ export default function CrudPage() {
 
           <div className="flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]">
             {creando && <EditorEvento ev={evento} />}
-            {resultado ? (
+            {consultando && <FichaDocumento c={consulta} onActualizar={irA("Actualizar")} onEliminar={irA("Eliminar")} />}
+            {consultando ? null : resultado ? (
               <>
                 {resultado.validacion ? (
                   <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
@@ -266,7 +286,7 @@ export default function CrudPage() {
                   <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(resultado.json, null, 2)}</pre>
                 </div>
               </>
-            ) : !creando && (
+            ) : !creando && log.length === 0 && (
               <Vacio titulo="Sin operaciones todavía" texto="Elige una base y una operación; el resultado aparece aquí." />
             )}
             {log.length > 0 && (

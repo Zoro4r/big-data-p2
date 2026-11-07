@@ -22,7 +22,7 @@ const ACCIONES: [Accion, string][] = [
   ["subida", "Subida de archivo"], ["otra", "Otra acción"],
 ]
 const DURACIONES: [string, string][] = [["31 hours", "31 horas"], ["1 week", "1 semana"], ["1 month", "1 mes"], ["infinite", "Indefinida"]]
-const NOMBRE_WIKI: Record<WikiCrud, string> = { enwiki: "English Wikipedia", eswiki: "Wikipedia en español" }
+export const NOMBRE_WIKI: Record<WikiCrud, string> = { enwiki: "English Wikipedia", eswiki: "Wikipedia en español" }
 const PREFIJO: Record<WikiCrud, { usuario: string; categoria: string; archivo: string }> = {
   enwiki: { usuario: "User:", categoria: "Category:", archivo: "File:" },
   eswiki: { usuario: "Usuario:", categoria: "Categoría:", archivo: "Archivo:" },
@@ -121,7 +121,7 @@ export type EventoNuevo = ReturnType<typeof useEventoNuevo>
 
 // ---------------------------------------------------------------- columna izquierda
 
-function Segmentado<T extends string>({ valor, opciones, onChange, etiqueta }: { valor: T; opciones: [T, string][]; onChange: (v: T) => void; etiqueta: string }) {
+export function Segmentado<T extends string>({ valor, opciones, onChange, etiqueta }: { valor: T; opciones: [T, string][]; onChange: (v: T) => void; etiqueta: string }) {
   return (
     <div role="radiogroup" aria-label={etiqueta} className="flex rounded-lg bg-muted p-[3px]">
       {opciones.map(([v, nombre]) => (
@@ -313,7 +313,7 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
 const escapar = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 
 /** Colorea el JSON: claves, textos, números y booleanos. */
-function resaltar(json: string) {
+export function resaltar(json: string) {
   return escapar(json).replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, (m, cadena, dosPuntos, literal) => {
     if (cadena) return dosPuntos ? `<span class="text-zinc-700 dark:text-zinc-300">${cadena}</span>${dosPuntos}` : `<span class="text-green-700 dark:text-green-400">${cadena}</span>`
     if (literal) return `<span class="text-amber-700 dark:text-amber-400">${m}</span>`
