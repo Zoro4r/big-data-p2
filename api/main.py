@@ -169,9 +169,9 @@ def ego(nombre: str, limite: int = 30):
 # ---------------------------------------------------------------- CRUD (reutiliza wikipipe.crud)
 
 
-class CambioMongo(BaseModel):
-    campo: str
-    valor: str | int | float | bool
+class CambiosMongo(BaseModel):
+    """Campos a cambiar con su nuevo valor, por ruta con punto: {"comment": "…", "length.new": 1350}."""
+    cambios: dict[str, str | int | float | bool | None]
 
 
 @app.post("/api/crud/mongo/previa")
@@ -220,12 +220,26 @@ def mongo_leer(event_id: str):
 
 
 @app.patch("/api/crud/mongo/{event_id}")
-def mongo_actualizar(event_id: str, body: CambioMongo):
-    if body.campo in ("_id",):
-        raise HTTPException(400, "El _id no se puede modificar")
-    n = crud.mongo_actualizar(q.mongo_db(), event_id, {body.campo: body.valor})
+def mongo_actualizar(event_id: str, body: CambiosMongo):
+    """update_one con $set de los campos cambiados y de los derived que haya que recalcular."""
+    actual = crud.mongo_consultar(q.mongo_db(), event_id)
+    if actual is None:
+        raise HTTPException(404, "No existe ese documento")
+    if not body.cambios:
+        raise HTTPException(400, "No hay cambios que guardar")
+    try:
+        poner, quitar, recalculados, faltan = crud.preparar_actualizacion(actual, body.cambios)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if faltan:
+        raise HTTPException(422, f"El documento quedaría incompleto: falta {', '.join(faltan)}")
+    operacion = {"$set": poner, **({"$unset": quitar} if quitar else {})}
+    try:
+        n = q.mongo_db().events.update_one({"_id": event_id}, operacion).modified_count
+    except WriteError as exc:
+        raise HTTPException(422, f"MongoDB rechazó el cambio: {exc.details.get('errmsg')}")
     q.limpiar_cache()
-    return {"modificados": n, "documento": crud.mongo_consultar(q.mongo_db(), event_id)}
+    return {"modificados": n, "recalculados": recalculados, "documento": crud.mongo_consultar(q.mongo_db(), event_id)}
 
 
 @app.delete("/api/crud/mongo/{event_id}")

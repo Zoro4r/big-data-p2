@@ -81,6 +81,41 @@ def preparar_evento(documento: dict) -> tuple[dict, list[str]]:
     return mongo.to_document(doc), []
 
 
+PROTEGIDOS = ("_id", "derived", "meta.id")
+
+
+def preparar_actualizacion(actual: dict, cambios: dict) -> tuple[dict, dict, list[str], list[str]]:
+    """Arma el update_one de la página CRUD: los campos que cambió la persona más los de `derived` que
+    hay que recalcular para que el documento siga siendo coherente (p. ej. delta_bytes si cambian los bytes).
+
+    Devuelve ($set, $unset, campos recalculados, campos que faltarían). `cambios` usa rutas con punto
+    ("length.new"); `_id`, `meta.id` y `derived` no se pueden cambiar a mano.
+    """
+    import copy
+
+    for ruta in cambios:
+        if ruta in PROTEGIDOS or ruta.startswith("derived.") or ruta.startswith("$"):
+            raise ValueError(f"El campo «{ruta}» no se puede modificar")
+    nuevo = copy.deepcopy(actual)
+    for ruta, valor in cambios.items():
+        *padres, hoja = ruta.split(".")
+        destino = nuevo
+        for p in padres:
+            if not isinstance(destino.get(p), dict):
+                destino[p] = {}
+            destino = destino[p]
+        destino[hoja] = valor
+    preparado, faltan = preparar_evento(nuevo)
+    if faltan:
+        return {}, {}, [], faltan
+
+    antes, despues = actual.get("derived") or {}, preparado["derived"]
+    normal = lambda v: v.replace(tzinfo=None) if isinstance(v, datetime) else v  # noqa: E731
+    poner = {f"derived.{k}": v for k, v in despues.items() if normal(antes.get(k)) != normal(v)}
+    quitar = {f"derived.{k}": "" for k in antes if k not in despues}
+    return {**cambios, **poner}, quitar, sorted([*poner, *quitar]), []
+
+
 def evento_demo(event_id: str) -> dict:
     """Documento con la misma estructura que un evento real del stream (pasa el validador)."""
     ahora = datetime.now(timezone.utc).replace(microsecond=0)
