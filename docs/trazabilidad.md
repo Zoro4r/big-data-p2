@@ -751,6 +751,8 @@ Verificación: `tsc` y `npm run build` sin errores; con Playwright se abrió un 
 
 **Ajuste: valores alineados.** Cuando el nombre de un KPI ocupaba dos líneas ("Tasa de automatización", "Volumen neto de contenido"), su valor quedaba más abajo que el de las tarjetas vecinas. Ahora cada tarjeta usa CSS subgrid: ocupa tres filas de la grilla de la página (nombre, valor, contexto), y las tarjetas de una misma fila comparten la altura de cada una. Verificado midiendo la posición de los valores con Playwright: iguales en cada fila con 4 y con 2 columnas. Se quitó el botón "Definición de los KPIs": el detalle se abre desde cada tarjeta. Commit `fix: align kpi card values across each row`.
 
+**Ajuste: anchos fijos.** La descripción de cada página tenía un ancho máximo (`max-w-3xl`) y no llegaba al borde derecho; ahora ocupa todo el ancho disponible (en Actividad, hasta el selector de día). En la pastilla de estado, "hace 9 s" → "hace 10 s" cambiaba su ancho cada pocos segundos; el tiempo tiene ahora un ancho fijo. Verificado con Playwright: la pastilla midió 312 px en 15 lecturas con 9 textos distintos. Commit `fix: keep header pill width and full-width descriptions`.
+
 ---
 
 ## Pendientes
