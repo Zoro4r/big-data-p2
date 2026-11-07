@@ -901,6 +901,30 @@ Las tres imágenes de `docs/img/` se copiaron a `web/public/img/` (no a `/arquit
 
 En `docs/requerimientos.md`, cada referencia a otro archivo indica ahora su sección o líneas y lleva un enlace directo: encabezados de los `.md`, líneas exactas del código (`#L…`), la página del PDF de instrucciones (`#page=…`) y las páginas del dashboard desplegado. Un script verificó los 104 enlaces locales (archivos, anclas y líneas). Commit `docs: link file references in requirements`.
 
+### 33. CRUD de Cassandra y Neo4j con la interfaz rediseñada
+
+Se implementó lo diseñado en Claude Design (canvas "CRUD de Cassandra y Neo4j"), con los mismos patrones que MongoDB: columna izquierda alineada con las pestañas, coincidencias debajo de "Buscar", "· editado" con deshacer, tabla de cambios, y confirmación escribiendo el nombre más un diálogo, sin deshacer.
+
+**Regla de datos de demostración:** Cassandra y Neo4j guardan datos que calcula el pipeline. Consultar funciona con cualquier editor real, pero crear, actualizar y eliminar solo se permiten sobre nombres «Demo_…». La API lo impide con un 403 (`solo_demo` en `api/main.py`) y la interfaz lo avisa y desactiva el botón.
+
+**Cassandra** (`web/src/components/cassandra-crud.tsx`, tabla `actividad_editor`):
+
+- **Crear:** wiki de destino, clave (editor como partición; fecha y hora como agrupación) y las seis métricas. A la derecha, la fila a insertar; si la clave ya existe, un aviso explica que el INSERT la reemplaza.
+- **Consultar:** por partición (editor), con fecha y hora opcionales; ficha con las métricas y la fila completa.
+- **Actualizar:** carga por clave completa; `UPDATE` solo de las columnas cambiadas (`cassandra_actualizar_columnas`).
+- **Eliminar:** una fila o toda la partición, con la lista de lo que se borra.
+
+**Neo4j** (`web/src/components/neo4j-crud.tsx`):
+
+- **Crear:** nodo `:Editor` o relación (`REVIRTIO`, `MENSAJE_A`, `AGRADECIO`, `BLOQUEO` con `veces` y `wiki`). Si un editor no existe se crea con la relación. A la derecha, el dibujo de cómo queda en el grafo.
+- **Consultar:** por el comienzo del nombre, con el índice de `user`. Ficha con mini grafo del editor, relaciones y propiedades; las fechas de Neo4j se pasan a texto.
+- **Actualizar:** propiedades del nodo con "+ Agregar propiedad"; `user` no se cambia.
+- **Eliminar:** `DETACH DELETE` de un nodo (lista antes sus relaciones) o `DELETE` de una relación elegida.
+
+**API:** nuevas rutas `GET /api/crud/cassandra/fila`, `GET /api/crud/neo4j/editores`; `POST`, `PATCH` y `DELETE` de ambas bases reescritos (fila completa, cambios por columna o propiedad, borrado de partición). Piezas compartidas de la interfaz en `web/src/components/crud-comun.tsx`.
+
+Verificación: con la API, los intentos de escribir sobre un editor real devolvieron 403. Con Playwright, recorrido completo de las cuatro operaciones en las dos bases (insertar, consultar, actualizar y eliminar la partición en Cassandra; crear relación, consultar, agregar propiedad, eliminar la relación y los dos nodos en Neo4j) y consulta de un editor real en solo lectura, sin errores de JavaScript ni datos de prueba al final. Commits `feat: add cassandra and neo4j crud endpoints with demo-only writes` y `feat: redesign cassandra and neo4j crud`.
+
 ---
 
 ## Pendientes

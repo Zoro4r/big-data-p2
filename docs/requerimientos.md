@@ -13,7 +13,7 @@ Cada referencia a otro archivo indica la sección o las líneas y lleva un enlac
 | 1. Fuente de datos | Cumplido |
 | 2. Arquitectura multimodelo | Cumplido |
 | 3. Automatización con Airflow | Cumplido |
-| 4. Operaciones CRUD | Cumplido (MongoDB rediseñado; Cassandra y Neo4j funcionan con la interfaz anterior) |
+| 4. Operaciones CRUD | Cumplido en las tres bases, con la interfaz rediseñada |
 | 5. Dashboard analítico | Cumplido |
 | 6. Indicadores (KPIs) | Cumplido (12 KPIs, el mínimo es 5) |
 | Entregables | Código, scripts, DAG y dashboard listos; faltan informe PDF y video |
@@ -116,7 +116,7 @@ Las dos capas usan el mismo `_id`, así que no hay duplicados.
 
 Las operaciones están en dos lugares:
 - La página [Operaciones CRUD](http://34.45.96.253:8501/crud) del dashboard ([web/src/pages/Crud.tsx](../web/src/pages/Crud.tsx)). Sus rutas de API están en [api/main.py, desde la línea 184](../api/main.py#L184).
-- Una demo por consola: `python -m wikipipe.crud mongo|cassandra|neo4j|todo`, en [src/wikipipe/crud.py, «Demo para la exposición», línea 260](../src/wikipipe/crud.py#L260). Cómo correrla: README, [«Demo de operaciones CRUD»](../README.md#demo-de-operaciones-crud).
+- Una demo por consola: `python -m wikipipe.crud mongo|cassandra|neo4j|todo`, en [src/wikipipe/crud.py, «Demo para la exposición», línea 320](../src/wikipipe/crud.py#L320). Cómo correrla: README, [«Demo de operaciones CRUD»](../README.md#demo-de-operaciones-crud).
 
 **MongoDB (colección `events`), con interfaz rediseñada:**
 - **Crear documento** ([crear-evento.tsx](../web/src/components/crear-evento.tsx); en el servidor, [`preparar_evento`, crud.py línea 54](../src/wikipipe/crud.py#L54)):
@@ -128,19 +128,49 @@ Las operaciones están en dos lugares:
   - el servidor recalcula `derived` (por ejemplo `delta_bytes`) y guarda con un solo `update_one`.
 - **Eliminar documento** ([eliminar-evento.tsx](../web/src/components/eliminar-evento.tsx); ruta [`mongo_eliminar`, main.py línea 261](../api/main.py#L261)): muestra el documento, pide escribir su `_id` y confirmar en un diálogo, y luego ejecuta `delete_one`.
 
-**Cassandra (tabla `actividad_editor`, partición = editor)** ([crud.py, sección «Cassandra», línea 146](../src/wikipipe/crud.py#L146)):
-- **Inserción:** `INSERT` de una fila con editor, fecha, hora y wiki.
-- **Consulta:** `SELECT` por partición, es decir, el historial de un editor.
-- **Actualización:** `UPDATE` por clave primaria completa.
-- **Eliminación:** `DELETE` de una fila, o de la partición completa del editor.
+Las tres bases usan la misma interfaz: la columna izquierda tiene los campos y la derecha muestra el resultado antes de ejecutar. Las piezas compartidas están en [crud-comun.tsx](../web/src/components/crud-comun.tsx).
 
-**Neo4j (grafo de editores)** ([crud.py, sección «Neo4j», línea 190](../src/wikipipe/crud.py#L190)):
-- **Crear nodo:** `MERGE (:Editor {user})`.
-- **Crear relación:** `MERGE` de `REVIRTIO`, `MENSAJE_A`, `AGRADECIO`, `BLOQUEO` o `EDITO` entre nodos existentes.
-- **Actualizar propiedades:** `SET` sobre el nodo. `user` es la clave única y no se cambia.
-- **Eliminar:** `DELETE` de una relación o `DETACH DELETE` de un nodo con sus relaciones.
+**Cassandra (tabla `actividad_editor`, clave `((editor), fecha, hora, wiki)`)**: interfaz en [cassandra-crud.tsx](../web/src/components/cassandra-crud.tsx) ([`useCassandraCrud`, línea 57](../web/src/components/cassandra-crud.tsx#L57)). Las rutas de API van desde [`cassandra_insertar`, main.py línea 306](../api/main.py#L306) y las funciones de base, en [crud.py, sección «Cassandra», línea 146](../src/wikipipe/crud.py#L146).
+- **Inserción:**
+  - `INSERT` de la fila completa: la clave (editor como partición; fecha, hora y wiki como agrupación) y las seis métricas;
+  - a la derecha se ve la fila que se va a insertar;
+  - si esa clave ya existe, un aviso explica que en Cassandra el INSERT **reemplaza** la fila, sin error de duplicado.
+- **Consulta:**
+  - `SELECT` por partición: siempre por editor, con fecha y hora opcionales;
+  - las coincidencias aparecen debajo de "Buscar";
+  - la ficha muestra las métricas y la fila completa.
+- **Actualización:**
+  - se carga la fila por su clave completa y se editan las métricas con "· editado" y deshacer;
+  - a la derecha, la tabla de cambios y la fila resultante;
+  - el `UPDATE` cambia solo esas columnas ([`cassandra_actualizar_columnas`, crud.py línea 200](../src/wikipipe/crud.py#L200));
+  - la clave no se puede cambiar, porque sería otra fila.
+- **Eliminación:**
+  - `DELETE` de una fila, o de toda la partición del editor;
+  - se confirma escribiendo el editor y luego en un diálogo;
+  - antes de borrar se muestra qué filas se van.
 
-**Para la exposición:** se usan nombres que empiezan con «Demo_» y se borran al final, así no se alteran los datos reales que alimentan los KPIs. El rediseño de Cassandra y Neo4j está propuesto en Claude Design y quedó en pausa.
+**Neo4j (grafo de editores)**: interfaz en [neo4j-crud.tsx](../web/src/components/neo4j-crud.tsx) ([`useNeo4jCrud`, línea 46](../web/src/components/neo4j-crud.tsx#L46)). Las rutas de API van desde [`neo_crear_editor`, main.py línea 384](../api/main.py#L384) y las funciones de base, en [crud.py, sección «Neo4j», línea 210](../src/wikipipe/crud.py#L210).
+- **Crear nodo:** `MERGE (:Editor {user})` con su tipo.
+- **Crear relación:**
+  - `MERGE` de `REVIRTIO`, `MENSAJE_A`, `AGRADECIO` o `BLOQUEO`, con `veces` y `wiki`;
+  - si un editor no existe, se crea junto con la relación ([`neo4j_asegurar_editor`, crud.py línea 229](../src/wikipipe/crud.py#L229));
+  - a la derecha se dibuja cómo quedará en el grafo y qué nodos son nuevos.
+- **Consulta:**
+  - búsqueda por el comienzo del nombre, que usa el índice único de `user` ([`neo4j_buscar_editores`, línea 236](../src/wikipipe/crud.py#L236));
+  - las coincidencias aparecen debajo de "Buscar";
+  - la ficha tiene un mini grafo del editor con sus vecinos, la tabla de relaciones y sus propiedades ([`neo4j_detalle_editor`, línea 257](../src/wikipipe/crud.py#L257)).
+- **Actualizar propiedades:**
+  - `SET` de las propiedades del nodo, con "· editado", deshacer y "+ Agregar propiedad";
+  - `user` es la clave única y no se cambia.
+- **Eliminar:**
+  - `DETACH DELETE` de un nodo, que antes lista las relaciones que se borrarán con él;
+  - o `DELETE` de una sola relación, elegida de la lista;
+  - el nodo se confirma escribiendo su nombre y luego en un diálogo.
+
+**Datos de demostración:**
+- Cassandra y Neo4j guardan datos que calcula el pipeline. Por eso consultar funciona con cualquier editor real, pero crear, actualizar y eliminar solo se permiten sobre nombres que empiezan con «Demo_».
+- Lo impide la API ([`solo_demo`, main.py línea 272](../api/main.py#L272)) y la interfaz lo avisa y desactiva el botón.
+- En la exposición se crean datos «Demo_» y se borran al final, así no se alteran los datos que alimentan los KPIs.
 
 ## 5. Dashboard analítico
 
