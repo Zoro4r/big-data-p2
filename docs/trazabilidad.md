@@ -782,6 +782,8 @@ Componentes nuevos de shadcn/ui: `popover` y `checkbox`. Verificación con Playw
 
 Commit `feat: open live metric details and drop new-row highlight`.
 
+**Ajuste: eje X cada 2 horas.** En "Eventos por minuto" (Actividad) y "Ritmo de ediciones" (Resumen), Recharts elegía las marcas según el espacio (01:46, 03:38…). Ahora el eje es de tiempo y cubre el día completo (UTC) con marcas fijas cada 2 horas en punto: 00:00, 02:00 … 22:00 (`ejeDia` en `web/src/lib/format.ts`). Commit `fix: show two-hour ticks on daily charts`.
+
 ---
 
 ## Pendientes
