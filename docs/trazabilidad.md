@@ -724,6 +724,14 @@ La fuente de cada tarjeta ("Cassandra · resumen_por_hora", "MongoDB · events",
 
 Commit `feat: show database logos as data sources`, desplegado con `./deploy.sh`.
 
+**Ajuste: recorrido del dato en lugar de nombres de tablas.** Los nombres de tablas (`resumen_por_hora`, `events`) no aportaban en las tarjetas y daban a entender que los KPIs se leen de varias bases. En realidad, cada KPI se calcula en la base que mejor lo responde y todos se guardan en Cassandra, desde donde los lee el dashboard. Se compararon cuatro diseños en Claude Design y se eligió mostrar el recorrido:
+
+- KPI calculado en Cassandra: solo "Cassandra".
+- Calculado en otra base: "MongoDB → Cassandra", "Neo4j → Cassandra" o "Airflow → Cassandra" (la calidad sale de la limpieza en el DAG).
+- Tarjetas que no son KPIs guardados (En vivo, Actividad, Explorador, Red): la base de la que se leen. Los totales de la Red por wiki muestran "Neo4j → MongoDB", porque el DAG los calcula en Neo4j y los guarda en `pipeline_runs`.
+
+El pie queda separado por una línea y alineado al fondo de la tarjeta; el tooltip dice "Se calcula en X y se guarda en Y". El modal de definiciones usa el mismo recorrido y lo explica en su descripción. Commit `feat: show where each kpi is computed and stored`.
+
 ---
 
 ## Pendientes
