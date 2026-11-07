@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { ChevronRight, Filter, X } from "lucide-react"
 
 import { Cargando, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { DetalleEvento } from "@/components/detalle-evento"
+import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Header, Pagina } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -24,6 +25,71 @@ interface Vivo {
 
 const REFRESCO_MS = 4000
 const MOSTRAR = 25
+
+/** Tarjetas de En vivo que abren su detalle. */
+type MetricaVivo = "eps" | "ult30" | "bots" | "rev"
+const ORDEN_VIVO: MetricaVivo[] = ["eps", "ult30", "bots", "rev"]
+const NOMBRE_METRICA: Record<MetricaVivo, string> = { eps: "Eventos por segundo", ult30: "Últimos 30 minutos", bots: "Hechos por bots", rev: "Reversiones" }
+
+/** Definición y datos de cada tarjeta de En vivo, a partir de la serie por minuto de Cassandra. */
+function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
+  const porMinuto = new Map<string, { eventos: number; bots: number; rev: number; ediciones: number }>()
+  for (const p of d.por_minuto) {
+    const f = porMinuto.get(p.t) ?? { eventos: 0, bots: 0, rev: 0, ediciones: 0 }
+    f.eventos += p.eventos; f.bots += p.eventos_bot; f.rev += p.reversiones; f.ediciones += p.ediciones
+    porMinuto.set(p.t, f)
+  }
+  const minutos = [...porMinuto.entries()].sort(([a], [b]) => a.localeCompare(b))
+  const sum = (c: "eventos" | "bots" | "rev" | "ediciones") => minutos.reduce((s, [, f]) => s + f[c], 0)
+  const ev = sum("eventos"), bots = sum("bots"), rev = sum("rev"), ediciones = sum("ediciones")
+  const pico = (c: "eventos" | "rev") => minutos.reduce((a, b) => (b[1][c] > a[1][c] ? b : a), minutos[0])
+  const hora = (t: string) => horaUTC(t, false)
+  const desde = `hace ${minutos.length} min`
+  const enCassandra = <>El servicio de streaming suma cada evento por minuto en <Base base="cassandra" /> (tabla eventos_por_minuto) y aquí se suman los últimos 30 minutos.</>
+  const comun = { etiqueta, momento: "Últimos 30 minutos · se actualiza cada 4 s" }
+
+  if (k === "eps") return {
+    ...comun, titulo: NOMBRE_METRICA.eps, momento: "Último minuto · se actualiza cada 4 s",
+    valor: (d.eventos_ultimo_minuto / 60).toFixed(1), nota: `${entero(d.eventos_ultimo_minuto)} eventos en el último minuto`,
+    serie: { valores: minutos.map(([, f]) => f.eventos / 60), desde },
+    datos: [["Promedio 30 min", `${minutos.length ? (ev / (minutos.length * 60)).toFixed(1) : "—"} por segundo`],
+      ["Minuto más activo", minutos.length ? `${entero(pico("eventos")[1].eventos)} · ${hora(pico("eventos")[0])}` : "—"]],
+    definicion: "Ritmo actual del stream: cuántos eventos de Wikipedia se guardan por segundo.",
+    calculo: { fraccion: ["eventos guardados en el último minuto", "60 segundos"] },
+    lectura: "Muestra qué tan activa está Wikipedia en este momento. Varía con la hora del día y sube con noticias o con bots que trabajan en lote.",
+    origen: <>Se cuenta en <Base base="mongo" /> (colección events) cada vez que se actualiza la página.</>,
+  }
+  if (k === "ult30") return {
+    ...comun, titulo: NOMBRE_METRICA.ult30, valor: entero(ev), nota: `eventos de ${etiqueta}`,
+    serie: { valores: minutos.map(([, f]) => f.eventos), desde },
+    datos: [["Promedio por minuto", minutos.length ? entero(ev / minutos.length) : "—"],
+      ["Minuto más activo", minutos.length ? `${entero(pico("eventos")[1].eventos)} · ${hora(pico("eventos")[0])}` : "—"],
+      ["Ediciones", entero(ediciones)]],
+    definicion: "Eventos guardados por la capa de streaming en los últimos 30 minutos: ediciones, páginas nuevas, categorizaciones y registros.",
+    calculo: { texto: "Σ eventos por minuto de los últimos 30 minutos" },
+    lectura: "Volumen reciente de actividad. Sirve para comparar con la hora consolidada que muestra el Resumen.",
+    origen: enCassandra,
+  }
+  if (k === "bots") return {
+    ...comun, titulo: NOMBRE_METRICA.bots, valor: ev ? `${((bots / ev) * 100).toFixed(1)} %` : "—", nota: `${entero(bots)} eventos en 30 min`,
+    serie: { valores: minutos.map(([, f]) => (f.eventos ? (f.bots / f.eventos) * 100 : 0)), desde },
+    datos: [["Eventos de bots", entero(bots)], ["Eventos humanos", entero(ev - bots)]],
+    definicion: "Porcentaje de los eventos de los últimos 30 minutos hechos por bots.",
+    calculo: { fraccion: ["eventos de bots", "total de eventos", "× 100"] },
+    lectura: "Cuánto del trabajo reciente hacen bots (marca bot=true o «bot» en el nombre). Sube cuando un bot procesa muchas páginas seguidas.",
+    origen: enCassandra,
+  }
+  return {
+    ...comun, titulo: NOMBRE_METRICA.rev, valor: entero(rev), nota: "en los últimos 30 minutos",
+    serie: { valores: minutos.map(([, f]) => f.rev), desde },
+    datos: [["Por cada 100 ediciones", ediciones ? ((rev / ediciones) * 100).toFixed(2) : "—"],
+      ["Minuto con más", minutos.length ? `${entero(pico("rev")[1].rev)} · ${hora(pico("rev")[0])}` : "—"]],
+    definicion: "Ediciones de los últimos 30 minutos que deshacen el trabajo de otro editor.",
+    calculo: { texto: "Σ reversiones por minuto de los últimos 30 minutos" },
+    lectura: "Señal de vandalismo o de conflicto entre editores. Los picos suelen ser patrulleros o bots antivandalismo revirtiendo varias ediciones seguidas.",
+    origen: enCassandra,
+  }
+}
 
 /** Menú de filtros: tipo de evento y tipo de editor. "Todos" equivale a no filtrar ese grupo. */
 function MenuFiltros({ filtros, setFiltros }: { filtros: Filtros; setFiltros: (f: Filtros) => void }) {
@@ -95,22 +161,15 @@ export default function VivoPage() {
   const [error, setError] = useState<string | null>(null)
   const [reloj, setReloj] = useState(Date.now())
   const { wiki, wikis, etiqueta } = useWiki()
-  const vistos = useRef<Set<string>>(new Set())
-  const [nuevos, setNuevos] = useState<Set<string>>(new Set())
+  const [metrica, setMetrica] = useState<MetricaVivo | null>(null)
 
   // Consulta la API cada pocos segundos mientras la página está abierta.
   useEffect(() => {
     let vigente = true
-    vistos.current = new Set()  // al cambiar de wiki no se resaltan como nuevas las ya existentes
     const cargar = () =>
       api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
         .then((d) => {
           if (!vigente) return
-          const frescos = new Set(d.ultimos.filter((e) => vistos.current.size > 0 && !vistos.current.has(e._id)).map((e) => e._id))
-          d.ultimos.forEach((e) => vistos.current.add(e._id))
-          setNuevos(frescos)
-          // Destello breve: con ~6 eventos/s casi toda la lista es nueva en cada actualización.
-          setTimeout(() => vigente && setNuevos(new Set()), 1500)
           setData(d)
           setError(null)
         })
@@ -154,10 +213,10 @@ export default function VivoPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} />
-              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie={`eventos de ${etiqueta}`} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" />
+              <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
+              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie={`eventos de ${etiqueta}`} onAbrir={() => setMetrica("ult30")} />
+              <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>
@@ -192,9 +251,8 @@ export default function VivoPage() {
                 return (
                   <li key={e._id} className="border-b last:border-b-0">
                     <button type="button" onClick={() => abrir(e._id)}
-                      className={cn("group grid w-full grid-cols-[56px_minmax(0,1fr)_96px_16px] items-center gap-4 px-6 py-2.5 text-left transition-colors duration-700 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none",
-                        nuevos.has(e._id) && "bg-blue-50/70 dark:bg-blue-950/30")}>
-                      <span className={cn("text-xs tabular-nums transition-colors duration-700", nuevos.has(e._id) ? "text-blue-700 dark:text-blue-400" : "text-muted-foreground")}>{hace(e.fecha, reloj).replace("hace ", "")}</span>
+                      className={cn("group grid w-full grid-cols-[56px_minmax(0,1fr)_96px_16px] items-center gap-4 px-6 py-2.5 text-left transition-colors duration-700 hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none")}>
+                      <span className="text-xs text-muted-foreground tabular-nums">{hace(e.fecha, reloj).replace("hace ", "")}</span>
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="truncate text-sm font-medium decoration-muted-foreground/60 underline-offset-[3px] group-hover:underline" title={e.titulo}>{e.titulo}</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -228,6 +286,12 @@ export default function VivoPage() {
           )}
         </Seccion>
       </Pagina>
+      {metrica && data && (
+        <ModalMetrica m={metricaVivo(metrica, data, etiqueta)}
+          anterior={{ nombre: NOMBRE_METRICA[ORDEN_VIVO[(ORDEN_VIVO.indexOf(metrica) + 3) % 4]], ir: () => setMetrica(ORDEN_VIVO[(ORDEN_VIVO.indexOf(metrica) + 3) % 4]) }}
+          siguiente={{ nombre: NOMBRE_METRICA[ORDEN_VIVO[(ORDEN_VIVO.indexOf(metrica) + 1) % 4]], ir: () => setMetrica(ORDEN_VIVO[(ORDEN_VIVO.indexOf(metrica) + 1) % 4]) }}
+          onCerrar={() => setMetrica(null)} />
+      )}
       <DetalleEvento id={abierto} lista={listaModal} mostrarWiki={wiki === "ambas"} hace={(iso) => hace(iso, reloj)} onCambiar={setAbierto} />
     </>
   )
