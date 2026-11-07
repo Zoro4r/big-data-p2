@@ -81,12 +81,14 @@ KPIS = [
 
 
 @cacheado
-def kpis(horas: int = 72) -> dict:
-    """Serie de cada KPI, de la hora más reciente a la más antigua."""
+def kpis(horas: int = 72, wiki: str | None = None) -> dict:
+    """Serie de cada KPI, de la hora más reciente a la más antigua. Sin wiki: ambas wikis juntas."""
     s, out = cassandra(), {}
     for kpi in KPIS:
+        filas = s.execute("SELECT ventana, valor, detalle FROM kpis WHERE kpi = %s LIMIT %s", (kpi, horas)) if wiki is None \
+            else s.execute("SELECT ventana, valor, detalle FROM kpis_por_wiki WHERE kpi = %s AND wiki = %s LIMIT %s", (kpi, wiki, horas))
         out[kpi] = [{"ventana": r.ventana.replace(tzinfo=timezone.utc).isoformat(), "valor": r.valor, "detalle": r.detalle}
-                    for r in s.execute("SELECT ventana, valor, detalle FROM kpis WHERE kpi = %s LIMIT %s", (kpi, horas))]
+                    for r in filas]
     return out
 
 
@@ -252,6 +254,15 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
 
 
 @cacheado
+def conteo_grafo_wiki(wiki: str) -> dict | None:
+    """Totales del grafo de una wiki: los calcula el DAG cada hora (ver neo4j_store.conteo_por_wiki)."""
+    run = mongo_db().pipeline_runs.find_one({"grafo_por_wiki": {"$exists": True}}, {"grafo_por_wiki": 1, "window_start": 1},
+                                            sort=[("window_start_dt", -1)])
+    if not run or wiki not in run["grafo_por_wiki"]:
+        return None
+    return {**run["grafo_por_wiki"][wiki], "ventana": run["window_start"]}
+
+
 def conteo_grafo() -> dict:
     # Con la etiqueta o el tipo escritos en la consulta, Neo4j usa sus contadores internos.
     nodos = {lb: _cypher(f"MATCH (n:{lb}) RETURN count(n) AS n")[0]["n"]

@@ -88,8 +88,9 @@ def sumar_por(filas: list[dict], clave: str, campos: tuple[str, ...]) -> list[di
 
 
 @app.get("/api/resumen")
-def resumen():
-    return {"kpis": q.kpis(72), "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
+def resumen(wiki: str = "ambas"):
+    w = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return {"kpis": q.kpis(72, w), "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
             "total": q.total_eventos()}
 
 
@@ -156,7 +157,7 @@ def evento(event_id: str):
 @app.get("/api/red")
 def red(wiki: str = "ambas"):
     w = None if wiki == "ambas" else wikis_de(wiki)[0]
-    return {"conteo": q.conteo_grafo(), "revertidos": q.ranking_revertidos(10, w),
+    return {"conteo": q.conteo_grafo() if w is None else q.conteo_grafo_wiki(w), "revertidos": q.ranking_revertidos(10, w),
             "patrulleros": q.ranking_patrulleros(10, w), "disputadas": q.paginas_disputadas(24, 12, w)}
 
 
