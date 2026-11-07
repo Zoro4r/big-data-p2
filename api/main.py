@@ -199,6 +199,18 @@ def mongo_crear(doc: dict = Body(...)):
     return {"rechazado": False, "documento": crud.mongo_consultar(q.mongo_db(), preparado["_id"])}
 
 
+PERIODOS = {"hora": 1, "dia": 24, "semana": 168, "todo": None}
+
+
+@app.get("/api/crud/mongo/buscar")
+def mongo_buscar(wiki: str = "enwiki", tipo: str = "todos", periodo: str = "dia", editor: str = "", titulo: str = "",
+                 demo: bool = False, id: str = "", antes: datetime | None = None, limite: int = 10):
+    if wiki not in ("enwiki", "eswiki") or tipo not in ("todos", "edit", "new", "categorize", "log") or periodo not in PERIODOS:
+        raise HTTPException(400, "Filtro no válido")
+    return q.crud_buscar(wiki, tipo, PERIODOS[periodo], editor.strip(), titulo.strip(), demo, id.strip(),
+                         antes, min(max(limite, 1), 50))
+
+
 @app.get("/api/crud/mongo/{event_id}")
 def mongo_leer(event_id: str):
     doc = crud.mongo_consultar(q.mongo_db(), event_id)

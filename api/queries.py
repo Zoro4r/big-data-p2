@@ -6,6 +6,7 @@ memoria, porque los datos cambian una vez por hora; las operaciones CRUD limpian
 
 from __future__ import annotations
 
+import re
 import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -195,6 +196,57 @@ def buscar_eventos(wiki: str, tipo: str, editor: str, titulo: str, solo_reversio
 
 def documento(event_id: str) -> dict | None:
     return mongo_db().events.find_one({"_id": event_id})
+
+
+def crud_buscar(wiki: str, tipo: str, horas: int | None, editor: str, titulo: str, solo_demo: bool, event_id: str,
+                antes: datetime | None, limite: int) -> dict:
+    """Búsqueda de la página CRUD (Consultar). Sin caché: tiene que ver lo que se acaba de crear o borrar.
+
+    Con _id exacto se ignoran los demás filtros. El editor se busca por prefijo para aprovechar el
+    índice por_editor; el título, por texto contenido (sin distinguir mayúsculas). "Ver más" pide los
+    anteriores a la fecha del último documento mostrado (`antes`), no un skip: el stream sigue
+    insertando y un skip repetiría documentos.
+    """
+    if event_id:
+        filtro: dict = {"_id": event_id}
+        consulta = f'db.events.find({{ _id: "{event_id}" }})'
+    else:
+        filtro, partes = {"wiki": wiki}, [f'wiki: "{wiki}"']
+        if tipo != "todos":
+            filtro["type"] = tipo
+            partes.append(f'type: "{tipo}"')
+        if editor:
+            filtro["user"] = {"$regex": "^" + re.escape(editor)}
+            partes.append(f"user: /^{editor}/")
+        if titulo:
+            filtro["title"] = {"$regex": re.escape(titulo), "$options": "i"}
+            partes.append(f"title: /{titulo}/i")
+        if solo_demo:
+            filtro["_id"] = {"$regex": "^demo-"}
+            partes.append("_id: /^demo-/")
+        fecha: dict = {}
+        if horas:
+            fecha["$gte"] = datetime.now(timezone.utc) - timedelta(hours=horas)
+            partes.append(f'"derived.event_dt": {{ $gte: hace {horas} h }}')
+        if antes:
+            fecha["$lt"] = antes
+        if fecha:
+            filtro["derived.event_dt"] = fecha
+        consulta = f"db.events.find({{ {', '.join(partes)} }})"
+    consulta += f'.sort({{ "derived.event_dt": -1 }}).limit({limite})'
+    inicio = time.perf_counter()
+    proy = {"_id": 1, "derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "log_type": 1}
+    docs = list(mongo_db().events.find(filtro, proy).sort("derived.event_dt", -1).limit(limite + 1))
+    ms = round((time.perf_counter() - inicio) * 1000)
+
+    def resumen(d: dict) -> dict:
+        der = d.get("derived") or {}
+        fecha = der.get("event_dt")
+        return {"_id": d["_id"], "fecha": fecha.replace(tzinfo=timezone.utc).isoformat() if fecha else None,
+                "wiki": d.get("wiki"), "tipo": d.get("type"), "titulo": d.get("title"), "editor": d.get("user"),
+                "log_type": d.get("log_type"), "revierte_a": der.get("revert_target")}
+
+    return {"documentos": [resumen(d) for d in docs[:limite]], "hay_mas": len(docs) > limite, "consulta": consulta, "ms": ms}
 
 
 # ---------------------------------------------------------------- En vivo (capa rápida)
