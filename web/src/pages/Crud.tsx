@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { Check, CheckCircle2, Copy, Search, XCircle, ShieldCheck } from "lucide-react"
+import { Check, CheckCircle2, Copy, Search, Trash2, XCircle, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
 import { Seccion, Vacio } from "@/components/common"
@@ -14,6 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EditorEvento, FormularioEvento, nuevoId, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
 import { Coincidencias, FichaDocumento, FiltrosConsulta, useConsultaEventos } from "@/components/consultar-evento"
 import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from "@/components/actualizar-evento"
+import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useEliminacion } from "@/components/eliminar-evento"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
@@ -114,7 +115,27 @@ export default function CrudPage() {
   const irA = (op: string) => (id: string) => {
     setM((x) => ({ ...x, id })); setResultado(null); setMOp(op)
     if (op === "Actualizar") actualizacion.cargar(id)
+    if (op === "Eliminar") eliminacion.cargar(id)
   }
+
+  const eliminacion = useEliminacion()
+  const [confirmar, setConfirmar] = useState(false)
+  async function correr(op: Op, accion: () => Promise<Record<string, unknown>>, texto: (d: Record<string, unknown>) => string) {
+    setOcupado(true)
+    try {
+      const d = await accion()
+      setLog((l) => [{ op, base: "MongoDB · events", detalle: String(d._id), hora: horaActual(), ok: true }, ...l].slice(0, 8))
+      toast.success(texto(d))
+    } catch (e) {
+      const msg = (e as Error).message
+      setLog((l) => [{ op: "RECHAZADO" as Op, base: "MongoDB · events", detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
+      toast.error(msg)
+    } finally {
+      setOcupado(false)
+      setConfirmar(false)
+    }
+  }
+  const confirmarEliminacion = () => correr("DELETE", eliminacion.eliminar, (d) => `«${String(d.title ?? d._id)}» eliminado`)
 
   const actualizacion = useActualizacion()
   async function guardarActualizacion() {
@@ -136,15 +157,15 @@ export default function CrudPage() {
 
   const enviarMongo = (e: FormEvent) => {
     e.preventDefault()
-    const id = encodeURIComponent(m.id)
     if (mOp === "Crear") insertarEvento()
     if (mOp === "Consultar") buscarEventos()
     if (mOp === "Actualizar") guardarActualizacion()
-    if (mOp === "Eliminar") ejecutar("DELETE", "MongoDB · events", m.id, () => api(`/api/crud/mongo/${id}`, { method: "DELETE" }))
+    if (mOp === "Eliminar" && eliminacion.confirmado) setConfirmar(true)
   }
   const creando = base === "mongo" && mOp === "Crear"
   const consultando = base === "mongo" && mOp === "Consultar"
   const actualizando = base === "mongo" && mOp === "Actualizar"
+  const eliminando = base === "mongo" && mOp === "Eliminar"
 
   // ---------------------------------------------------------------- Cassandra
   const [cOp, setCOp] = useState("Insertar")
@@ -211,13 +232,16 @@ export default function CrudPage() {
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
                     : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />
                     : mOp === "Actualizar" ? <FormularioActualizacion a={actualizacion} id={m.id} setId={(id) => setM({ ...m, id })} />
-                    : <Campo id="m-id" label="_id"><Input id="m-id" className="font-mono text-xs" value={m.id} onChange={(e) => setM({ ...m, id: e.target.value })} /></Campo>}
+                    : <FormularioEliminacion e={eliminacion} id={m.id} setId={(id) => setM({ ...m, id })} />}
                   {mOp === "Consultar"
                     ? <Button type="submit" disabled={ocupado} className="h-10 w-full text-sm"><Search aria-hidden />Buscar</Button>
                     : mOp === "Actualizar"
                       ? <Button type="submit" disabled={ocupado || !actualizacion.nCambios} className="h-10 w-full text-sm"><Check aria-hidden />
                           {actualizacion.nCambios ? `Guardar ${actualizacion.nCambios} ${actualizacion.nCambios === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}</Button>
-                      : boton({ Crear: "Insertar documento", Eliminar: "Eliminar documento" }[mOp] ?? "Ejecutar", mOp === "Eliminar")}
+                      : mOp === "Eliminar"
+                        ? <Button type="submit" variant="destructive" disabled={ocupado || !eliminacion.confirmado} className="h-10 w-full text-sm"><Trash2 aria-hidden />Eliminar documento…</Button>
+                        : boton("Insertar documento")}
+                  <ConfirmarEliminacion e={eliminacion} abierto={confirmar} onCerrar={() => setConfirmar(false)} onConfirmar={confirmarEliminacion} ocupado={ocupado} />
                   {mOp === "Consultar" && <Coincidencias c={consulta} />}
                 </form>
               </Seccion>
@@ -288,8 +312,9 @@ export default function CrudPage() {
           <div className={cn("flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]", actualizando ? "self-stretch" : "self-start")}>
             {creando && <EditorEvento ev={evento} />}
             {actualizando && <CambiosActualizacion a={actualizacion} />}
+            {eliminando && <PanelEliminacion e={eliminacion} />}
             {consultando && <FichaDocumento c={consulta} onActualizar={irA("Actualizar")} onEliminar={irA("Eliminar")} />}
-            {consultando || actualizando ? null : resultado ? (
+            {consultando || actualizando || eliminando ? null : resultado ? (
               <>
                 {resultado.validacion ? (
                   <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
@@ -321,7 +346,7 @@ export default function CrudPage() {
                   <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(resultado.json, null, 2)}</pre>
                 </div>
               </>
-            ) : !creando && !actualizando && log.length === 0 && (
+            ) : !creando && !actualizando && !eliminando && log.length === 0 && (
               <Vacio titulo="Sin operaciones todavía" texto="Elige una base y una operación; el resultado aparece aquí." />
             )}
             {!actualizando && historial}
