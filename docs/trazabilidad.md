@@ -862,6 +862,12 @@ Antes, Eliminar borraba directo con solo escribir un `_id`, sin mostrar qué doc
 
 Verificación con Playwright: crear → Consultar → "Eliminar" → el botón está deshabilitado hasta escribir el `_id` → diálogo → eliminar; el documento ya no existe y no hay errores de JavaScript. Commit `feat: confirm mongo deletes by typing the id and in a dialog`.
 
+### 31. Requerimientos del proyecto y cómo los cumplimos
+
+Se diseñaron en Claude Design las mismas mejoras del CRUD para Cassandra y Neo4j (canvas "CRUD de Cassandra y Neo4j"), pero quedaron en pausa: se discutió que Cassandra solo guarda datos calculados por el pipeline y que, si se implementan, las escrituras deberían limitarse a editores «Demo_».
+
+Se creó `docs/requerimientos.md`: recorre cada sección de las instrucciones (fuente de datos, arquitectura multimodelo, Airflow, CRUD, dashboard, KPIs y entregables) y describe cómo la cumple el proyecto, con las cifras de la VM al 7 de noviembre (2,570,895 eventos en MongoDB, ~945 mil nodos y ~2.8 millones de relaciones en Neo4j, 163 corridas del DAG). Marca como pendientes el informe en PDF, las capturas del dashboard y el video. Commit `docs: add project requirements checklist`.
+
 ---
 
 ## Pendientes
