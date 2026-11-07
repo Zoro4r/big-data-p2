@@ -897,6 +897,8 @@ Verificación con Playwright: recorrido de los 8 modales con anterior/siguiente,
 
 Las tres imágenes de `docs/img/` se copiaron a `web/public/img/` (no a `/arquitectura/`, que chocaría con la ruta de la página al recargarla). Commit `feat: show dataset justification in architecture modals`.
 
+`docs/requerimientos.md` se actualizó para reflejar la página Arquitectura: la documentación del dataset (sección 1) y la justificación de cada base (sección 2) ahora también están en sus modales, y la tabla de material para el informe la incluye como fuente. Commit `docs: reflect architecture page in requirements`.
+
 ---
 
 ## Pendientes
