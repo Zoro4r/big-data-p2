@@ -51,7 +51,8 @@ export interface MetricaModal {
   serie?: { valores: number[]; desde: string }
   datos: [string, ReactNode][]
   definicion: string
-  calculo: { fraccion?: [string, string, string?]; texto?: string }
+  /** fraccion: cociente · texto: fórmula en palabras · codigo: consulta (Cypher, MongoDB) */
+  calculo: { fraccion?: [string, string, string?]; texto?: string; codigo?: string }
   lectura: string
   origen: ReactNode
 }
@@ -107,6 +108,8 @@ export function ModalMetrica(props: {
                   <Fraccion arriba={m.calculo.fraccion[0]} abajo={m.calculo.fraccion[1]} />
                   {m.calculo.fraccion[2] && <span>{m.calculo.fraccion[2]}</span>}
                 </div>
+              ) : m.calculo.codigo ? (
+                <code className="block rounded-lg bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed break-words">{m.calculo.codigo}</code>
               ) : (
                 <p>{m.calculo.texto}</p>
               )}

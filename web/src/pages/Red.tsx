@@ -4,6 +4,7 @@ import { useTheme } from "next-themes"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
+import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -22,6 +23,62 @@ interface Ego {
   centro: { user: string; tipo: string } | null
   relaciones: { origen: string; destino: string; tipo: string; peso: number; vecino: string; tipo_vecino: string }[]
 }
+type MetricaRed = "editores" | "ediciones" | "reversiones" | "colaboracion"
+const ORDEN_RED: MetricaRed[] = ["editores", "ediciones", "reversiones", "colaboracion"]
+
+/** Anterior y siguiente (circular) para recorrer las tarjetas desde el modal. */
+function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) => void) {
+  const i = lista.indexOf(actual), n = lista.length
+  const a = lista[(i - 1 + n) % n], s = lista[(i + 1) % n]
+  return { anterior: { nombre: nombre(a), ir: () => ir(a) }, siguiente: { nombre: nombre(s), ir: () => ir(s) } }
+}
+
+/** Detalle de cada total del grafo: qué cuenta, con qué consulta Cypher y de dónde sale. */
+function metricaRed(k: MetricaRed, c: NonNullable<Red["conteo"]>, etiqueta: string): MetricaModal {
+  const porWiki = Boolean(c.ventana)
+  const n = (x: string) => entero(c.nodos[x]), r = (x: string) => entero(c.relaciones[x])
+  const momento = porWiki ? `Al lote de ${horaUTC(c.ventana!)} UTC` : "Grafo acumulado desde el 31 oct"
+  const origen = porWiki
+    ? <>Lo calcula el DAG cada hora en <Base base="neo4j" /> y lo guarda en <Base base="mongo" /> (pipeline_runs), porque recorrer todas las páginas de una wiki toma unos segundos.</>
+    : <>Se cuenta en <Base base="neo4j" /> al abrir la página, con los contadores internos del grafo.</>
+  const comun = { etiqueta, momento, origen }
+  if (k === "editores") return {
+    ...comun, titulo: "Editores", valor: n("Editor"), nota: "nodos (:Editor)",
+    datos: [["Páginas", n("Pagina")], ["Categorías", n("Categoria")]],
+    definicion: "Editores distintos del grafo: personas registradas, cuentas temporales y bots que hicieron al menos un evento desde que empezó la recolección.",
+    calculo: { codigo: porWiki ? "MATCH (:Wiki {nombre: $wiki})<-[:PERTENECE_A]-(:Pagina)<-[:EDITO]-(e:Editor) RETURN count(DISTINCT e)" : "MATCH (e:Editor) RETURN count(e)" },
+    lectura: "Tamaño de la comunidad observada. Crece cada hora con los editores que aparecen por primera vez.",
+  }
+  if (k === "ediciones") return {
+    ...comun, titulo: "Ediciones", valor: r("EDITO"), nota: "relaciones -[:EDITO]->",
+    datos: [["Páginas creadas", r("CREO")], ["Páginas", n("Pagina")]],
+    definicion: "Pares editor–página distintos: si un editor modifica la misma página varias veces, es una sola relación EDITO que guarda cuántas ediciones hizo.",
+    calculo: { codigo: "MATCH (:Editor)-[r:EDITO]->(:Pagina) RETURN count(r)" },
+    lectura: "Cuántas conexiones hay entre editores y páginas. Es la base para medir páginas disputadas y coedición.",
+  }
+  if (k === "reversiones") return {
+    ...comun, titulo: "Reversiones", valor: r("REVIRTIO"), nota: "relaciones -[:REVIRTIO]->",
+    datos: [["Avisos (MENSAJE_A)", r("MENSAJE_A")], ["Bloqueos", r("BLOQUEO")]],
+    definicion: "Pares de editores en que uno deshizo ediciones del otro. La relación guarda cuántas veces ocurrió.",
+    calculo: { codigo: "MATCH (:Editor)-[r:REVIRTIO]->(:Editor) RETURN count(r)" },
+    lectura: "Base para detectar vandalismo y guerras de ediciones: los rankings de abajo usan estas relaciones.",
+  }
+  if (c.relaciones.COEDITA == null) return {
+    ...comun, titulo: "Agradecimientos", valor: r("AGRADECIO"), nota: "relaciones -[:AGRADECIO]->",
+    datos: [],
+    definicion: "Un editor agradeció una edición de otro con la función «agradecer» de Wikipedia.",
+    calculo: { codigo: "MATCH (:Editor)-[r:AGRADECIO]->(:Editor) WHERE r.wiki = $wiki RETURN count(r)" },
+    lectura: "Señal de colaboración positiva. COEDITA no guarda la wiki, por eso con una sola wiki se muestran los agradecimientos.",
+  }
+  return {
+    ...comun, titulo: "Colaboración", valor: r("COEDITA"), nota: "relaciones -[:COEDITA]-",
+    datos: [["Agradecimientos", r("AGRADECIO")]],
+    definicion: "Pares de editores humanos que editaron al menos una misma página.",
+    calculo: { codigo: "MATCH (:Editor)-[r:COEDITA]-(:Editor) RETURN count(r)" },
+    lectura: "Red de colaboración: los editores con más coeditores son los más centrales de la comunidad.",
+  }
+}
+
 type Nodo = { id: string; tipo: string; centro: boolean; x?: number; y?: number }
 
 function useAncho<T extends HTMLElement>() {
@@ -38,6 +95,7 @@ function useAncho<T extends HTMLElement>() {
 
 export default function RedPage() {
   const { wiki, etiqueta } = useWiki()
+  const [metrica, setMetrica] = useState<MetricaRed | null>(null)
   // El canvas del grafo no lee variables CSS: colores según el tema activo
   const oscuro = useTheme().resolvedTheme === "dark"
   const lienzo = oscuro
@@ -84,12 +142,12 @@ export default function RedPage() {
             <div className="col-span-full"><Vacio titulo="Totales por wiki pendientes" texto="Se calculan en la próxima ejecución del DAG." /></div>
           ) : (
             <>
-              <TarjetaKpi etiqueta="Editores" titulo={c.ventana ? `Totales de ${etiqueta} al lote de ${horaUTC(c.ventana)} UTC` : undefined} valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} />
-              <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} />
+              <TarjetaKpi etiqueta="Editores" titulo={c.ventana ? `Totales de ${etiqueta} al lote de ${horaUTC(c.ventana)} UTC` : undefined} valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} onAbrir={() => setMetrica("editores")} />
+              <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} onAbrir={() => setMetrica("ediciones")} />
+              <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} onAbrir={() => setMetrica("reversiones")} />
               {c.relaciones.COEDITA != null
-                ? <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} />
-                : <TarjetaKpi etiqueta="Agradecimientos" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" />}
+                ? <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} onAbrir={() => setMetrica("colaboracion")} />
+                : <TarjetaKpi etiqueta="Agradecimientos" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" onAbrir={() => setMetrica("colaboracion")} />}
             </>
           )}
         </div>
@@ -203,6 +261,10 @@ export default function RedPage() {
           )}
         </Seccion>
       </Pagina>
+      {metrica && c && (
+        <ModalMetrica m={metricaRed(metrica, c, etiqueta)}
+          {...vecinos(ORDEN_RED, metrica, (k) => metricaRed(k, c, etiqueta).titulo, setMetrica)} onCerrar={() => setMetrica(null)} />
+      )}
     </>
   )
 }

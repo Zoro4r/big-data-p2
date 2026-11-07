@@ -4,6 +4,7 @@ import { UserRound } from "lucide-react"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
+import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +22,66 @@ interface Actividad {
   horas: { hora: number; eventos: number; eventos_bot: number; eventos_humanos: number; reversiones: number }[]
   top: { hora: number; posicion: number; wiki: string; pagina: string; ediciones: number; editores: number; delta_bytes: number }[]
 }
+type MetricaDia = "dia" | "prom" | "bots" | "rev"
+const ORDEN_DIA: MetricaDia[] = ["dia", "prom", "bots", "rev"]
+const NOMBRE_DIA: Record<MetricaDia, string> = { dia: "Eventos del día", prom: "Promedio por minuto", bots: "Hechos por bots", rev: "Reversiones" }
+
+/** Anterior y siguiente (circular) para recorrer las tarjetas desde el modal. */
+function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) => void) {
+  const i = lista.indexOf(actual), n = lista.length
+  const a = lista[(i - 1 + n) % n], s = lista[(i + 1) % n]
+  return { anterior: { nombre: nombre(a), ir: () => ir(a) }, siguiente: { nombre: nombre(s), ir: () => ir(s) } }
+}
+
+/** Detalle de cada tarjeta del día, a partir de las series por minuto y por hora de Cassandra. */
+function metricaDia(k: MetricaDia, d: Actividad, etiqueta: string): MetricaModal {
+  const horas = d.horas.slice().sort((a, b) => a.hora - b.hora)
+  const ev = d.minutos.reduce((s, m) => s + m.eventos, 0)
+  const bots = d.minutos.reduce((s, m) => s + m.eventos_bot, 0)
+  const rev = d.minutos.reduce((s, m) => s + m.reversiones, 0)
+  const pico = d.minutos.reduce((a, b) => (b.eventos > a.eventos ? b : a), d.minutos[0])
+  const max = (c: "eventos" | "reversiones") => horas.reduce((a, b) => (b[c] > a[c] ? b : a), horas[0])
+  const min = horas.reduce((a, b) => (b.eventos < a.eventos ? b : a), horas[0])
+  const hh = (h?: { hora: number }) => (h ? `${String(h.hora).padStart(2, "0")}:00` : "—")
+  const desde = horas.length ? hh(horas[0]) : ""
+  const origen = <>Se lee de <Base base="cassandra" /> (tabla eventos_por_minuto, una partición por wiki y día), que llenan la capa de streaming y el DAG.</>
+  const comun = { etiqueta, momento: `${d.fecha} · UTC`, origen }
+  if (k === "dia") return {
+    ...comun, titulo: NOMBRE_DIA.dia, valor: entero(ev), nota: `${horas.length} horas con datos`,
+    serie: { valores: horas.map((h) => h.eventos), desde },
+    datos: [["Hora más activa", `${hh(max("eventos"))} · ${entero(max("eventos")?.eventos)}`], ["Hora más tranquila", `${hh(min)} · ${entero(min?.eventos)}`],
+      ["Promedio por hora", horas.length ? entero(ev / horas.length) : "—"]],
+    definicion: `Eventos de ${etiqueta} registrados durante el día elegido (UTC).`,
+    calculo: { texto: "Σ eventos por minuto del día" },
+    lectura: "Volumen diario de actividad. Permite comparar días y ver el ciclo de día y noche de cada wiki.",
+  }
+  if (k === "prom") return {
+    ...comun, titulo: NOMBRE_DIA.prom, valor: d.minutos.length ? entero(ev / d.minutos.length) : "—",
+    nota: pico ? `pico de ${entero(pico.eventos)} a las ${horaUTC(pico.t, false)}` : undefined,
+    serie: { valores: horas.map((h) => h.eventos / 60), desde },
+    datos: [["Minutos con datos", entero(d.minutos.length)], ["Minuto más activo", pico ? `${entero(pico.eventos)} · ${horaUTC(pico.t, false)}` : "—"]],
+    definicion: "Eventos que llegan en un minuto típico del día.",
+    calculo: { fraccion: ["eventos del día", "minutos con datos"] },
+    lectura: "Ritmo habitual de la wiki. Un pico muy por encima del promedio suele ser un bot trabajando en ráfaga o una noticia.",
+  }
+  if (k === "bots") return {
+    ...comun, titulo: NOMBRE_DIA.bots, valor: ev ? `${((bots / ev) * 100).toFixed(1)} %` : "—", nota: `${entero(bots)} eventos de bots`,
+    serie: { valores: horas.map((h) => (h.eventos ? (h.eventos_bot / h.eventos) * 100 : 0)), desde },
+    datos: [["Eventos de bots", entero(bots)], ["Eventos humanos", entero(ev - bots)]],
+    definicion: "Porcentaje de los eventos del día hechos por bots.",
+    calculo: { fraccion: ["eventos de bots", "total de eventos", "× 100"] },
+    lectura: "Cuánto del trabajo diario hacen bots (marca bot=true o «bot» en el nombre). Si sube en ciertas horas, suele ser un bot procesando páginas en lote.",
+  }
+  return {
+    ...comun, titulo: NOMBRE_DIA.rev, valor: entero(rev), nota: "ediciones que revierten a otro editor",
+    serie: { valores: horas.map((h) => h.reversiones), desde },
+    datos: [["Hora con más", `${hh(max("reversiones"))} · ${entero(max("reversiones")?.reversiones)}`], ["Por cada 100 eventos", ev ? ((rev / ev) * 100).toFixed(2) : "—"]],
+    definicion: "Ediciones del día que deshacen el trabajo de otro editor.",
+    calculo: { texto: "Σ reversiones por minuto del día" },
+    lectura: "Señal de vandalismo o de conflicto. Las horas con muchas reversiones suelen coincidir con patrulleros o bots antivandalismo activos.",
+  }
+}
+
 interface FilaEditor { fecha: string; hora: number; wiki: string; tipo_editor: string; eventos: number; ediciones: number; reversiones_hechas: number; reversiones_recibidas: number }
 
 export default function ActividadPage() {
@@ -28,6 +89,7 @@ export default function ActividadPage() {
   const [fecha, setFecha] = useState<string | null>(null)
   const [hora, setHora] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState("")
+  const [metrica, setMetrica] = useState<MetricaDia | null>(null)
   const [editor, setEditor] = useState<string | null>(null)
   const { data } = useApi<Actividad>(`/api/actividad?wiki=${wiki}${fecha ? `&fecha=${fecha}` : ""}`)
   useEffect(() => setHora(null), [wiki, fecha])
@@ -78,10 +140,10 @@ export default function ActividadPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} />
-              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaUTC(tot.pico.t, false)}`} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" />
+              <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
+              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaUTC(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
+              <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>
@@ -173,6 +235,9 @@ export default function ActividadPage() {
           </Seccion>
         </div>
       </Pagina>
+      {metrica && data && (
+        <ModalMetrica m={metricaDia(metrica, data, etiqueta)} {...vecinos(ORDEN_DIA, metrica, (k) => NOMBRE_DIA[k], setMetrica)} onCerrar={() => setMetrica(null)} />
+      )}
     </>
   )
 }

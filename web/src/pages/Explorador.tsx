@@ -4,6 +4,7 @@ import { FileJson2 } from "lucide-react"
 
 import { Cargando, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
+import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,21 +20,49 @@ interface Evento { _id: string; fecha: string; wiki: string; tipo: string; titul
 interface Respuesta { total: number; tipos: { wiki: string; tipo: string; eventos: number }[]; eventos: Evento[] }
 
 const NOMBRE_TIPO: Record<string, string> = { edit: "Ediciones", categorize: "Categorizaciones", log: "Acciones de registro", new: "Páginas nuevas" }
+const DEF_TIPO: Record<string, [string, string]> = {
+  edit: ["Cambios al contenido de una página que ya existía (type = edit).", "Es el grueso del trabajo diario: correcciones, ampliaciones y mantenimiento."],
+  categorize: ["Una página se agregó a una categoría o se quitó de ella (type = categorize).", "Muchas vienen de bots o herramientas que reordenan categorías en lote."],
+  log: ["Acciones registradas en el log: bloqueos, traslados, borrados, protecciones, subidas de archivos y cuentas nuevas (type = log).", "Refleja la actividad administrativa y de moderación."],
+  new: ["Creación de una página nueva (type = new).", "Mide el crecimiento: cuántas páginas aparecen, incluidas discusiones y páginas internas."],
+}
+type FilaTipo = { clave: string; tipo: string; enwiki: number; eswiki: number; total: number }
+
+/** Anterior y siguiente (circular) para recorrer las tarjetas desde el modal. */
+function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) => void) {
+  const i = lista.indexOf(actual), n = lista.length
+  const a = lista[(i - 1 + n) % n], s = lista[(i + 1) % n]
+  return { anterior: { nombre: nombre(a), ir: () => ir(a) }, siguiente: { nombre: nombre(s), ir: () => ir(s) } }
+}
+
+function metricaTipo(t: FilaTipo, total24: number, wikis: string[], etiqueta: string): MetricaModal {
+  const [definicion, lectura] = DEF_TIPO[t.clave] ?? [`Eventos de tipo ${t.clave}.`, "Peso de este tipo de evento en la actividad reciente."]
+  const datos: [string, React.ReactNode][] = wikis.map((w) => [w, entero(t[w as "enwiki" | "eswiki"])])
+  datos.push(["Total 24 h (todos los tipos)", entero(total24)])
+  return {
+    titulo: t.tipo, etiqueta, momento: "Últimas 24 horas", valor: entero(t.total),
+    nota: `${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de los eventos de las últimas 24 h`,
+    datos, definicion, lectura,
+    calculo: { codigo: `events.aggregate([{ $match: últimas 24 h }, { $group: { _id: { wiki, type }, eventos: { $sum: 1 } } }])` },
+    origen: <>Se cuenta en <Base base="mongo" /> (colección events) con una agregación $group sobre los documentos de las últimas 24 horas.</>,
+  }
+}
 
 export default function ExploradorPage() {
   const { wiki, wikis, etiqueta } = useWiki()
   const [form, setForm] = useState({ tipo: "todos", editor: "", titulo: "", solo: false })
   const [filtro, setFiltro] = useState(form)
   const [elegido, setElegido] = useState<string | null>(null)
+  const [tipoAbierto, setTipoAbierto] = useState<string | null>(null)
   const qs = new URLSearchParams({ wiki, tipo: filtro.tipo, editor: filtro.editor, titulo: filtro.titulo, solo_reversiones: String(filtro.solo), limite: "60" })
   const { data, cargando } = useApi<Respuesta>(`/api/eventos?${qs}`)
   useEffect(() => setElegido(null), [wiki])
   const doc = useApi<Record<string, unknown>>(elegido ? `/api/eventos/${encodeURIComponent(elegido)}` : null)
 
   const porTipo = useMemo(() => {
-    const m = new Map<string, { tipo: string; enwiki: number; eswiki: number; total: number }>()
+    const m = new Map<string, FilaTipo>()
     for (const t of data?.tipos ?? []) {
-      const f = m.get(t.tipo) ?? { tipo: NOMBRE_TIPO[t.tipo] ?? t.tipo, enwiki: 0, eswiki: 0, total: 0 }
+      const f = m.get(t.tipo) ?? { clave: t.tipo, tipo: NOMBRE_TIPO[t.tipo] ?? t.tipo, enwiki: 0, eswiki: 0, total: 0 }
       if (!wikis.includes(t.wiki)) continue
       if (t.wiki === "enwiki" || t.wiki === "eswiki") f[t.wiki] += t.eventos
       f.total += t.eventos
@@ -55,7 +84,7 @@ export default function ExploradorPage() {
       <Pagina titulo="Explorador de eventos" descripcion={`Cada cambio de Wikipedia se guarda completo en MongoDB como documento JSON, con sus campos originales y los campos derivados que agrega la limpieza.${data ? ` La colección events tiene ${entero(data.total)} documentos.` : ""}`}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : porTipo.map((t) => (
-            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={`${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de las últimas 24 h`} />
+            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={`${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de las últimas 24 h`} onAbrir={() => setTipoAbierto(t.clave)} />
           ))}
         </div>
 
@@ -132,6 +161,11 @@ export default function ExploradorPage() {
           </Seccion>
         </div>
       </Pagina>
+      {tipoAbierto && porTipo.some((t) => t.clave === tipoAbierto) && (() => {
+        const fila = porTipo.find((t) => t.clave === tipoAbierto)!
+        return <ModalMetrica m={metricaTipo(fila, total24, wikis, etiqueta)}
+          {...vecinos(porTipo, fila, (t) => t.tipo, (t) => setTipoAbierto(t.clave))} onCerrar={() => setTipoAbierto(null)} />
+      })()}
     </>
   )
 }
