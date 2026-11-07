@@ -753,6 +753,28 @@ Verificación: `tsc` y `npm run build` sin errores; con Playwright se abrió un 
 
 **Ajuste: anchos fijos.** La descripción de cada página tenía un ancho máximo (`max-w-3xl`) y no llegaba al borde derecho; ahora ocupa todo el ancho disponible (en Actividad, hasta el selector de día). En la pastilla de estado, "hace 9 s" → "hace 10 s" cambiaba su ancho cada pocos segundos; el tiempo tiene ahora un ancho fijo. Verificado con Playwright: la pastilla midió 312 px en 15 lecturas con 9 textos distintos. Commit `fix: keep header pill width and full-width descriptions`.
 
+### 26. Lista de últimas ediciones, filtros y detalle del evento
+
+La lista "Últimas ediciones" de la vista En vivo se rediseñó en Claude Design. Se compararon una tabla con columnas, un feed en frases, una consola y una línea de tiempo, y se eligió una lista ordenada sin encabezados.
+
+**Lista** (`web/src/pages/Vivo.tsx`):
+
+- Cada fila: tiempo · título completo de la página (con su prefijo de espacio de nombres, como "Talk:" o "Category:", porque es parte del nombre) · debajo "wiki · tipo · editor" · bytes a la derecha · flecha.
+- La segunda línea tiene el mismo formato en todas las filas. Se quitaron los elementos que solo aparecían en algunas: la etiqueta "revierte a…" (la reversión pasa a ser un tipo más), "menor" y las píldoras "bot"/"temporal" (el tipo de editor lo indica el punto de color, explicado en la leyenda).
+- Tipos en español: Edición, Página nueva, Categorización, Reversión, Registro.
+- La etiqueta EN/ES solo aparece con el filtro "Ambas" de la cabecera.
+- Los eventos nuevos tienen un destello breve (1.5 s): con ~6 eventos/s y una actualización cada 4 s, casi toda la lista es nueva en cada actualización y un resaltado fijo las marcaba todas.
+
+**Filtros:** botón "Filtros" con un menú en dos grupos, tipo de evento (Ediciones, Páginas nuevas, Categorizaciones, Reversiones) y editor (Registrados, Cuentas temporales, Bots). Cada grupo tiene "Todos" (sin filtro), los filtros activos aparecen como fichas con X y hay "Limpiar filtros". La API devuelve ahora los últimos 100 eventos (antes 25) para que, al filtrar por ejemplo por bots, sigan quedando filas; se muestran 25.
+
+**Detalle del evento** (`web/src/components/detalle-evento.tsx`): al hacer clic en una fila se abre un modal con el documento real de MongoDB (`/api/eventos/{id}`):
+
+- Izquierda: fecha y hora exactas, bytes agregados o quitados ("de 1,209 a 1,240 bytes"), una barra con el tamaño de la página y los datos del evento (editor, tipo de editor, wiki, espacio de nombres en español, a quién revierte, revisión).
+- Derecha: comentario del editor, enlaces para abrir la página y ver el cambio (diff) en Wikipedia, y el documento de MongoDB (resumen o completo).
+- Pie: "Guardado en MongoDB · colección events" y navegación al evento más reciente o más antiguo. El modal navega sobre la lista que se veía al abrirlo, porque la lista en vivo sigue cambiando.
+
+Componentes nuevos de shadcn/ui: `popover` y `checkbox`. Verificación con Playwright: filtro "Bots" (23 de 100 eventos), apertura del modal, navegación y "Ver completo", en claro y oscuro, sin errores de JavaScript. Commit `feat: redesign live edits list with filters and event detail`.
+
 ---
 
 ## Pendientes
