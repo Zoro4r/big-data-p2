@@ -682,6 +682,18 @@ El selector de wiki es global: se guarda en el navegador (`localStorage`, clave 
 
 Verificación: `tsc` y `npm run build` sin errores; capturas con Playwright de las seis vistas con la misma cabecera y sin errores de JavaScript; al elegir eswiki, "En vivo" mostró solo eventos de eswiki. Commits `feat: add wiki filter to api` y `feat: standardize header and filter views by wiki`, desplegados con `./deploy.sh`.
 
+### 22. Modo oscuro en el dashboard
+
+Se agregó un modo oscuro con un botón (sol / luna) al final de la cabecera estándar. La primera vez sigue la preferencia del sistema operativo; después se recuerda la elección en el navegador (`next-themes`, clave `wp-tema`).
+
+- `web/src/index.css`: paleta zinc oscura de shadcn/ui en la clase `.dark` y un token `--neutro` para la serie "Ambas". Los colores de datos (enwiki azul, eswiki naranja, bots verde) no cambian porque contrastan en ambos fondos.
+- Los colores fijos de las vistas se reemplazaron por tokens del tema (`bg-card`, `bg-muted`, `text-muted-foreground`…). Los gráficos usan `var(--border)` y `var(--muted-foreground)`, y las etiquetas de estado (verde, rojo, ámbar) tienen su variante `dark:`.
+- El grafo de Neo4j se dibuja en canvas, que no lee variables CSS: toma sus colores del tema activo.
+
+Durante la prueba local, los contenedores de otros dos proyectos (`ccs` y `agente-bc`) ocupaban ~850 MB de los 3.8 GB de Docker y Cassandra y Neo4j se reiniciaban. Se detuvieron con `docker stop` (sin borrarlos).
+
+Verificación: `tsc` y `npm run build` sin errores; capturas con Playwright en modo oscuro de las seis vistas sin errores de JavaScript; el botón cambia a claro y la elección se mantiene al recargar. Commit `feat: add dark mode to dashboard`, desplegado con `./deploy.sh`.
+
 ---
 
 ## Pendientes
