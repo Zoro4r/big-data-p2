@@ -784,6 +784,14 @@ Commit `feat: open live metric details and drop new-row highlight`.
 
 **Ajuste: eje X cada 2 horas.** En "Eventos por minuto" (Actividad) y "Ritmo de ediciones" (Resumen), Recharts elegía las marcas según el espacio (01:46, 03:38…). Ahora el eje es de tiempo y cubre el día completo (UTC) con marcas fijas cada 2 horas en punto: 00:00, 02:00 … 22:00 (`ejeDia` en `web/src/lib/format.ts`). Commit `fix: show two-hour ticks on daily charts`.
 
+**Ajuste: todas las tarjetas abren su detalle.** Además del Resumen y En vivo, ahora también las tarjetas de:
+
+- **Actividad en el tiempo** (eventos del día, promedio por minuto, hechos por bots, reversiones): gráfica por hora del día elegido, hora más activa y más tranquila, minuto pico, bots frente a humanos. Origen: Cassandra `eventos_por_minuto`.
+- **Explorador de eventos** (un tipo de evento por tarjeta): cantidad por wiki en las últimas 24 h y qué significa cada tipo (edit, categorize, log, new). Cálculo: la agregación `$group` de MongoDB.
+- **Red de editores** (editores, ediciones, reversiones, colaboración o agradecimientos): qué cuenta cada relación del grafo y la consulta Cypher que lo calcula. Origen: Neo4j (con una sola wiki, Neo4j → MongoDB, porque el DAG precalcula esos totales).
+
+Todos usan `ModalMetrica`, con navegación anterior/siguiente entre las tarjetas de la vista. Las consultas (Cypher, MongoDB) se muestran en letra de código. Commit `feat: open detail modal from every dashboard card`.
+
 ---
 
 ## Pendientes
