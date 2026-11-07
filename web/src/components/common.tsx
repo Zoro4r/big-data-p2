@@ -4,6 +4,7 @@ import { TrendingDown, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Fuente, type Base } from "@/components/fuente"
 import { cn } from "@/lib/utils"
 
 const TONO = {
@@ -18,9 +19,10 @@ export function TarjetaKpi(props: {
   cambio?: { texto: string; tono: keyof typeof TONO; sube: boolean } | null
   pie: ReactNode
   fuente: string
+  base?: Base
   titulo?: string
 }) {
-  const { etiqueta, valor, cambio, pie, fuente, titulo } = props
+  const { etiqueta, valor, cambio, pie, fuente, base, titulo } = props
   const Icono = cambio?.sube ? TrendingUp : TrendingDown
   return (
     <Card className="gap-3 py-[18px] shadow-xs" title={titulo}>
@@ -38,7 +40,7 @@ export function TarjetaKpi(props: {
       </CardHeader>
       <CardContent className="flex flex-col gap-0.5 px-5 text-[13px]">
         <span className="font-medium">{pie}</span>
-        <span className="text-muted-foreground">{fuente}</span>
+        <Fuente texto={fuente} base={base} className="text-muted-foreground" />
       </CardContent>
     </Card>
   )

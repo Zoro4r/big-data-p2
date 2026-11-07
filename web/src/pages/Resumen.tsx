@@ -3,6 +3,7 @@ import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, T
 import { BookOpen, FileText, Share2, Undo2 } from "lucide-react"
 
 import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
+import { Fuente, LogoBase, type Base } from "@/components/fuente"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,7 @@ import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
 interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null }
 
-const GRUPOS = ["Cassandra", "MongoDB", "Neo4j", "Limpieza"] as const
+const GRUPOS: [string, Base, string][] = [["Cassandra", "cassandra", "Cassandra"], ["MongoDB", "mongo", "MongoDB"], ["Neo4j", "neo4j", "Neo4j"], ["Limpieza", "airflow", "Limpieza en el DAG de Airflow"]]
 
 /** Definición, fórmula, fuente e interpretación de los KPIs, agrupados por la base que los calcula. */
 function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: string }) {
@@ -32,9 +33,9 @@ function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: s
           <DialogDescription>Qué mide cada indicador, cómo se calcula y cómo leerlo. Valores de la última hora procesada · {etiqueta}.</DialogDescription>
         </DialogHeader>
         <div className="-mx-6 flex flex-col gap-5 overflow-y-auto px-6 pb-1">
-          {GRUPOS.map((g) => (
+          {GRUPOS.map(([g, base, nombre]) => (
             <section key={g} className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{g === "Limpieza" ? "Limpieza (DAG)" : g}</h3>
+              <h3 className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase"><LogoBase base={base} className="size-4" />{nombre}</h3>
               <div className="divide-y rounded-lg border">
                 {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].fuente.startsWith(g)).map((k) => {
                   const p = data?.kpis[k]?.[0]
@@ -50,7 +51,7 @@ function DefinicionesKpi({ data, etiqueta }: { data: Resumen | null; etiqueta: s
                       </div>
                       <div className="flex flex-col gap-0.5 sm:items-end">
                         <span className="max-w-56 truncate text-sm font-semibold tabular-nums" title={valor}>{valor}</span>
-                        <span className="text-xs text-muted-foreground">{KPIS[k].fuente}</span>
+                        <Fuente texto={KPIS[k].fuente} className="text-xs text-muted-foreground" />
                       </div>
                     </div>
                   )

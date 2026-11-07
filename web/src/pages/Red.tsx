@@ -84,12 +84,12 @@ export default function RedPage() {
             <div className="col-span-full"><Vacio titulo="Totales por wiki pendientes" texto="Se calculan en la próxima ejecución del DAG." /></div>
           ) : (
             <>
-              <TarjetaKpi etiqueta="Editores" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente={c.ventana ? `${etiqueta} · al lote de ${horaUTC(c.ventana)} UTC` : "(:Editor) · (:Pagina) · (:Categoria)"} />
-              <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} fuente="-[:EDITO]-> · -[:CREO]->" />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} fuente="-[:REVIRTIO]-> · -[:MENSAJE_A]->" />
+              <TarjetaKpi etiqueta="Editores" base="neo4j" valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} fuente={c.ventana ? `${etiqueta} · al lote de ${horaUTC(c.ventana)} UTC` : "(:Editor) · (:Pagina) · (:Categoria)"} />
+              <TarjetaKpi etiqueta="Ediciones" base="neo4j" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} fuente="-[:EDITO]-> · -[:CREO]->" />
+              <TarjetaKpi etiqueta="Reversiones" base="neo4j" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} fuente="-[:REVIRTIO]-> · -[:MENSAJE_A]->" />
               {c.relaciones.COEDITA != null
-                ? <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} fuente="-[:COEDITA]- · -[:AGRADECIO]->" />
-                : <TarjetaKpi etiqueta="Agradecimientos" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" fuente="-[:AGRADECIO]->" />}
+                ? <TarjetaKpi etiqueta="Colaboración" base="neo4j" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} fuente="-[:COEDITA]- · -[:AGRADECIO]->" />
+                : <TarjetaKpi etiqueta="Agradecimientos" base="neo4j" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" fuente="-[:AGRADECIO]->" />}
             </>
           )}
         </div>
