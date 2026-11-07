@@ -139,11 +139,41 @@ function TresBloques({ que, porque, quien }: { que: ReactNode; porque: ReactNode
 // ---------------------------------------------------------------- contenido de cada componente
 
 const TIPOS: [string, string, string, string[]][] = [
-  ["edit", "Edición", "Cambio en una página que ya existe.", ["length.old/new", "revision.old/new", "minor"]],
-  ["categorize", "Categorización", "Una página entra o sale de una categoría; la página va en el comentario.", ["comment"]],
-  ["log", "Registro", "Acción administrativa: bloqueo, traslado, subida de archivo, agradecimiento…", ["log_type", "log_action", "log_params"]],
-  ["new", "Página nueva", "Creación de una página.", ["length.new", "revision.new"]],
+  ["edit", "Edición", "Cambio en una página que ya existe.", ["length.old/new", "revision.old/new", "minor", "patrolled", "notify_url"]],
+  ["categorize", "Categorización", "Una página entra o sale de una categoría; la página afectada va en el comentario.", ["comment", "notify_url"]],
+  ["log", "Registro", "Acción administrativa: bloqueo, traslado, subida de archivo, agradecimiento, filtro antiabuso, alta de usuario…", ["log_type", "log_action", "log_id", "log_params (estructura libre)"]],
+  ["new", "Página nueva", "Creación de una página: los mismos campos que una edición, sin los valores anteriores.", ["length.new", "revision.new", "patrolled"]],
 ]
+
+/** Métricas de la captura de prueba del 31 oct 2026 (docs/justificacion-dataset.md). */
+const CAPTURA: [string, string][] = [
+  ["Eventos por tipo", "categorize 2,323 · edit 2,105 · new 260 · log 227"],
+  ["Ediciones hechas por bots", "51.4 %"],
+  ["Cuentas temporales (formato ~2026-NNNNN-NN)", "2.6 %"],
+  ["Wikis distintas", "93"],
+  ["Usuarios distintos", "607"],
+  ["Páginas distintas", "2,758"],
+  ["Usuarios que tocaron más de una página", "135 (el máximo: 216 páginas, un bot)"],
+  ["Ediciones menores (minor)", "27.9 % de las ediciones"],
+  ["Cambio de tamaño por edición", "mediana +38 bytes · promedio absoluto 950 bytes"],
+]
+
+const REQUISITOS: [string, string][] = [
+  ["Semiestructurado", "JSON con 4 tipos de evento de forma distinta, objetos anidados y un log_params de estructura libre."],
+  ["Al menos 50,000 registros", "~37 eventos/s medidos en todo el stream: 50,000 en ~23 min. Hoy guardamos millones solo de enwiki y eswiki."],
+  ["Actualización periódica", "Stream continuo: el servicio stream lo lee sin parar y cada corrida del DAG captura una hora nueva."],
+  ["Origen, estructura y características documentados", "Esquema JSON público y versionado (/mediawiki/recentchange/1.0.x) y documentación oficial en Wikitech."],
+]
+
+function Imagen({ src, alt, pie }: { src: string; alt: string; pie: string }) {
+  return (
+    <figure className="m-0 flex flex-col gap-2 overflow-hidden rounded-xl border bg-card">
+      {/* Las imágenes tienen fondo blanco: se muestran sobre blanco también en modo oscuro. */}
+      <div className="bg-white"><img src={src} alt={alt} loading="lazy" className="mx-auto w-full max-w-[760px]" /></div>
+      <figcaption className="px-4 pb-3 text-xs text-muted-foreground">{pie}</figcaption>
+    </figure>
+  )
+}
 
 function EventoEjemplo() {
   const [tipo, setTipo] = useState<string | null>(null)
@@ -178,6 +208,10 @@ function Fuente({ d }: { d: Datos }) {
   const porSeg = d.ritmo.promedio_hora != null ? d.ritmo.promedio_hora / 3600 : null
   return (
     <>
+      <Bloque titulo="El problema que planteamos">
+        Monitorear la actividad colaborativa en Wikipedia: quién edita qué, cuánto del trabajo hacen los bots y qué páginas concentran ediciones de muchos
+        editores (posibles conflictos o vandalismo). El stream de cambios en tiempo real de Wikimedia trae exactamente esos datos.
+      </Bloque>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Cifra titulo="Volumen" valor={`${millones(d.mongo.eventos)} eventos`} texto={`Guardados en MongoDB desde el ${d.mongo.desde ? horaUTC(d.mongo.desde).split(" · ")[0] : "—"} (el mínimo pedido es 50 mil).`} />
         <Cifra titulo="Velocidad" valor={porSeg != null ? `~${porSeg.toFixed(1)} por segundo` : "—"}
@@ -187,18 +221,21 @@ function Fuente({ d }: { d: Datos }) {
       </div>
       <div className="grid items-start gap-3 lg:grid-cols-2">
         <Tabla columnas={["Origen", ""]} anchos="120px minmax(0,1fr)" minimo={0} filas={[
-          ["Fuente", "EventStreams de la Wikimedia Foundation: cada cambio de Wikipedia, en tiempo real"],
+          ["Fuente", "EventStreams de la Wikimedia Foundation: cada cambio en Wikipedia, Wikidata, Commons y los demás proyectos, en todos los idiomas, en tiempo real"],
           ["Endpoint", <Codigo key="e">stream.wikimedia.org/v2/stream/<wbr />recentchange</Codigo>],
           ["Protocolo", <>Server-Sent Events (SSE): una línea <Codigo>data: {"{json}"}</Codigo> por evento</>],
-          ["Formato", <>JSON validado con el esquema <Codigo>/mediawiki/recentchange/1.0</Codigo></>],
+          ["Formato", <>JSON validado con el esquema público y versionado <Codigo>/mediawiki/recentchange/1.0.x</Codigo></>],
+          ["Autenticación", <>Ninguna; solo se pide un <Codigo>User-Agent</Codigo> que identifique al cliente</>],
+          ["Datos pasados", <>El parámetro <Codigo>?since=fecha</Codigo> vuelve a emitir eventos de días anteriores; así el DAG extrae cada hora completa</>],
           ["Qué guardamos", "Solo enwiki y eswiki (el stream trae ~90 wikis)"],
-          ["Licencia", "Datos públicos · contenido bajo CC BY-SA 4.0"],
+          ["Licencia", "Contenido bajo CC BY-SA 4.0; los metadatos de los cambios son públicos"],
+          ["Documentación", <a key="d" className="underline underline-offset-2" href="https://wikitech.wikimedia.org/wiki/Event_Platform/EventStreams_HTTP_Service" target="_blank" rel="noreferrer">EventStreams en Wikitech</a>],
         ]} />
         <EventoEjemplo />
       </div>
       <Bloque titulo="Campos comunes a todos los eventos">
         <div className="flex flex-col gap-2">
-          <Chips items={["meta.dt", "meta.domain", "type", "wiki", "title", "namespace", "user", "bot", "timestamp", "comment"]} />
+          <Chips items={["id", "meta.dt", "meta.domain", "type", "wiki", "server_name", "title", "namespace", "user", "bot", "timestamp", "comment"]} />
           <span className="text-[12.5px] text-muted-foreground">Y según el tipo, campos extra (abajo). Al limpiar agregamos el bloque <Codigo>derived</Codigo>: fecha, tipo de editor, bytes cambiados, a quién revierte…</span>
         </div>
       </Bloque>
@@ -215,7 +252,21 @@ function Fuente({ d }: { d: Datos }) {
           )
         })}
       </div>
-      <span className="text-xs text-muted-foreground">Porcentajes de las últimas 24 horas.</span>
+      <span className="text-xs text-muted-foreground">Porcentajes de las últimas 24 horas en enwiki y eswiki.</span>
+
+      <h3 className="mt-2 text-sm font-semibold">Captura de prueba</h3>
+      <span className="-mt-2 text-[13px] text-muted-foreground">
+        Antes de construir el pipeline medimos el stream completo (todas las wikis) durante 134 segundos el 31 de octubre de 2026: llegaron 4,915 eventos
+        válidos, unos 37 por segundo (~132 mil por hora, ~3 millones por día).
+      </span>
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Tabla columnas={["Métrica de la muestra", "Valor"]} anchos="minmax(0,1fr) minmax(0,1fr)" minimo={0} filas={CAPTURA} />
+        <Imagen src="/img/eventos-por-wiki.png" alt="Gráfico de barras: eventos por wiki en la muestra; commonswiki concentra el 37 %"
+          pie="Captura propia del stream recentchange · 31 oct 2026, 16:02 UTC · 134 s. La actividad está muy concentrada: 4 wikis suman el 70 % de los eventos." />
+      </div>
+
+      <h3 className="mt-2 text-sm font-semibold">Cumple los requisitos del dataset</h3>
+      <Tabla columnas={["Requisito", "Cómo lo cumple"]} anchos="220px minmax(0,1fr)" filas={REQUISITOS} />
     </>
   )
 }
@@ -348,10 +399,18 @@ function Cassandra() {
   )
 }
 
-const RELACIONES: [string, string][] = [
-  ["EDITO", "Editor → Página"], ["CREO", "Editor → Página"], ["SUBIO", "Editor → Página (archivo)"], ["MOVIDA_A", "Página → Página"],
-  ["PERTENECE_A", "Página → Wiki"], ["EN_CATEGORIA", "Página → Categoría"], ["REVIRTIO", "Editor → Editor"], ["MENSAJE_A", "Editor → Editor"],
-  ["AGRADECIO", "Editor → Editor"], ["BLOQUEO", "Editor → Editor"], ["COEDITA", "Editor — Editor (comparten páginas)"],
+const RELACIONES: [string, string, string][] = [
+  ["EDITO", "Editor → Página", "eventos edit"],
+  ["CREO", "Editor → Página", "eventos new"],
+  ["SUBIO", "Editor → Página (archivo)", "log de tipo upload"],
+  ["MOVIDA_A", "Página → Página", "log de tipo move (log_params.target)"],
+  ["PERTENECE_A", "Página o Categoría → Wiki", "campo wiki"],
+  ["EN_CATEGORIA", "Página → Categoría", "eventos categorize (enlace [[…]] del comentario)"],
+  ["REVIRTIO", "Editor → Editor", "edit cuyo comentario es una reversión y enlaza a Special:Contributions/X"],
+  ["MENSAJE_A", "Editor → Editor", "edit en la página de discusión de otro usuario (namespace 3)"],
+  ["AGRADECIO", "Editor → Editor", "log de tipo thanks"],
+  ["BLOQUEO", "Editor → Editor", "log de tipo block"],
+  ["COEDITA", "Editor — Editor", "calculada en Neo4j: dos EDITO hacia la misma página"],
 ]
 
 function Neo4j({ d }: { d: Datos }) {
@@ -367,8 +426,17 @@ function Neo4j({ d }: { d: Datos }) {
         <Cifra titulo="Nodos" valor={millones(nodos)} texto={Object.entries(d.grafo.nodos).map(([k, v]) => `${k} ${millones(v)}`).join(" · ")} />
         <Cifra titulo="Relaciones" valor={millones(rels)} texto="De 11 tipos: con el contenido y entre editores." />
       </div>
-      <Tabla columnas={["Relación", "Une", "Cantidad"]} anchos="160px minmax(0,1fr) 120px"
-        filas={RELACIONES.map(([r, u]) => [<Codigo key={r}>{r}</Codigo>, u, <span key="n" className="tabular-nums">{entero(d.grafo.relaciones[r])}</span>])} />
+      <Imagen src="/img/esquema-grafo.png" alt="Esquema del grafo: nodos Editor, Página, Wiki y Categoría con sus 11 relaciones"
+        pie="Esquema del grafo · 4 tipos de nodo y 11 tipos de relación. Arriba, la capa entre editores; abajo, la que los une con el contenido." />
+      <Tabla columnas={["Relación", "Une", "Se obtiene de", "Cantidad"]} anchos="140px 190px minmax(0,1fr) 100px"
+        filas={RELACIONES.map(([r, u, o]) => [<Codigo key={r}>{r}</Codigo>, u, o, <span key="n" className="tabular-nums">{entero(d.grafo.relaciones[r])}</span>])} />
+      <Bloque titulo="Un ejemplo real">
+        En la captura de prueba, en 93 segundos un patrullero de enwiki revirtió ediciones de 5 editores en 5 páginas y dejó un aviso en la página de discusión
+        de cada uno: 5 relaciones REVIRTIO y 5 MENSAJE_A. Tres de los cinco usaban cuentas temporales. Ese patrón (un nodo central con muchas reversiones
+        salientes) es lo que miden los rankings de la Red de editores.
+      </Bloque>
+      <Imagen src="/img/ejemplo-reversiones.png" alt="Subgrafo real: un patrullero con cinco relaciones REVIRTIO y MENSAJE_A hacia cinco editores"
+        pie="Datos reales de la captura del 31 oct 2026 · enwiki, 16:02:29–16:04:02 UTC." />
     </>
   )
 }
