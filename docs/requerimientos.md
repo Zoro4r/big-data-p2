@@ -58,13 +58,14 @@ Este documento recorre, sección por sección, lo que piden las instrucciones de
 - Encaja con Neo4j porque las preguntas son de relaciones: quién revierte a quién, qué editores comparten páginas, qué página atrae a más editores. En un grafo se responden recorriendo vecinos, sin joins costosos.
 - **Restricciones de unicidad e índices:** `db/neo4j/constraints.cypher`.
 
-**Justificación técnica:** está en tres lugares.
+**Justificación técnica:** hoy está en dos lugares.
 - `docs/justificacion-dataset.md`: qué guarda cada base y por qué.
 - La página **Arquitectura** del dashboard: cada base abre un modal con qué guarda, por qué ahí y quién escribe.
   - MongoDB: además, el validador y los índices.
   - Cassandra: las 7 tablas con su clave primaria.
   - Neo4j: el esquema del grafo, de qué parte del evento sale cada relación y un ejemplo real de reversiones.
-- El informe técnico.
+
+Falta pasarla al informe técnico en PDF, que todavía está pendiente (ver Entregables). Este material será la base de su sección de modelos de datos.
 
 **Arquitectura Lambda:**
 - **Capa rápida:** el servicio `stream` guarda los eventos en MongoDB y los contadores por minuto en Cassandra en ~2 segundos.
