@@ -694,6 +694,25 @@ Durante la prueba local, los contenedores de otros dos proyectos (`ccs` y `agent
 
 Verificación: `tsc` y `npm run build` sin errores; capturas con Playwright en modo oscuro de las seis vistas sin errores de JavaScript; el botón cambia a claro y la elección se mantiene al recargar. Commit `feat: add dark mode to dashboard`, desplegado con `./deploy.sh`.
 
+### 23. KPIs por wiki y definiciones en un modal
+
+**Problema.** Al cambiar la wiki en la cabecera, varias secciones no cambiaban: las tarjetas de KPIs, los protagonistas, la evolución de un KPI, la calidad de las ejecuciones y los totales de la Red se calculaban sobre ambas wikis. Además, las tarjetas del Explorador y el historial de un editor en Actividad no se recalculaban con la wiki nueva.
+
+**Pipeline.** El DAG ahora calcula los 12 KPIs tres veces por hora: ambas wikis (tabla `kpis`, sin cambios), enwiki y eswiki (tabla nueva `kpis_por_wiki`, partición `(kpi, wiki)`).
+
+- Cassandra y MongoDB filtran por wiki. "Eventos acumulados" pasa a contar los documentos con fecha anterior al fin de la ventana: la capa de streaming ya guardó eventos posteriores.
+- Neo4j: la página disputada filtra `p.wiki`, el editor más conectado debe haber editado esa wiki en la hora, y las reversiones filtran `r.wiki`.
+- La limpieza registra la calidad por wiki (`quality_by_wiki`).
+- Los totales del grafo por wiki (editores, páginas, ediciones, reversiones…) recorren todas las páginas: en la VM tardan unos 11 s. Por eso los calcula el DAG una vez por hora (`neo4j_store.conteo_por_wiki`) y se guardan en `pipeline_runs`; la API solo los lee. COEDITA no guarda la wiki, así que con una sola wiki la tarjeta muestra los agradecimientos.
+
+**Horas anteriores.** `python -m wikipipe.kpis` rellenó `kpis_por_wiki` para las ventanas ya procesadas: Cassandra y MongoDB exactos, calidad recalculada desde el archivo crudo de cada hora, Neo4j solo en la última ventana (el grafo guarda su estado actual, no el de cada hora). En local, enwiki (14,499) + eswiki (903) = ambas (15,402).
+
+**Dashboard.**
+- API: `/api/resumen?wiki=` y `/api/red?wiki=` devuelven los KPIs y totales de la wiki elegida.
+- Las definiciones de los KPIs salieron del final del Resumen a un modal (botón "Definición de los KPIs" junto al título), agrupadas por la base que calcula cada uno, con fórmula, interpretación y valor de la última hora.
+
+Verificación: capturas con Playwright en eswiki (KPIs, protagonistas, evolución y totales de la Red cambian) y del modal, sin errores de JavaScript. Commits `feat: compute kpis per wiki`, `feat: serve kpis and graph totals per wiki`, `fix: make every section follow the wiki filter` y `feat: show kpi definitions in a modal`.
+
 ---
 
 ## Pendientes
