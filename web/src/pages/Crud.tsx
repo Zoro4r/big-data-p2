@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Check, CheckCircle2, Copy, Search, Trash2, XCircle, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
@@ -6,15 +6,15 @@ import { Seccion, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EditorEvento, FormularioEvento, nuevoId, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
 import { Coincidencias, FichaDocumento, FiltrosConsulta, useConsultaEventos } from "@/components/consultar-evento"
 import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from "@/components/actualizar-evento"
 import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useEliminacion } from "@/components/eliminar-evento"
+import { CassandraDerecha, CassandraIzquierda, useCassandraCrud } from "@/components/cassandra-crud"
+import { Neo4jDerecha, Neo4jIzquierda, useNeo4jCrud } from "@/components/neo4j-crud"
+import type { Registrar } from "@/components/crud-comun"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
@@ -24,12 +24,7 @@ interface Registro { op: Op; base: string; detalle: string; hora: string; ok: bo
 /** validacion: el validador $jsonSchema de MongoDB rechazó el documento (no es un fallo de la API) */
 interface Resultado { titulo: string; ok: boolean; validacion?: boolean; faltan?: string[]; json: unknown }
 
-const hoy = () => new Date().toISOString().slice(0, 10)
 const horaActual = () => new Date().toISOString().slice(11, 19)
-
-function Campo({ id, label, children }: { id: string; label: string; children: ReactNode }) {
-  return <div className="flex flex-col gap-1.5"><Label htmlFor={id}>{label}</Label>{children}</div>
-}
 
 function Operaciones({ valor, onChange, opciones }: { valor: string; onChange: (v: string) => void; opciones: string[] }) {
   return (
@@ -43,23 +38,6 @@ export default function CrudPage() {
   const [resultado, setResultado] = useState<Resultado | null>(null)
   const [log, setLog] = useState<Registro[]>([])
   const [ocupado, setOcupado] = useState(false)
-
-  async function ejecutar(op: Op, base: string, detalle: string, llamada: () => Promise<unknown>) {
-    setOcupado(true)
-    try {
-      const json = await llamada()
-      setResultado({ titulo: `${op} · ${base}`, ok: true, json })
-      setLog((l) => [{ op, base, detalle, hora: horaActual(), ok: true }, ...l].slice(0, 8))
-      toast.success(`${op} ejecutado en ${base}`)
-    } catch (e) {
-      const msg = (e as Error).message
-      setResultado({ titulo: `${op} · ${base}`, ok: false, json: { error: msg } })
-      setLog((l) => [{ op: "RECHAZADO" as Op, base, detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
-      toast.error(msg)
-    } finally {
-      setOcupado(false)
-    }
-  }
 
   const { wiki } = useWiki()
   const wikiForm: WikiCrud = wiki === "ambas" ? "enwiki" : wiki  // con "Ambas" en la cabecera, los formularios usan enwiki
@@ -167,34 +145,11 @@ export default function CrudPage() {
   const actualizando = base === "mongo" && mOp === "Actualizar"
   const eliminando = base === "mongo" && mOp === "Eliminar"
 
-  // ---------------------------------------------------------------- Cassandra
-  const [cOp, setCOp] = useState("Insertar")
-  const [c, setC] = useState({ editor: "Demo_Editor", fecha: hoy(), hora: String(new Date().getUTCHours()), wiki: wikiForm as string, eventos: "10", ediciones: "8" })
-  useEffect(() => setC((x) => ({ ...x, wiki: wikiForm })), [wikiForm])
-  const filaC = () => ({ editor: c.editor, fecha: c.fecha, hora: Number(c.hora), wiki: c.wiki, eventos: Number(c.eventos), ediciones: Number(c.ediciones) })
-  const enviarCassandra = (e: FormEvent) => {
-    e.preventDefault()
-    const base = "Cassandra · actividad_editor"
-    if (cOp === "Insertar") ejecutar("CREATE", base, c.editor, () => api("/api/crud/cassandra", { method: "POST", body: JSON.stringify(filaC()) }))
-    if (cOp === "Consultar") ejecutar("READ", base, c.editor, () => api(`/api/crud/cassandra?editor=${encodeURIComponent(c.editor)}`))
-    if (cOp === "Actualizar") ejecutar("UPDATE", base, `${c.editor} · eventos ${c.eventos}`, () => api("/api/crud/cassandra", { method: "PATCH", body: JSON.stringify(filaC()) }))
-    if (cOp === "Eliminar") ejecutar("DELETE", base, `${c.editor} · ${c.fecha} ${c.hora}:00`, () => api(`/api/crud/cassandra?${new URLSearchParams({ editor: c.editor, fecha: c.fecha, hora: c.hora, wiki: c.wiki })}`, { method: "DELETE" }))
-  }
-
-  // ---------------------------------------------------------------- Neo4j
-  const [nOp, setNOp] = useState("Crear nodo")
-  const [n, setN] = useState({ user: "Demo_Patrullero", tipo: "registrado", destino: "Demo_Vandalo", rel: "REVIRTIO", veces: "1", clave: "rol", valor: "patrullero" })
-  const enviarNeo = (e: FormEvent) => {
-    e.preventDefault()
-    const base = "Neo4j"
-    const u = encodeURIComponent(n.user)
-    if (nOp === "Crear nodo") ejecutar("CREATE", base, `(:Editor {user: "${n.user}"})`, () => api("/api/crud/neo4j/editor", { method: "POST", body: JSON.stringify({ user: n.user, tipo: n.tipo }) }))
-    if (nOp === "Crear relación") ejecutar("CREATE", base, `(${n.user})-[:${n.rel}]->(${n.destino})`, () => api("/api/crud/neo4j/relacion", { method: "POST", body: JSON.stringify({ origen: n.user, destino: n.destino, tipo: n.rel, veces: Number(n.veces) }) }))
-    if (nOp === "Consultar") ejecutar("READ", base, n.user, () => api(`/api/crud/neo4j/editor/${u}`))
-    if (nOp === "Actualizar") ejecutar("UPDATE", base, `${n.user}.${n.clave}`, () => api(`/api/crud/neo4j/editor/${u}`, { method: "PATCH", body: JSON.stringify({ clave: n.clave, valor: n.valor }) }))
-    if (nOp === "Eliminar relación") ejecutar("DELETE", base, `(${n.user})-[:${n.rel}]->(${n.destino})`, () => api(`/api/crud/neo4j/relacion?${new URLSearchParams({ origen: n.user, destino: n.destino, tipo: n.rel })}`, { method: "DELETE" }))
-    if (nOp === "Eliminar nodo") ejecutar("DELETE", base, `DETACH DELETE ${n.user}`, () => api(`/api/crud/neo4j/editor/${u}`, { method: "DELETE" }))
-  }
+  // ---------------------------------------------------------------- Cassandra y Neo4j
+  const registrar: Registrar = (op, base, detalle, ok) =>
+    setLog((l) => [{ op, base, detalle, hora: horaActual(), ok }, ...l].slice(0, 8))
+  const cassandra = useCassandraCrud(wikiForm, registrar)
+  const neo = useNeo4jCrud(wikiForm, registrar)
 
   const boton = (texto: string, peligro = false) => (
     <Button type="submit" disabled={ocupado} variant={peligro ? "destructive" : "default"} className="h-10 w-full text-sm">{texto}</Button>
@@ -248,63 +203,14 @@ export default function CrudPage() {
             </TabsContent>
 
             <TabsContent value="cassandra">
-              <Seccion titulo="Tabla actividad_editor" descripcion="Clave primaria ((editor), fecha, hora, wiki) · la partición es el editor">
-                <form onSubmit={enviarCassandra} className="flex flex-col gap-4">
-                  <Operaciones valor={cOp} onChange={setCOp} opciones={["Insertar", "Consultar", "Actualizar", "Eliminar"]} />
-                  <Campo id="c-editor" label="editor"><Input id="c-editor" value={c.editor} onChange={(e) => setC({ ...c, editor: e.target.value })} /></Campo>
-                  {cOp !== "Consultar" && (
-                    <div className="grid grid-cols-3 gap-3">
-                      <Campo id="c-fecha" label="fecha"><Input id="c-fecha" type="date" value={c.fecha} onChange={(e) => setC({ ...c, fecha: e.target.value })} /></Campo>
-                      <Campo id="c-hora" label="hora"><Input id="c-hora" type="number" min={0} max={23} value={c.hora} onChange={(e) => setC({ ...c, hora: e.target.value })} /></Campo>
-                      <Campo id="c-wiki" label="wiki">
-                        <Select value={c.wiki} onValueChange={(v) => setC({ ...c, wiki: v })}><SelectTrigger id="c-wiki" className="w-full"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="enwiki">enwiki</SelectItem><SelectItem value="eswiki">eswiki</SelectItem></SelectContent></Select>
-                      </Campo>
-                    </div>
-                  )}
-                  {(cOp === "Insertar" || cOp === "Actualizar") && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Campo id="c-ev" label="eventos"><Input id="c-ev" type="number" min={0} value={c.eventos} onChange={(e) => setC({ ...c, eventos: e.target.value })} /></Campo>
-                      <Campo id="c-ed" label="ediciones"><Input id="c-ed" type="number" min={0} value={c.ediciones} onChange={(e) => setC({ ...c, ediciones: e.target.value })} /></Campo>
-                    </div>
-                  )}
-                  {boton({ Insertar: "INSERT", Consultar: "SELECT", Actualizar: "UPDATE", Eliminar: "DELETE" }[cOp] ?? "Ejecutar", cOp === "Eliminar")}
-                </form>
+              <Seccion titulo="Tabla actividad_editor" descripcion={<>Clave primaria ((editor), fecha, hora, wiki) · la partición es el editor. Es un resumen que calcula el pipeline: se puede consultar cualquier editor, pero solo se escribe sobre «Demo_…».</>}>
+                <CassandraIzquierda c={cassandra} />
               </Seccion>
             </TabsContent>
 
             <TabsContent value="neo4j">
-              <Seccion titulo="Grafo de editores" descripcion="MERGE de nodos y relaciones · SET de propiedades · DELETE / DETACH DELETE">
-                <form onSubmit={enviarNeo} className="flex flex-col gap-4">
-                  <Select value={nOp} onValueChange={setNOp}>
-                    <SelectTrigger className="w-full" aria-label="Operación"><SelectValue /></SelectTrigger>
-                    <SelectContent>{["Crear nodo", "Crear relación", "Consultar", "Actualizar", "Eliminar relación", "Eliminar nodo"].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Campo id="n-user" label={nOp.includes("relación") ? "origen" : "user"}><Input id="n-user" value={n.user} onChange={(e) => setN({ ...n, user: e.target.value })} /></Campo>
-                  {nOp === "Crear nodo" && (
-                    <Campo id="n-tipo" label="tipo">
-                      <Select value={n.tipo} onValueChange={(v) => setN({ ...n, tipo: v })}><SelectTrigger id="n-tipo" className="w-full"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="registrado">registrado</SelectItem><SelectItem value="temporal">temporal</SelectItem><SelectItem value="bot">bot</SelectItem></SelectContent></Select>
-                    </Campo>
-                  )}
-                  {nOp.includes("relación") && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Campo id="n-rel" label="tipo de relación">
-                        <Select value={n.rel} onValueChange={(v) => setN({ ...n, rel: v })}><SelectTrigger id="n-rel" className="w-full"><SelectValue /></SelectTrigger>
-                          <SelectContent>{["REVIRTIO", "MENSAJE_A", "AGRADECIO", "BLOQUEO"].map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select>
-                      </Campo>
-                      <Campo id="n-dest" label="destino"><Input id="n-dest" value={n.destino} onChange={(e) => setN({ ...n, destino: e.target.value })} /></Campo>
-                    </div>
-                  )}
-                  {nOp === "Crear relación" && <Campo id="n-veces" label="veces"><Input id="n-veces" type="number" min={1} value={n.veces} onChange={(e) => setN({ ...n, veces: e.target.value })} /></Campo>}
-                  {nOp === "Actualizar" && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Campo id="n-clave" label="propiedad"><Input id="n-clave" value={n.clave} onChange={(e) => setN({ ...n, clave: e.target.value })} /></Campo>
-                      <Campo id="n-valor" label="valor"><Input id="n-valor" value={n.valor} onChange={(e) => setN({ ...n, valor: e.target.value })} /></Campo>
-                    </div>
-                  )}
-                  {boton(nOp, nOp.startsWith("Eliminar"))}
-                </form>
+              <Seccion titulo="Grafo de editores" descripcion={<>MERGE de nodos y relaciones · SET de propiedades · DELETE / DETACH DELETE. Se puede consultar cualquier editor, pero solo se escribe sobre «Demo_…».</>}>
+                <Neo4jIzquierda n={neo} />
               </Seccion>
             </TabsContent>
           </Tabs>
@@ -314,7 +220,9 @@ export default function CrudPage() {
             {actualizando && <CambiosActualizacion a={actualizacion} />}
             {eliminando && <PanelEliminacion e={eliminacion} />}
             {consultando && <FichaDocumento c={consulta} onActualizar={irA("Actualizar")} onEliminar={irA("Eliminar")} />}
-            {consultando || actualizando || eliminando ? null : resultado ? (
+            {base === "cassandra" && <CassandraDerecha c={cassandra} />}
+            {base === "neo4j" && <Neo4jDerecha n={neo} />}
+            {base !== "mongo" || consultando || actualizando || eliminando ? null : resultado ? (
               <>
                 {resultado.validacion ? (
                   <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
