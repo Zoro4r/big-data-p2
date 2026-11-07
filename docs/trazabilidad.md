@@ -823,6 +823,21 @@ Los eventos `external` (cambios de Wikidata) no se ofrecen porque el pipeline lo
 
 Verificación con Playwright en local: edición con bytes cambiados (−100 B), cambio a Otros · bloqueo en eswiki (título "Usuario:Demo_Vandalo"), inserción correcta e inserción sin `user` rechazada por el validador, sin errores de JavaScript. El documento de prueba se borró. Commits `feat: accept full event documents in mongo create` y `feat: add event form and json editor to crud page`.
 
+### 28. Consultar eventos de MongoDB con filtros y ficha del documento
+
+Antes, Consultar pedía un `_id` exacto y mostraba el JSON crudo. Se diseñaron en Claude Design tres opciones (por `_id` con atajos, filtros con lista de resultados, filtros con filtro JSON) y se eligió una combinación: la columna izquierda de la opción de filtros y la derecha de la opción por `_id`.
+
+**Columna izquierda** (`web/src/components/consultar-evento.tsx`):
+
+- Wiki donde buscar (sigue al filtro de la cabecera, se puede cambiar), tipo de evento, periodo (última hora, 24 horas, 7 días, todo), editor (empieza con…), título (contiene…) y "solo documentos de demostración" (`_id` que empieza con «demo-»). Un campo opcional "_id exacto" ignora los demás filtros.
+- Botón **Buscar** y, debajo, las coincidencias cuando hay más de una (título, `_id`, tipo y antigüedad), de 10 en 10 con "Ver 10 más". Al entrar a Consultar se busca solo, así aparecen los documentos recién creados.
+
+**Columna derecha:** ficha legible del documento elegido ("Coincidencia 1 de 3", la consulta `find()` ejecutada, título, wiki, tipo, editor, comentario, fecha, bytes, tamaño y espacio de nombres) y el JSON completo con colores. "Actualizar este" y "Eliminar" llevan el `_id` a esas operaciones (no borran directamente).
+
+**API:** `GET /api/crud/mongo/buscar` (`queries.crud_buscar`), sin caché. Usa los índices existentes (`por_wiki_tipo_fecha`, `por_editor`, `por_fecha`): las búsquedas probadas tardan entre 2 y 100 ms sobre ~1.3 millones de documentos. "Ver más" pide los documentos anteriores a la fecha del último mostrado en vez de usar `skip`: con el stream insertando eventos, `skip` repetía documentos (lo detectó la prueba con Playwright).
+
+Verificación con Playwright en local: tres documentos creados y encontrados con "solo demostración", búsqueda real de la última hora con "Ver 10 más" sin repetidos, paso de la ficha a Eliminar, sin errores de JavaScript. Los documentos de prueba se borraron. Commits `feat: add filtered search endpoint for mongo crud` y `feat: search mongo events with filters in crud page`.
+
 ---
 
 ## Pendientes
