@@ -800,6 +800,29 @@ Todos usan `ModalMetrica`, con navegación anterior/siguiente entre las tarjetas
 
 Commit `fix: clarify mongo validator test in crud page`.
 
+### 27. Crear eventos de MongoDB con formulario y editor JSON
+
+Antes, "Crear" en MongoDB solo pedía título, editor y comentario, y el servidor completaba el resto con valores fijos (siempre una edición en enwiki). Un evento real tiene unos 25 campos. El diseño se trabajó en Claude Design (propuestas A, B, C y variantes B2–B6) y se eligió una columna izquierda simple con un editor JSON a la derecha.
+
+**Columna izquierda** (`web/src/components/crear-evento.tsx`):
+
+- Wiki de destino: "Se insertará en enwiki · English Wikipedia". Por defecto sigue el filtro de la cabecera y se puede cambiar ahí mismo. Al cambiarla se ajustan el dominio y los prefijos del título (User: ↔ Usuario:, Category: ↔ Categoría:, File: ↔ Archivo:).
+- Tipo de evento: Edición, Página nueva, Categorización u Otros. "Otros" son los eventos `log` de Wikipedia; una segunda elección, "Acción", decide los campos: bloqueo, agradecimiento, traslado de página, subida de archivo u otra acción. Son las acciones que el pipeline convierte en relaciones de Neo4j (BLOQUEO, AGRADECIO, SUBIO).
+- Campos de ese tipo (título, editor, tipo de editor, bytes, comentario, categoría y página, usuario bloqueado y duración…). Cada campo lee y escribe el JSON de la derecha, así que formulario y editor siempre coinciden.
+
+Los eventos `external` (cambios de Wikidata) no se ofrecen porque el pipeline los descarta al limpiar.
+
+**Columna derecha:** editor JSON con números de línea y colores, botón "Restablecer", el bloque `derived` que calculará el servidor (en gris, "calculado al insertar") y una barra con el estado: "Cumple el validador de events" o "Falta user…".
+
+**API** (`api/main.py`, `src/wikipipe/crud.py`):
+
+- `POST /api/crud/mongo` recibe el documento completo. `crud.preparar_evento` calcula `derived` con la misma función que usa el pipeline (`clean.derive`), así el documento queda igual a uno real.
+- Si faltan campos, no se completan: el documento se envía sin `derived` y el validador `$jsonSchema` lo rechaza. La respuesta lo indica (`rechazado: true` y la lista de campos que faltan) y la página lo muestra en azul con la etiqueta VALIDADOR. Así la prueba del validador se hace borrando un campo en el editor, y se quitaron el botón "Probar el validador" y su ruta `/api/crud/mongo/invalido`.
+- `POST /api/crud/mongo/previa` devuelve el `derived` calculado y los campos que faltan, para la vista previa.
+- Tras insertar, el `_id` del documento creado pasa a Consultar, Actualizar y Eliminar, y el editor recibe un `_id` nuevo para la siguiente inserción.
+
+Verificación con Playwright en local: edición con bytes cambiados (−100 B), cambio a Otros · bloqueo en eswiki (título "Usuario:Demo_Vandalo"), inserción correcta e inserción sin `user` rechazada por el validador, sin errores de JavaScript. El documento de prueba se borró. Commits `feat: accept full event documents in mongo create` y `feat: add event form and json editor to crud page`.
+
 ---
 
 ## Pendientes
