@@ -940,7 +940,25 @@ El despliegue oficial sigue siendo la VM de GCP. Para que cada integrante pueda 
 - **Segundo intento**, desde cero: las 6 tareas del DAG en `success`, el dashboard con datos y la demo CRUD por consola funcionando.
 - **Al terminar** se borró todo lo de la prueba (contenedores, volúmenes, red, imágenes y la carpeta clonada) y se volvió a levantar el entorno local del usuario como estaba.
 
-**Hallazgo: corte prematuro de `extraer` en horas procesadas tarde.** `extract_window` deja de leer al recibir 100 eventos posteriores al final de la hora. Con `?since=`, el stream entrega mezclados eventos de la hora pedida y eventos actuales: se comprobó que incluso el centro de datos `eqiad` mezcla ambos. Si la hora se procesa bastante después de terminada, esos 100 llegan en segundos y la extracción corta: en la prueba, 2 eventos en vez de miles. En la VM no ocurre (245 corridas, todas con más de 5,000 eventos, mediana 15,163) porque el DAG corre al cumplirse cada hora. Afecta a backfills y a la primera corrida local. Queda anotado como limitación conocida en la guía, pendiente de decidir el arreglo. Commits `feat: add local.sh to run the project locally`, `feat: add light memory mode for local runs` y `docs: add local setup guide`.
+**Hallazgo: corte prematuro de `extraer` en horas procesadas tarde.** `extract_window` deja de leer al recibir 100 eventos posteriores al final de la hora. Con `?since=`, el stream entrega mezclados eventos de la hora pedida y eventos actuales: se comprobó que incluso el centro de datos `eqiad` mezcla ambos. Si la hora se procesa bastante después de terminada, esos 100 llegan en segundos y la extracción corta: en la prueba, 2 eventos en vez de miles. En la VM no ocurre (245 corridas, todas con más de 5,000 eventos, mediana 15,163) porque el DAG corre al cumplirse cada hora. Afecta a backfills y a la primera corrida local. Se corrigió en la entrada 35. Commits `feat: add local.sh to run the project locally`, `feat: add light memory mode for local runs` y `docs: add local setup guide`.
+
+### 35. Arreglo del corte de `extraer` en horas procesadas tarde
+
+**Causa:** con `?since=`, el stream intercala los dos centros de datos de Wikimedia (prefijo `codfw` o `eqiad` en `meta.topic`). Cada uno llega en orden de tiempo, pero a distinto ritmo. En una muestra de la hora 2026-11-10 15:00 procesada horas después, `eqiad` (poco volumen) llegó primero y recorrió todas las horas hasta el presente, mientras `codfw` (el principal, 1,791 de los primeros 3,000 eventos) seguía entregando la hora pedida. Contar eventos posteriores, en total o por centro, cortaba antes de que `codfw` apareciera.
+
+**Arreglo** en [`extract_window`](../src/wikipipe/extract.py#L115-L133): solo se corta cuando se cumplen dos señales a la vez.
+
+1. Cada centro de datos visto lleva 100 eventos posteriores seguidos.
+2. Hace 30 s que no llega ningún evento de la hora pedida (parámetro `quiet_seconds`).
+
+**Validación local:**
+
+| Hora | Antes | Después | Referencia |
+|---|---|---|---|
+| 2026-11-10 15:00, procesada ~10 h después | 2 eventos | 11,342 eventos en 115 s | VM: 11,342 |
+| 2026-11-11 01:00, procesada al terminar | — | 17,772 eventos en 317 s | — |
+
+Esto arregla los backfills, los `trigger` con fecha pasada y la primera corrida local. Se quitó la «limitación conocida» de [`docs/local.md`](local.md#5-hacer-pruebas), sección 5. Commit `fix: stop extraction per datacenter when replaying past hours`.
 
 ---
 
