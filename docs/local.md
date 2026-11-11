@@ -137,8 +137,6 @@ docker compose exec airflow airflow dags backfill wikipedia_recent_changes -s 20
 
 Volver a procesar una hora es seguro: las cargas no duplican datos.
 
-> **Limitación conocida:** cuando una hora se procesa **bastante después** de que terminó (un backfill, un `trigger` con fecha pasada o la primera corrida si el DAG se activa a mitad de hora), la tarea `extraer` puede cortar antes de tiempo y traer solo parte de los eventos de esa hora. Las corridas normales, al cumplirse cada hora, traen la hora completa. En la VM de GCP no ocurre porque el DAG corre siempre a la hora.
-
 **Ver las corridas y sus tareas desde la terminal:**
 
 ```bash
