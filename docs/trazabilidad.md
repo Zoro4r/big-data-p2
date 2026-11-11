@@ -925,6 +925,23 @@ Se implementó lo diseñado en Claude Design (canvas "CRUD de Cassandra y Neo4j"
 
 Verificación: con la API, los intentos de escribir sobre un editor real devolvieron 403. Con Playwright, recorrido completo de las cuatro operaciones en las dos bases (insertar, consultar, actualizar y eliminar la partición en Cassandra; crear relación, consultar, agregar propiedad, eliminar la relación y los dos nodos en Neo4j) y consulta de un editor real en solo lectura, sin errores de JavaScript ni datos de prueba al final. Commits `feat: add cassandra and neo4j crud endpoints with demo-only writes` y `feat: redesign cassandra and neo4j crud`.
 
+### 34. Levantar el proyecto en local para pruebas del equipo
+
+El despliegue oficial sigue siendo la VM de GCP. Para que cada integrante pueda probar en su computadora sin tocar la nube se agregaron:
+
+- **`local.sh`**: `./local.sh` crea el `.env` con contraseñas al azar (en Linux pone el UID en `AIRFLOW_UID`), levanta todo con Docker Compose, espera al dashboard y a Airflow, activa el DAG y muestra direcciones y contraseñas. También tiene `estado`, `detener` (conserva los datos) y `borrar` (empezar de cero).
+- **Guía `docs/local.md`**: requisitos, el comando, todas las variables del `.env` (cuáles conviene cambiar y cuáles solo si hace falta), qué ver en cada página, comandos de prueba, problemas comunes y diferencias con la VM. El README apunta a ella.
+- **`.env.example`** con las variables opcionales y **`.gitattributes`** para que los `.sh` no se rompan al clonar en Windows.
+
+**Prueba desde un clon limpio** del repositorio, con el entorno local del usuario detenido para liberar puertos:
+
+- **Primer intento:** el script funcionó, pero con 4 GB para Docker el proyecto completo no entraba. Docker mató a Neo4j por memoria, Airflow se congeló hasta 5 minutos y `cargar_cassandra` y `cargar_neo4j` fallaron.
+- **Corrección, el modo liviano:** la memoria de Cassandra y el paralelismo de Airflow pasaron a ser configurables (`CASSANDRA_HEAP`, `CASSANDRA_HEAP_NEW`, `AIRFLOW_PARALLELISM`), con los mismos valores por defecto que usa la VM. Con menos de 6 GB para Docker, `./local.sh` agrega al `.env` valores más bajos (Cassandra 384M, Neo4j 384m/128m, 2 tareas a la vez).
+- **Segundo intento**, desde cero: las 6 tareas del DAG en `success`, el dashboard con datos y la demo CRUD por consola funcionando.
+- **Al terminar** se borró todo lo de la prueba (contenedores, volúmenes, red, imágenes y la carpeta clonada) y se volvió a levantar el entorno local del usuario como estaba.
+
+**Hallazgo: corte prematuro de `extraer` en horas procesadas tarde.** `extract_window` deja de leer al recibir 100 eventos posteriores al final de la hora. Con `?since=`, el stream entrega mezclados eventos de la hora pedida y eventos actuales: se comprobó que incluso el centro de datos `eqiad` mezcla ambos. Si la hora se procesa bastante después de terminada, esos 100 llegan en segundos y la extracción corta: en la prueba, 2 eventos en vez de miles. En la VM no ocurre (245 corridas, todas con más de 5,000 eventos, mediana 15,163) porque el DAG corre al cumplirse cada hora. Afecta a backfills y a la primera corrida local. Queda anotado como limitación conocida en la guía, pendiente de decidir el arreglo. Commits `feat: add local.sh to run the project locally`, `feat: add light memory mode for local runs` y `docs: add local setup guide`.
+
 ---
 
 ## Pendientes
