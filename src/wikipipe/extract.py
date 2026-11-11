@@ -65,6 +65,7 @@ def extract_window(
     grace_seconds: int = config.STREAM_GRACE_SECONDS,
     max_retries: int = 5,
     stop_after_beyond: int = 100,
+    quiet_seconds: int = 30,
 ) -> dict:
     """Guarda en `out_path` (.jsonl.gz) los eventos con start <= meta.dt < end de las wikis pedidas.
 
@@ -76,10 +77,13 @@ def extract_window(
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
 
     stats = {"read": 0, "kept": 0, "canary": 0, "out_of_window": 0, "other_wikis": 0, "unparseable": 0, "reconnects": 0}
-    beyond_end = 0  # eventos reales ya posteriores a stop_at
+    # Eventos posteriores a stop_at llegados seguidos, por centro de datos (el prefijo de meta.topic:
+    # codfw, eqiad). Ver el comentario del corte más abajo.
+    beyond_end: dict[str, int] = {}
     seen_ids: set[str] = set()
     last_event_id = None
     t0 = time.monotonic()
+    last_in_window = t0  # cuándo llegó el último evento de la ventana (de cualquier wiki)
 
     with gzip.open(tmp_path, "wt", encoding="utf-8") as fh:
         done, attempt = False, 0
@@ -108,14 +112,25 @@ def extract_window(
                             # emite con la hora actual, así que no sirven para decidir el corte.
                             stats["canary"] += 1
                             continue
+                        # Cuándo cortar: con ?since= el stream intercala los dos centros de datos de
+                        # Wikimedia. Cada uno llega en orden de tiempo, pero a distinto ritmo: el de poco
+                        # volumen recorre en segundos todas las horas hasta ahora, mientras el principal
+                        # sigue entregando la ventana (sobre todo si se procesa tarde: backfill, trigger
+                        # manual). Se corta solo con dos señales a la vez:
+                        #  1. cada centro de datos visto lleva `stop_after_beyond` eventos posteriores seguidos;
+                        #  2. hace `quiet_seconds` que no llega ningún evento de la ventana (un centro que
+                        #     todavía no apareció o que sigue entregándola lo impide).
+                        centro = str(event["meta"].get("topic", "")).split(".")[0]
                         if dt >= stop_at:
-                            # El stream mezcla dos datacenters y no llega en orden estricto:
-                            # cortamos solo cuando ya llegaron varios eventos pasada la ventana.
-                            beyond_end += 1
-                            if beyond_end >= stop_after_beyond:
+                            beyond_end[centro] = beyond_end.get(centro, 0) + 1
+                            if (all(n >= stop_after_beyond for n in beyond_end.values())
+                                    and time.monotonic() - last_in_window >= quiet_seconds):
                                 done = True
                                 break
                             continue
+                        beyond_end[centro] = 0  # este centro todavía no pasó la ventana
+                        if dt >= start:
+                            last_in_window = time.monotonic()
                         if not (start <= dt < end):
                             stats["out_of_window"] += 1
                             continue
