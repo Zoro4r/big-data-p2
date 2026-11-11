@@ -68,6 +68,22 @@ if [[ ! -f .env ]]; then
     nueva="$(aleatoria)"
     sed -i.bak "s|^$clave=.*|$clave=$nueva|" .env
   done
+  # Modo liviano: con menos de 6 GB para Docker, el proyecto completo se queda sin memoria (Docker mata
+  # a Neo4j o Cassandra y Airflow se congela). Se bajan la memoria de las bases y las tareas en paralelo.
+  memoria=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
+  if (( memoria > 0 && memoria < 5900000000 )); then
+    echo "==> Docker tiene $((memoria / 1000000)) MB de RAM: se usa el modo liviano (menos memoria para las bases)"
+    cat >> .env <<'LIVIANO'
+
+# Modo liviano (lo agregó ./local.sh porque Docker tenía menos de 6 GB). Si subes la RAM de Docker,
+# puedes borrar estas líneas y ejecutar ./local.sh de nuevo.
+CASSANDRA_HEAP=384M
+CASSANDRA_HEAP_NEW=96M
+NEO4J_HEAP=384m
+NEO4J_PAGECACHE=128m
+AIRFLOW_PARALLELISM=2
+LIVIANO
+  fi
   # En Linux, Airflow tiene que escribir en data/ con tu usuario; en Mac y Windows Docker Desktop lo resuelve solo.
   if [[ "$(uname -s)" == "Linux" ]]; then
     sed -i.bak "s|^AIRFLOW_UID=.*|AIRFLOW_UID=$(id -u)|" .env
@@ -83,7 +99,7 @@ fi
 # ---------------------------------------------------------------- 2. memoria disponible para Docker
 memoria=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
 if (( memoria > 0 && memoria < 3900000000 )); then
-  echo "AVISO: Docker tiene $((memoria / 1000000)) MB de RAM. El proyecto necesita al menos 4 GB (mejor 6 GB):"
+  echo "AVISO: Docker tiene $((memoria / 1000000)) MB de RAM. El proyecto necesita al menos 4 GB (recomendado: 6 GB):"
   echo "       súbela en Docker Desktop > Settings > Resources > Memory."
 fi
 

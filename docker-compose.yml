@@ -13,7 +13,7 @@ x-airflow-env: &airflow-env
   AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
   # Ahorro de memoria: 1 proceso del webserver (por defecto son 4) y pocas tareas a la vez.
   AIRFLOW__WEBSERVER__WORKERS: "1"
-  AIRFLOW__CORE__PARALLELISM: "4"
+  AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-4}
   DATA_DIR: /opt/airflow/data
   WIKIS: ${WIKIS:-enwiki,eswiki}
   WIKI_USER_AGENT: ${WIKI_USER_AGENT:-UTEC-BigData-P2/0.1}
@@ -41,8 +41,9 @@ services:
   cassandra:
     image: cassandra:4.1.7
     environment:
-      MAX_HEAP_SIZE: 512M
-      HEAP_NEWSIZE: 128M
+      # Memoria de Cassandra; ./local.sh la baja en computadoras con poca RAM para Docker.
+      MAX_HEAP_SIZE: ${CASSANDRA_HEAP:-512M}
+      HEAP_NEWSIZE: ${CASSANDRA_HEAP_NEW:-128M}
       CASSANDRA_CLUSTER_NAME: wikipipe
     ports: ["9042:9042"]
     volumes: [cassandra-data:/var/lib/cassandra]
