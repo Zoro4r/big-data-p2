@@ -45,12 +45,14 @@ Cassandra y Neo4j leen de MongoDB los eventos de la hora. Todas las cargas son i
 
 ## Levantar el entorno en local
 
-Requisitos: Docker Desktop con al menos 4 GB de RAM asignados (recomendado: 6 GB o más).
+Requisitos: Docker Desktop con al menos 4 GB de RAM asignados (recomendado: 6 GB o más). La guía paso a paso, con todas las variables del `.env` y los problemas comunes, está en [docs/local.md](docs/local.md).
 
 ```bash
-cp .env.example .env        # y cambiar las contraseñas
-docker compose up -d --build
+./local.sh            # crea el .env, levanta todo, activa el DAG y muestra las direcciones
+./local.sh detener    # apaga (los datos se conservan) · ./local.sh borrar: empezar de cero
 ```
+
+A mano, sin el script: `cp .env.example .env` (y cambiar las contraseñas) y luego `docker compose up -d --build`.
 
 | Servicio | Dirección | Usuario |
 | --- | --- | --- |
@@ -67,7 +69,7 @@ Para crear los esquemas de las tres bases (el DAG también los crea si no existe
 docker compose exec airflow python /opt/airflow/db/create_schemas.py
 ```
 
-El DAG `wikipedia_recent_changes` aparece pausado: se activa desde la interfaz de Airflow.
+El DAG `wikipedia_recent_changes` aparece pausado si se levanta a mano: se activa desde la interfaz de Airflow (`./local.sh` lo activa solo).
 
 Para procesar una hora concreta sin esperar al scheduler:
 
