@@ -996,6 +996,31 @@ A pedido del usuario, el dashboard muestra todas las horas en **UTC−5** (hora 
 
 Commits `feat: serve activity days in utc-5` y `feat: show dashboard times in utc-5`.
 
+### 39. Regresión del arreglo de `extraer`: horas perdidas el 11 nov y nueva regla de corte
+
+**Problema.** La regla de la entrada 35 exigía 30 s sin recibir eventos de la hora pedida. En vivo siguen llegando eventos atrasados de esa hora (por ejemplo, categorizaciones encoladas), y cada uno reiniciaba el contador, así que la extracción casi nunca cortaba.
+- `extraer` pasó de unos 2 min a 14 min (861 s en la hora 05:00 UTC).
+- Desde las 07:00 UTC superó el límite de 30 min de la tarea: 3 intentos fallidos por hora.
+- Con `max_active_runs=1` y `catchup=False`, Airflow se saltó horas.
+- Resultado en la VM, el 11 nov: fallaron 07, 09, 12 y 15 UTC, y 08 y 14 no se intentaron.
+
+**Contexto:** EventStreams solo acepta `since` («desde»), no «hasta». El extractor tiene que deducir cuándo la hora ya llegó completa. Los eventos de otras horas solo se miran para decidirlo; nunca se guardan.
+
+**Nueva regla** ([`extract_window`](../src/wikipipe/extract.py)): se esperan los dos centros de datos de Wikimedia (`codfw`, `eqiad`). Un centro terminó la hora cuando:
+- ya envió 100 eventos posteriores al fin de la hora más el margen, o
+- lleva 30 s sin enviar ningún evento (está inactivo; uno con eventos pendientes los envía sin pausa).
+
+Se corta cuando terminaron los dos. Al medirlo, en vivo solo emitía `codfw`; con la versión intermedia, que esperaba 100 eventos de `eqiad`, una hora reciente no terminaba nunca.
+
+**Validación local:**
+
+| Hora | Eventos | Tiempo | Referencia |
+|---|---|---|---|
+| 10 nov 15:00 UTC, procesada tarde | 11,342 | 82 s | VM: 11,342 |
+| 12 nov 01:00 UTC, reciente | 19,075 | 70 s | — |
+
+Commit `fix: stop extraction when every datacenter is done or idle`. Las horas perdidas se recuperaron después (ver abajo).
+
 ---
 
 ## Pendientes
