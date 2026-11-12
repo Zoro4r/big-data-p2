@@ -1035,6 +1035,19 @@ La corrida de las 00:00 UTC del 12 de noviembre había empezado su extracción 4
 
 Las cifras son de la VM al 12 de noviembre de 2026.
 
+### 41. Informe técnico: cada componente justificado por una necesidad
+
+A pedido del usuario, el informe se reescribió para entenderse solo, sin conocer el proyecto. Se agregó:
+
+- **Contexto** de Wikipedia (bots, patrulleros, reversiones).
+- **Sección de necesidades:** tres públicos y siete necesidades, N1 a N7.
+- **El «por qué» de cada parte**, con su necesidad y la alternativa descartada: dataset, componentes, tareas del DAG, bases, CRUD, vistas y despliegue.
+- **KPIs por necesidad**, con cómo leer cada uno.
+- **Recorrido numerado de un cambio** (pasos 1 a 9), en el texto y en un diagrama redibujado con los dos caminos en colores distintos.
+- **Resultados** ligados a cada necesidad.
+- **Conclusiones** que verifican cada necesidad.
+- **Glosario.**
+
 ---
 
 ## Pendientes
