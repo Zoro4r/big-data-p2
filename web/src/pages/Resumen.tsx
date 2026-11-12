@@ -97,7 +97,7 @@ export default function ResumenPage() {
   const ejeY = (v: number) => {
     const u = KPIS[kpiElegido].unidad
     if (u === "%") return `${v} %`
-    if (u === "bytes") return formatoKpi(kpiElegido, v)
+    if (u === "bytes") return `${Number((v / 1e6).toFixed(1))} MB`
     return Math.abs(v) >= 1000 ? `${v / 1000}k` : String(v)
   }
 
@@ -138,16 +138,15 @@ export default function ResumenPage() {
                 <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
-                {apilado ? (
-                  <>
-                    <Bar dataKey="humanos" stackId="e" fill={COLOR.registrado} isAnimationActive={false}>
+                {/* Recharts no ve las barras dentro de un fragmento: van como arreglo */}
+                {apilado ? [
+                    <Bar key="humanos" dataKey="humanos" stackId="e" fill={COLOR.registrado} isAnimationActive={false}>
                       {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
-                    </Bar>
-                    <Bar dataKey="bots" stackId="e" fill={COLOR.bot} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                    </Bar>,
+                    <Bar key="bots" dataKey="bots" stackId="e" fill={COLOR.bot} radius={[2, 2, 0, 0]} isAnimationActive={false}>
                       {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
-                    </Bar>
-                  </>
-                ) : (
+                    </Bar>,
+                  ] : (
                   <Bar dataKey="valor" fill={colorWiki(wiki)} radius={[2, 2, 0, 0]} isAnimationActive={false}>
                     {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
                   </Bar>
