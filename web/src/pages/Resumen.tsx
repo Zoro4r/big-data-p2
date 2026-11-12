@@ -106,7 +106,7 @@ export default function ResumenPage() {
             <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
               <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].unidad !== "entidad").map((k) => (
+                {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].unidad !== "entidad" && k !== "crecimiento_pct").map((k) => (
                   <SelectItem key={k} value={k}>{KPIS[k].nombre}</SelectItem>
                 ))}
               </SelectContent>
