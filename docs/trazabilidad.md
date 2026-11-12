@@ -978,7 +978,7 @@ Commits `refactor: order summary kpi cards from general to specific` `refactor: 
 «Ritmo de ediciones» mostraba eventos del streaming cada 10 minutos, solo del día, y no coincidía con las tarjetas, que vienen del DAG. Abajo había además otro gráfico, «Evolución de un KPI». Los dos se reemplazaron por uno solo, **«Evolución por hora»**, ubicado debajo de las tarjetas ([`Resumen.tsx`](../web/src/pages/Resumen.tsx)).
 
 - **Datos:** la serie del KPI que calcula el DAG en Cassandra (`kpis` / `kpis_por_wiki`), una barra por hora de las últimas 72 procesadas.
-- **Desplegable** para elegir el KPI; empieza en «Eventos procesados». Muestra solo los 8 KPIs de las tarjetas. «Crecimiento de actividad» se quitó porque es la variación de «Eventos procesados», que ya aparece al pasar el mouse.
+- **Desplegable** para elegir el KPI; empieza en «Eventos procesados». Muestra solo los 8 KPIs de las tarjetas. «Crecimiento de actividad» se quitó porque es la variación de «Eventos procesados», que ya aparece al pasar el mouse. Las opciones siguen el orden de las tarjetas, columna por columna: Eventos acumulados, Eventos procesados, Volumen neto, Tasa de creación, Tasa de automatización, Actividad por editor humano, Calidad de datos y Tasa de reversión.
 - Las barras usan el color de la wiki elegida. Al principio, «Eventos procesados» separaba humanos y bots; el usuario pidió quitarlo.
 - **Última hora:** su barra va resaltada.
 - **Al pasar el mouse:** valor y cambio frente a la hora anterior.
