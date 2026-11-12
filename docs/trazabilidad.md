@@ -973,6 +973,18 @@ Las tarjetas se listan columna por columna, así en pantallas angostas las dos d
 
 Commits `refactor: order summary kpi cards from general to specific` `refactor: group summary kpi cards by column` y `fix: place summary kpi cards with order classes`.
 
+### 37. Un solo gráfico de evolución por hora en el Resumen
+
+«Ritmo de ediciones» mostraba eventos del streaming cada 10 minutos, solo del día, y no coincidía con las tarjetas, que vienen del DAG. Abajo había además otro gráfico, «Evolución de un KPI». Los dos se reemplazaron por uno solo, **«Evolución por hora»**, ubicado debajo de las tarjetas ([`Resumen.tsx`](../web/src/pages/Resumen.tsx)).
+
+- **Datos:** la serie del KPI que calcula el DAG en Cassandra (`kpis` / `kpis_por_wiki`), una barra por hora de las últimas 72 procesadas.
+- **Desplegable** para elegir el KPI; empieza en «Eventos procesados».
+- **Eventos procesados:** cada barra se divide en humanos y bots, usando la tasa de automatización de esa hora.
+- **Última hora:** su barra va resaltada.
+- **Al pasar el mouse:** valor, humanos y bots, y el cambio frente a la hora anterior.
+
+El ritmo cada 10 minutos sigue en «En vivo» y «Actividad en el tiempo». Commit `feat: replace summary charts with hourly kpi evolution`.
+
 ---
 
 ## Pendientes
