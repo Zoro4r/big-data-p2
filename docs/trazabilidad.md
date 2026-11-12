@@ -960,6 +960,15 @@ El despliegue oficial sigue siendo la VM de GCP. Para que cada integrante pueda 
 
 Esto arregla los backfills, los `trigger` con fecha pasada y la primera corrida local. Se quitó la «limitación conocida» de [`docs/local.md`](local.md#5-hacer-pruebas), sección 5. Commit `fix: stop extraction per datacenter when replaying past hours`.
 
+### 36. Orden de las tarjetas del Resumen
+
+Las 8 tarjetas de KPIs estaban sin un orden claro. Ahora van de lo general a lo específico ([`TARJETAS` en `Resumen.tsx`](../web/src/pages/Resumen.tsx#L22-L33)):
+
+- **Fila 1, el dato en conjunto:** Eventos acumulados → Eventos procesados (la hora) → Calidad de datos → Volumen neto de contenido.
+- **Fila 2, cómo es esa actividad:** Tasa de automatización (quién) → Actividad por editor humano → Tasa de creación (qué hace) → Tasa de reversión (qué se deshace).
+
+Commit `refactor: order summary kpi cards from general to specific`.
+
 ---
 
 ## Pendientes
