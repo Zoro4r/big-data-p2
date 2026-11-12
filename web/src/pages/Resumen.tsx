@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { FileText, Share2, Undo2 } from "lucide-react"
 
-import { Cargando, Leyenda, Seccion, TarjetaKpi } from "@/components/common"
+import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
 import { DetalleKpi } from "@/components/detalle-kpi"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +33,7 @@ const TARJETAS: { kpi: Kpi; orden: string; pie: (r: Resumen) => string }[] = [
 ]
 
 /** Un punto del gráfico de evolución: una hora procesada por el DAG. */
-interface PuntoHora { ventana: string; valor: number; humanos?: number; bots?: number; previo: number | null; ultima: boolean }
+interface PuntoHora { ventana: string; valor: number; previo: number | null; ultima: boolean }
 
 const HORAS_EVOLUCION = 72
 
@@ -48,12 +48,6 @@ function TooltipEvolucion({ active, payload, kpi }: { active?: boolean; payload?
         <span className="text-muted-foreground">{KPIS[kpi].nombre}</span>
         <span className="ml-auto font-medium tabular-nums">{formatoKpi(kpi, p.valor)}</span>
       </div>
-      {p.bots != null && p.humanos != null && (
-        <>
-          <div className="flex items-center gap-2"><span className="size-2 rounded-full" style={{ background: COLOR.registrado }} /><span className="text-muted-foreground">humanos</span><span className="ml-auto pl-3 tabular-nums">{entero(p.humanos)}</span></div>
-          <div className="flex items-center gap-2"><span className="size-2 rounded-full" style={{ background: COLOR.bot }} /><span className="text-muted-foreground">bots</span><span className="ml-auto pl-3 tabular-nums">{entero(p.bots)}</span></div>
-        </>
-      )}
       {d && <div className="mt-1 text-muted-foreground">frente a la hora anterior: <span className="text-foreground tabular-nums">{d.texto}</span></div>}
     </div>
   )
@@ -79,21 +73,12 @@ export default function ResumenPage() {
       .map((f) => ({ ...f, calidad: calidad.get(f.hora.slice(0, 13)) ?? null }))
   }, [data, wikis])
 
-  // Últimas horas del KPI elegido, de la más antigua a la más reciente. Para «Eventos procesados» cada
-  // barra se divide en humanos y bots con la tasa de automatización de esa misma hora.
+  // Últimas horas del KPI elegido, de la más antigua a la más reciente.
   const evolucion = useMemo<PuntoHora[]>(() => {
-    if (!data) return []
-    const auto = new Map(data.kpis.tasa_automatizacion_pct.map((p) => [p.ventana, p.valor]))
-    const serie = (data.kpis[kpiElegido] ?? []).filter((p) => p.valor != null).slice(0, HORAS_EVOLUCION).reverse()
-    return serie.map((p, i) => {
-      const valor = p.valor as number
-      const pct = kpiElegido === "eventos_procesados" ? auto.get(p.ventana) : null
-      const bots = pct != null ? Math.round((valor * pct) / 100) : undefined
-      return { ventana: p.ventana, valor, bots, humanos: bots != null ? valor - bots : undefined,
-        previo: i > 0 ? (serie[i - 1].valor as number) : null, ultima: i === serie.length - 1 }
-    })
+    const serie = (data?.kpis[kpiElegido] ?? []).filter((p) => p.valor != null).slice(0, HORAS_EVOLUCION).reverse()
+    return serie.map((p, i) => ({ ventana: p.ventana, valor: p.valor as number,
+      previo: i > 0 ? (serie[i - 1].valor as number) : null, ultima: i === serie.length - 1 }))
   }, [data, kpiElegido])
-  const apilado = evolucion.some((p) => p.bots != null)
   const ejeY = (v: number) => {
     const u = KPIS[kpiElegido].unidad
     if (u === "%") return `${v} %`
@@ -118,17 +103,14 @@ export default function ResumenPage() {
         <Seccion titulo={`Evolución por hora · ${etiqueta}`}
           descripcion={`${KPIS[kpiElegido].formula} · últimas ${evolucion.length || HORAS_EVOLUCION} horas procesadas por el DAG; la última, resaltada · ${KPIS[kpiElegido].fuente}`}
           accion={
-            <div className="flex flex-wrap items-center gap-4">
-              {apilado && <Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}
-              <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
-                <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].unidad !== "entidad").map((k) => (
-                    <SelectItem key={k} value={k}>{KPIS[k].nombre}</SelectItem>
-                  ))}
-                </SelectContent>
+            <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
+              <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(KPIS) as Kpi[]).filter((k) => KPIS[k].unidad !== "entidad").map((k) => (
+                  <SelectItem key={k} value={k}>{KPIS[k].nombre}</SelectItem>
+                ))}
+              </SelectContent>
               </Select>
-            </div>
           }>
           {!data ? <Cargando alto={260} /> : evolucion.length < 2 ? <p className="text-sm text-muted-foreground">Hace falta más de una hora con este KPI para ver su evolución.</p> : (
             <ResponsiveContainer width="100%" height={260}>
@@ -138,19 +120,9 @@ export default function ResumenPage() {
                 <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
-                {/* Recharts no ve las barras dentro de un fragmento: van como arreglo */}
-                {apilado ? [
-                    <Bar key="humanos" dataKey="humanos" stackId="e" fill={COLOR.registrado} isAnimationActive={false}>
-                      {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
-                    </Bar>,
-                    <Bar key="bots" dataKey="bots" stackId="e" fill={COLOR.bot} radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                      {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
-                    </Bar>,
-                  ] : (
-                  <Bar dataKey="valor" fill={colorWiki(wiki)} radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                    {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
-                  </Bar>
-                )}
+                <Bar dataKey="valor" fill={colorWiki(wiki)} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                  {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
