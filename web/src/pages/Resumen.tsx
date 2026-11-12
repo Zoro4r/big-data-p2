@@ -20,16 +20,17 @@ interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: E
 interface Serie10 { fecha: string; serie: { t: string; eventos: number; eventos_bot: number }[] }
 
 // Por columnas, cada una un tema (Volumen, Contenido, Editores, Calidad): arriba el dato general, abajo uno
-// más específico. Se listan columna por columna; en pantallas anchas la grilla se llena por columnas.
-const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
-  { kpi: "total_eventos_acumulados", pie: (r) => `${r.kpis.eventos_procesados.length} horas procesadas` },
-  { kpi: "eventos_procesados", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
-  { kpi: "volumen_neto_bytes", pie: () => "bytes agregados − eliminados" },
-  { kpi: "tasa_creacion_pct", pie: () => "páginas nuevas / ediciones" },
-  { kpi: "tasa_automatizacion_pct", pie: () => "eventos hechos por bots" },
-  { kpi: "actividad_por_editor", pie: () => "eventos por editor humano" },
-  { kpi: "calidad_datos_pct", pie: () => "eventos válidos / extraídos" },
-  { kpi: "tasa_reversion_pct", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
+// más específico. Se listan columna por columna (en pantallas angostas cada tema queda junto) y `orden`
+// las acomoda en la grilla de 4 columnas de pantallas anchas.
+const TARJETAS: { kpi: Kpi; orden: string; pie: (r: Resumen) => string }[] = [
+  { kpi: "total_eventos_acumulados", orden: "xl:order-1", pie: (r) => `${r.kpis.eventos_procesados.length} horas procesadas` },
+  { kpi: "eventos_procesados", orden: "xl:order-5", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
+  { kpi: "volumen_neto_bytes", orden: "xl:order-2", pie: () => "bytes agregados − eliminados" },
+  { kpi: "tasa_creacion_pct", orden: "xl:order-6", pie: () => "páginas nuevas / ediciones" },
+  { kpi: "tasa_automatizacion_pct", orden: "xl:order-3", pie: () => "eventos hechos por bots" },
+  { kpi: "actividad_por_editor", orden: "xl:order-7", pie: () => "eventos por editor humano" },
+  { kpi: "calidad_datos_pct", orden: "xl:order-4", pie: () => "eventos válidos / extraídos" },
+  { kpi: "tasa_reversion_pct", orden: "xl:order-8", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
 ]
 
 function TooltipChart({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: number }) {
@@ -80,11 +81,11 @@ export default function ResumenPage() {
     <>
       <Header ruta={["Panel", "Resumen"]} />
       <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-flow-col xl:grid-cols-4 xl:grid-rows-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
-            : TARJETAS.map(({ kpi, pie }) => (
-                <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
+            : TARJETAS.map(({ kpi, orden, pie }) => (
+                <TarjetaKpi key={kpi} className={orden} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
                   cambio={kpi === "total_eventos_acumulados" ? null : cambio(kpi, data.kpis[kpi])}
                   pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
               ))}

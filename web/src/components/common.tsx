@@ -20,13 +20,15 @@ export function TarjetaKpi(props: {
   titulo?: string
   /** Si se pasa, la tarjeta se puede clickear (abre el detalle del KPI) */
   onAbrir?: () => void
+  /** Clases extra para el elemento de la grilla (por ejemplo, su posición con `order`) */
+  className?: string
 }) {
-  const { etiqueta, valor, cambio, pie, titulo, onAbrir } = props
+  const { etiqueta, valor, cambio, pie, titulo, onAbrir, className } = props
   const Icono = cambio?.sube ? TrendingUp : TrendingDown
   // Subgrid: la tarjeta ocupa 3 filas de la grilla padre (nombre, valor, contexto), así las tarjetas
   // de una misma fila alinean su valor aunque algún nombre ocupe dos líneas.
   const tarjeta = (
-    <Card className={cn("row-span-3 grid grid-rows-subgrid gap-x-0 gap-y-3 py-[18px] shadow-xs", onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
+    <Card className={cn("row-span-3 grid grid-rows-subgrid gap-x-0 gap-y-3 py-[18px] shadow-xs", !onAbrir && className, onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
       <div className="flex items-start justify-between gap-2 px-5">
         <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
           {etiqueta}
@@ -45,7 +47,7 @@ export function TarjetaKpi(props: {
   )
   if (!onAbrir) return tarjeta
   return (
-    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className="group row-span-3 grid grid-rows-subgrid gap-0 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className={cn("group row-span-3 grid grid-rows-subgrid gap-0 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}>
       {tarjeta}
     </button>
   )
