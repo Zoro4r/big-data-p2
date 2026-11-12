@@ -19,16 +19,16 @@ interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: n
 interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number }
 interface Serie10 { fecha: string; serie: { t: string; eventos: number; eventos_bot: number }[] }
 
-// De lo general a lo específico. Fila 1: el dato en conjunto (todo lo guardado → la hora → qué tan
-// confiable es → cuánto contenido movió). Fila 2: cómo es esa actividad (quién la hace → qué hace → qué se deshace).
+// Por columnas, cada una un tema (Volumen, Contenido, Editores, Calidad): arriba el dato general, abajo uno
+// más específico. Se listan columna por columna; en pantallas anchas la grilla se llena por columnas.
 const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
   { kpi: "total_eventos_acumulados", pie: (r) => `${r.kpis.eventos_procesados.length} horas procesadas` },
   { kpi: "eventos_procesados", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
-  { kpi: "calidad_datos_pct", pie: () => "eventos válidos / extraídos" },
   { kpi: "volumen_neto_bytes", pie: () => "bytes agregados − eliminados" },
+  { kpi: "tasa_creacion_pct", pie: () => "páginas nuevas / ediciones" },
   { kpi: "tasa_automatizacion_pct", pie: () => "eventos hechos por bots" },
   { kpi: "actividad_por_editor", pie: () => "eventos por editor humano" },
-  { kpi: "tasa_creacion_pct", pie: () => "páginas nuevas / ediciones" },
+  { kpi: "calidad_datos_pct", pie: () => "eventos válidos / extraídos" },
   { kpi: "tasa_reversion_pct", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
 ]
 
@@ -80,7 +80,7 @@ export default function ResumenPage() {
     <>
       <Header ruta={["Panel", "Resumen"]} />
       <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-flow-col xl:grid-cols-4 xl:grid-rows-2">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
             : TARJETAS.map(({ kpi, pie }) => (
