@@ -985,6 +985,17 @@ Commits `refactor: order summary kpi cards from general to specific` `refactor: 
 
 El ritmo cada 10 minutos sigue en «En vivo» y «Actividad en el tiempo». Commits `feat: replace summary charts with hourly kpi evolution` y `fix: draw stacked bars in summary evolution chart`. El segundo corrige que las barras apiladas no se dibujaran, porque Recharts no lee las barras dentro de un fragmento.
 
+### 38. Horas del dashboard en UTC−5
+
+A pedido del usuario, el dashboard muestra todas las horas en **UTC−5** (hora de Perú, sin horario de verano), con la etiqueta «UTC−5». **Lo guardado sigue en UTC:** MongoDB, Cassandra, Neo4j, el DAG y las ventanas de Airflow no cambian.
+
+- **Formato** ([`lib/format.ts`](../web/src/lib/format.ts)): `horaLocal` reemplaza a `horaUTC`. Agrega `aLocal`, `horaDeCelda` (para celdas guardadas como fecha + hora UTC) y la constante `ZONA`. `ejeDia` marca la medianoche en UTC−5.
+- **Etiquetas:** cabecera, Resumen, En vivo, Actividad, Explorador, Red, Arquitectura (incluidas las notas de la captura del 31 oct: 16:02 UTC pasa a 11:02 UTC−5), modales y CRUD de MongoDB y Neo4j.
+- **Días en UTC−5** ([`/api/actividad` y `/api/serie10`](../api/main.py#L108-L145)): un día va de 00:00 a 23:59 UTC−5. La API lee las dos fechas UTC que lo cubren (`fechas_utc`), se queda con las filas de ese día y devuelve la hora en UTC−5 (`a_zona` en [`queries.py`](../api/queries.py#L70-L84)). `fechas_con_datos` también devuelve días en UTC−5.
+- **Excepción, el CRUD de Cassandra:** sus campos `fecha` y `hora` son la clave real guardada, así que siguen en UTC con la etiqueta «(UTC)».
+
+Commits `feat: serve activity days in utc-5` y `feat: show dashboard times in utc-5`.
+
 ---
 
 ## Pendientes
