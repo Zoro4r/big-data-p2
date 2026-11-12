@@ -5,7 +5,7 @@ import { useTheme } from "next-themes"
 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useEstado, useWiki, type Wiki } from "@/lib/estado"
-import { horaUTC } from "@/lib/format"
+import { horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 const PANEL = [
@@ -36,7 +36,7 @@ function Enlace({ to, label, icon: Icon }: { to: string; label: string; icon: ty
 
 export function Sidebar() {
   const estado = useEstado()
-  const ultimaHora = estado?.ultima_hora ? horaUTC(estado.ultima_hora, false) : undefined
+  const ultimaHora = estado?.ultima_hora ? horaLocal(estado.ultima_hora, false) : undefined
   return (
     <aside className="flex w-full flex-col gap-6 border-b bg-sidebar px-3.5 py-5 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-r md:border-b-0">
       <div className="flex items-center gap-2.5 px-2">
@@ -65,7 +65,7 @@ export function Sidebar() {
           Pipeline activo
         </div>
         <span className="text-xs text-muted-foreground">Streaming en vivo + DAG horario</span>
-        <span className="text-xs text-muted-foreground">Última hora consolidada: {ultimaHora ?? "—"} UTC</span>
+        <span className="text-xs text-muted-foreground">Última hora consolidada: {ultimaHora ?? "—"} UTC−5</span>
         <span className="text-xs text-muted-foreground">MongoDB · Cassandra · Neo4j</span>
       </div>
     </aside>
@@ -101,7 +101,7 @@ function EstadoPipeline() {
         <span className="inline-block w-[4.75rem] tabular-nums">{ultimo ? hace(ultimo, ahora) : "…"}</span>
       </span>
       <span className="h-3.5 w-px bg-border" aria-hidden />
-      <span className="tabular-nums">Lote {estado?.ultima_hora ? horaUTC(estado.ultima_hora) : "…"} UTC</span>
+      <span className="tabular-nums">Lote {estado?.ultima_hora ? horaLocal(estado.ultima_hora) : "…"} UTC−5</span>
     </div>
   )
 }

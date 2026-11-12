@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
 import { NOMBRE_TIPO, tipoEvento } from "@/lib/eventos"
-import { horaUTC } from "@/lib/format"
+import { horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Actualizar en MongoDB: se carga el documento, el formulario muestra sus valores actuales y a la derecha
@@ -161,7 +161,7 @@ export function FormularioActualizacion({ a, id, setId }: { a: Actualizacion; id
   const d = a.original
   const tipo = String(d?.type ?? "")
   const titulo = { categorize: "Categoría", log: "Página o usuario afectado" }[tipo] ?? "Título de la página"
-  const fecha = typeof (d?.derived as Doc | undefined)?.event_time === "string" ? horaUTC(String((d!.derived as Doc).event_time)) : null
+  const fecha = typeof (d?.derived as Doc | undefined)?.event_time === "string" ? horaLocal(String((d!.derived as Doc).event_time)) : null
   const temporal = String(a.valor("user") ?? "").startsWith("~")
 
   return (
@@ -183,7 +183,7 @@ export function FormularioActualizacion({ a, id, setId }: { a: Actualizacion; id
             <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted-foreground">
               <span className="rounded border bg-background px-1.5 font-mono text-[10.5px] font-medium text-foreground/80">{String(d.wiki ?? "").slice(0, 2).toUpperCase()}</span>
               {nombreTipo(d)}<span className="text-muted-foreground/60">·</span>{String(d.user ?? "—")}
-              {fecha && <><span className="text-muted-foreground/60">·</span>{fecha} UTC</>}
+              {fecha && <><span className="text-muted-foreground/60">·</span>{fecha} UTC−5</>}
             </span>
           </div>
 

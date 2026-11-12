@@ -6,7 +6,7 @@ import { Cargando } from "@/components/common"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useApi } from "@/lib/api"
 import { NOMBRE_TIPO, nombreEspacio, tipoEvento, type EventoResumen } from "@/lib/eventos"
-import { colorTipo, entero } from "@/lib/format"
+import { colorTipo, entero, horaLocal, ZONA } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Documento completo del evento, como está guardado en MongoDB (campos que usa el modal). */
@@ -29,11 +29,8 @@ interface Documento {
   [campo: string]: unknown
 }
 
-const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 function fechaExacta(iso: string) {
-  const d = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : `${iso}Z`)
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} · ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`
+  return `${horaLocal(iso, true, true)} ${ZONA}`
 }
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, colorWiki, entero, horaUTC, ejeDia, horaMs } from "@/lib/format"
+import { COLOR, colorTipo, colorWiki, entero, horaDeCelda, horaLocal, ejeDia, horaMs } from "@/lib/format"
 
 interface Actividad {
   fecha: string
@@ -45,21 +45,21 @@ function metricaDia(k: MetricaDia, d: Actividad, etiqueta: string): MetricaModal
   const hh = (h?: { hora: number }) => (h ? `${String(h.hora).padStart(2, "0")}:00` : "—")
   const desde = horas.length ? hh(horas[0]) : ""
   const origen = <>Se lee de <Base base="cassandra" /> (tabla eventos_por_minuto, una partición por wiki y día), que llenan la capa de streaming y el DAG.</>
-  const comun = { etiqueta, momento: `${d.fecha} · UTC`, origen }
+  const comun = { etiqueta, momento: `${d.fecha} · UTC−5`, origen }
   if (k === "dia") return {
     ...comun, titulo: NOMBRE_DIA.dia, valor: entero(ev), nota: `${horas.length} horas con datos`,
     serie: { valores: horas.map((h) => h.eventos), desde },
     datos: [["Hora más activa", `${hh(max("eventos"))} · ${entero(max("eventos")?.eventos)}`], ["Hora más tranquila", `${hh(min)} · ${entero(min?.eventos)}`],
       ["Promedio por hora", horas.length ? entero(ev / horas.length) : "—"]],
-    definicion: `Eventos de ${etiqueta} registrados durante el día elegido (UTC).`,
+    definicion: `Eventos de ${etiqueta} registrados durante el día elegido (UTC−5).`,
     calculo: { texto: "Σ eventos por minuto del día" },
     lectura: "Volumen diario de actividad. Permite comparar días y ver el ciclo de día y noche de cada wiki.",
   }
   if (k === "prom") return {
     ...comun, titulo: NOMBRE_DIA.prom, valor: d.minutos.length ? entero(ev / d.minutos.length) : "—",
-    nota: pico ? `pico de ${entero(pico.eventos)} a las ${horaUTC(pico.t, false)}` : undefined,
+    nota: pico ? `pico de ${entero(pico.eventos)} a las ${horaLocal(pico.t, false)}` : undefined,
     serie: { valores: horas.map((h) => h.eventos / 60), desde },
-    datos: [["Minutos con datos", entero(d.minutos.length)], ["Minuto más activo", pico ? `${entero(pico.eventos)} · ${horaUTC(pico.t, false)}` : "—"]],
+    datos: [["Minutos con datos", entero(d.minutos.length)], ["Minuto más activo", pico ? `${entero(pico.eventos)} · ${horaLocal(pico.t, false)}` : "—"]],
     definicion: "Eventos que llegan en un minuto típico del día.",
     calculo: { fraccion: ["eventos del día", "minutos con datos"] },
     lectura: "Ritmo habitual de la wiki. Un pico muy por encima del promedio suele ser un bot trabajando en ráfaga o una noticia.",
@@ -127,12 +127,12 @@ export default function ActividadPage() {
   return (
     <>
       <Header ruta={["Panel", "Actividad en el tiempo"]} />
-      <Pagina titulo="Actividad en el tiempo" descripcion={`Pulso de ${etiqueta} el ${data?.fecha ?? "…"} (UTC). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}
+      <Pagina titulo="Actividad en el tiempo" descripcion={`Pulso de ${etiqueta} el ${data?.fecha ?? "…"} (UTC−5). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}
         acciones={
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Día (UTC)</span>
+            <span className="text-sm text-muted-foreground">Día (UTC−5)</span>
             <Select value={data?.fecha ?? ""} onValueChange={setFecha}>
-              <SelectTrigger className="w-40" aria-label="Día (UTC)"><SelectValue placeholder="Fecha" /></SelectTrigger>
+              <SelectTrigger className="w-40" aria-label="Día (UTC−5)"><SelectValue placeholder="Fecha" /></SelectTrigger>
               <SelectContent>{(data?.fechas ?? []).map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -141,7 +141,7 @@ export default function ActividadPage() {
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
               <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
-              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaUTC(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
+              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
               <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
               <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
             </>
@@ -170,7 +170,7 @@ export default function ActividadPage() {
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="ms" type="number" scale="time" domain={ejeMinutos.dominio} ticks={ejeMinutos.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
-                <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 <Line type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} dot={false} />
               </LineChart>
@@ -182,7 +182,7 @@ export default function ActividadPage() {
           <Seccion className="lg:col-span-3" titulo="Páginas más editadas" descripcion="Por editores distintos · Cassandra paginas_top_por_hora"
             accion={
               <Select value={horaSel != null ? String(horaSel) : ""} onValueChange={(v) => setHora(Number(v))}>
-                <SelectTrigger size="sm" className="w-28" aria-label="Hora (UTC)"><SelectValue placeholder="Hora" /></SelectTrigger>
+                <SelectTrigger size="sm" className="w-28" aria-label="Hora (UTC−5)"><SelectValue placeholder="Hora" /></SelectTrigger>
                 <SelectContent>{horasTop.map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</SelectItem>)}</SelectContent>
               </Select>
             }>
@@ -220,13 +220,13 @@ export default function ActividadPage() {
                     <Badge variant="outline">{hist.filas.reduce((s, f) => s + f.reversiones_recibidas, 0)} recibidas</Badge>
                   </div>
                   <ResponsiveContainer width="100%" height={110}>
-                    <BarChart data={hist.serie}><XAxis dataKey="t" hide /><Tooltip labelFormatter={(t) => `${horaUTC(String(t))} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} />
+                    <BarChart data={hist.serie}><XAxis dataKey="t" hide /><Tooltip labelFormatter={(t) => `${horaLocal(String(t))} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} />
                       <Bar dataKey="eventos" name="eventos" fill={colorTipo(hist.filas[0].tipo_editor)} radius={[3, 3, 0, 0]} /></BarChart>
                   </ResponsiveContainer>
                   <Table>
                     <TableHeader><TableRow><TableHead>Hora</TableHead><TableHead>Wiki</TableHead><TableHead className="text-right">Eventos</TableHead></TableRow></TableHeader>
                     <TableBody>{hist.filas.slice(0, 6).map((f) => (
-                      <TableRow key={`${f.fecha}-${f.hora}-${f.wiki}`}><TableCell>{f.fecha} {String(f.hora).padStart(2, "0")}:00</TableCell><TableCell>{f.wiki}</TableCell><TableCell className="text-right tabular-nums">{f.eventos}</TableCell></TableRow>
+                      <TableRow key={`${f.fecha}-${f.hora}-${f.wiki}`}><TableCell>{horaDeCelda(f.fecha, f.hora)}</TableCell><TableCell>{f.wiki}</TableCell><TableCell className="text-right tabular-nums">{f.eventos}</TableCell></TableRow>
                     ))}</TableBody>
                   </Table>
                 </div>

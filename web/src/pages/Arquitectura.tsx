@@ -8,7 +8,7 @@ import { Header, Pagina } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useApi } from "@/lib/api"
-import { entero, horaUTC } from "@/lib/format"
+import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Arquitectura del proyecto: el diagrama del flujo es la página y cada componente abre un modal con su detalle
@@ -53,7 +53,7 @@ const millones = (n?: number | null) => (n == null ? "—" : n >= 1e6 ? `${(n / 
 const hace = (iso?: string | null) => {
   if (!iso) return "—"
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
-  return s < 60 ? `hace ${Math.round(s)} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : horaUTC(iso)
+  return s < 60 ? `hace ${Math.round(s)} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : horaLocal(iso)
 }
 
 function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
@@ -213,7 +213,7 @@ function Fuente({ d }: { d: Datos }) {
         editores (posibles conflictos o vandalismo). El stream de cambios en tiempo real de Wikimedia trae exactamente esos datos.
       </Bloque>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Cifra titulo="Volumen" valor={`${millones(d.mongo.eventos)} eventos`} texto={`Guardados en MongoDB desde el ${d.mongo.desde ? horaUTC(d.mongo.desde).split(" · ")[0] : "—"} (el mínimo pedido es 50 mil).`} />
+        <Cifra titulo="Volumen" valor={`${millones(d.mongo.eventos)} eventos`} texto={`Guardados en MongoDB desde el ${d.mongo.desde ? horaLocal(d.mongo.desde).split(" · ")[0] : "—"} (el mínimo pedido es 50 mil).`} />
         <Cifra titulo="Velocidad" valor={porSeg != null ? `~${porSeg.toFixed(1)} por segundo` : "—"}
           texto={`En enwiki + eswiki: ~${entero(d.ritmo.promedio_hora)} por hora, entre ${entero(d.ritmo.min_hora)} y ${entero(d.ritmo.max_hora)} en las últimas ${d.ritmo.horas} h.`} />
         <Cifra titulo="Variedad" valor="4 tipos" texto="Cada tipo trae campos distintos y objetos anidados: es semiestructurado." />
@@ -262,7 +262,7 @@ function Fuente({ d }: { d: Datos }) {
       <div className="grid items-start gap-3 lg:grid-cols-2">
         <Tabla columnas={["Métrica de la muestra", "Valor"]} anchos="minmax(0,1fr) minmax(0,1fr)" minimo={0} filas={CAPTURA} />
         <Imagen src="/img/eventos-por-wiki.png" alt="Gráfico de barras: eventos por wiki en la muestra; commonswiki concentra el 37 %"
-          pie="Captura propia del stream recentchange · 31 oct 2026, 16:02 UTC · 134 s. La actividad está muy concentrada: 4 wikis suman el 70 % de los eventos." />
+          pie="Captura propia del stream recentchange · 31 oct 2026, 11:02 UTC−5 · 134 s. La actividad está muy concentrada: 4 wikis suman el 70 % de los eventos." />
       </div>
 
       <h3 className="mt-2 text-sm font-semibold">Cumple los requisitos del dataset</h3>
@@ -320,7 +320,7 @@ function CapaLotes({ d }: { d: Datos }) {
       <div className="grid gap-3 md:grid-cols-3">
         <Cifra titulo="Programación" valor="Cada hora" texto="DAG wikipedia_recent_changes (@hourly), una corrida a la vez, 2 reintentos por tarea." />
         <Cifra titulo="Corridas registradas" valor={entero(d.dag.corridas)} texto="Cada corrida procesa una hora completa de eventos." />
-        <Cifra titulo="Última hora consolidada" valor={d.stream.ultima_hora ? `${horaUTC(d.stream.ultima_hora)} UTC` : "—"} texto="La hora más reciente que el DAG terminó de procesar." />
+        <Cifra titulo="Última hora consolidada" valor={d.stream.ultima_hora ? `${horaLocal(d.stream.ultima_hora)} UTC−5` : "—"} texto="La hora más reciente que el DAG terminó de procesar." />
       </div>
       <Bloque titulo="El flujo de Airflow">
         <div className="flex flex-col gap-3">
@@ -344,7 +344,7 @@ function CapaLotes({ d }: { d: Datos }) {
       </Bloque>
       {d.dag.ultimas.length > 0 && (
         <Tabla columnas={["Hora procesada", "Extraídos", "Válidos", "Rechazados", "Calidad", "Extracción"]} anchos="minmax(0,1.4fr) repeat(5,minmax(0,1fr))"
-          filas={d.dag.ultimas.map((e) => [`${horaUTC(e.ventana)} UTC`, entero(e.extraidos), entero(e.validos), entero(e.rechazados),
+          filas={d.dag.ultimas.map((e) => [`${horaLocal(e.ventana)} UTC−5`, entero(e.extraidos), entero(e.validos), entero(e.rechazados),
             e.calidad_pct != null ? `${e.calidad_pct.toFixed(1)} %` : "—", e.segundos_extraccion != null ? `${Math.round(e.segundos_extraccion)} s` : "—"])} />
       )}
     </>
@@ -359,7 +359,7 @@ function Mongo({ d }: { d: Datos }) {
         porque="Los 4 tipos de evento tienen campos distintos y objetos anidados; un esquema flexible los guarda sin forzar columnas vacías y permite consultar campos anidados (length.new, log_params…)."
         quien="El servicio stream (cada ~2 s) y la tarea cargar_mongo del DAG (cada hora). Las dos usan el mismo _id, que es el meta.id del evento." />
       <div className="grid gap-3 sm:grid-cols-3">
-        <Cifra titulo="Documentos" valor={millones(d.mongo.eventos)} texto={`Desde el ${d.mongo.desde ? horaUTC(d.mongo.desde) : "—"} UTC.`} />
+        <Cifra titulo="Documentos" valor={millones(d.mongo.eventos)} texto={`Desde el ${d.mongo.desde ? horaLocal(d.mongo.desde) : "—"} UTC−5.`} />
         <Cifra titulo="Tamaño de los datos" valor={gb(d.mongo.tamano_bytes)} texto={`${gb(d.mongo.disco_bytes)} en disco, comprimido.`} />
         <Cifra titulo="Índices" valor={entero(d.mongo.indices.length)} texto="Para buscar por fecha, wiki y tipo, editor, página y reversiones." />
       </div>
@@ -436,7 +436,7 @@ function Neo4j({ d }: { d: Datos }) {
         salientes) es lo que miden los rankings de la Red de editores.
       </Bloque>
       <Imagen src="/img/ejemplo-reversiones.png" alt="Subgrafo real: un patrullero con cinco relaciones REVIRTIO y MENSAJE_A hacia cinco editores"
-        pie="Datos reales de la captura del 31 oct 2026 · enwiki, 16:02:29–16:04:02 UTC." />
+        pie="Datos reales de la captura del 31 oct 2026 · enwiki, 11:02:29–11:04:02 UTC−5." />
     </>
   )
 }
@@ -525,7 +525,7 @@ export default function ArquitecturaPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos guardados" valor={millones(data.mongo.eventos)} pie={`en MongoDB desde el ${data.mongo.desde ? horaUTC(data.mongo.desde).split(" · ")[0] : "—"}`} onAbrir={() => setAbierto("mongo")} />
+              <TarjetaKpi etiqueta="Eventos guardados" valor={millones(data.mongo.eventos)} pie={`en MongoDB desde el ${data.mongo.desde ? horaLocal(data.mongo.desde).split(" · ")[0] : "—"}`} onAbrir={() => setAbierto("mongo")} />
               <TarjetaKpi etiqueta="Ritmo de llegada" valor={porSeg != null ? `~${porSeg.toFixed(1)} / s` : "—"} pie={`~${entero(data.ritmo.promedio_hora)} eventos por hora`} onAbrir={() => setAbierto("fuente")} />
               <TarjetaKpi etiqueta="Corridas del DAG" valor={entero(data.dag.corridas)} pie="una por hora, en Airflow" onAbrir={() => setAbierto("lotes")} />
               <TarjetaKpi etiqueta="Calidad de la última hora" valor={data.calidad_pct != null ? `${data.calidad_pct.toFixed(1)} %` : "—"} pie="eventos que pasaron la validación" onAbrir={() => setAbierto("lotes")} />

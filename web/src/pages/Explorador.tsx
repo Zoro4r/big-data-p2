@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
+import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface Evento { _id: string; fecha: string; wiki: string; tipo: string; titulo: string; editor: string; tipo_editor: string; delta_bytes: number | null; revierte_a: string | null; comentario: string | null }
@@ -133,12 +133,12 @@ export default function ExploradorPage() {
               <div className="max-h-[520px] overflow-auto rounded-md border">
                 <Table>
                   <TableHeader className="sticky top-0 bg-card">
-                    <TableRow><TableHead>Fecha (UTC)</TableHead><TableHead>Tipo</TableHead><TableHead>Título</TableHead><TableHead>Editor</TableHead><TableHead className="text-right">Δ bytes</TableHead></TableRow>
+                    <TableRow><TableHead>Fecha (UTC−5)</TableHead><TableHead>Tipo</TableHead><TableHead>Título</TableHead><TableHead>Editor</TableHead><TableHead className="text-right">Δ bytes</TableHead></TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.eventos.map((ev) => (
                       <TableRow key={ev._id} onClick={() => setElegido(ev._id)} className={cn("cursor-pointer", elegido === ev._id && "bg-muted")}>
-                        <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{horaUTC(ev.fecha)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{horaLocal(ev.fecha)}</TableCell>
                         <TableCell><span className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: COLOR[ev.wiki as "enwiki"] ?? COLOR.otro }} />{ev.tipo}</span></TableCell>
                         <TableCell className="max-w-64 truncate" title={ev.titulo}>
                           <button type="button" className="truncate text-left hover:underline" onClick={() => setElegido(ev._id)}>{ev.titulo}</button>

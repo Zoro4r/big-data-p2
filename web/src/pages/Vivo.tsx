@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cumpleFiltros, FILTROS_EDITOR, FILTROS_TIPO, NOMBRE_EDITOR, NOMBRE_TIPO, PLURAL_TIPO, tipoEvento, type EventoResumen, type Filtros } from "@/lib/eventos"
-import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
+import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface Vivo {
@@ -43,7 +43,7 @@ function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
   const sum = (c: "eventos" | "bots" | "rev" | "ediciones") => minutos.reduce((s, [, f]) => s + f[c], 0)
   const ev = sum("eventos"), bots = sum("bots"), rev = sum("rev"), ediciones = sum("ediciones")
   const pico = (c: "eventos" | "rev") => minutos.reduce((a, b) => (b[1][c] > a[1][c] ? b : a), minutos[0])
-  const hora = (t: string) => horaUTC(t, false)
+  const hora = (t: string) => horaLocal(t, false)
   const desde = `hace ${minutos.length} min`
   const enCassandra = <>El servicio de streaming suma cada evento por minuto en <Base base="cassandra" /> (tabla eventos_por_minuto) y aquí se suman los últimos 30 minutos.</>
   const comun = { etiqueta, momento: "Últimos 30 minutos · se actualiza cada 4 s" }
@@ -226,9 +226,9 @@ export default function VivoPage() {
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={serie} margin={{ left: 0, right: 8, top: 8 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="t" tickFormatter={(t) => horaUTC(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="var(--muted-foreground)" />
+                <XAxis dataKey="t" tickFormatter={(t) => horaLocal(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={40} fontSize={11} stroke="var(--muted-foreground)" />
-                <Tooltip labelFormatter={(t) => `${horaUTC(String(t), false)} UTC`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <Tooltip labelFormatter={(t) => `${horaLocal(String(t), false)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 {wikis.includes("enwiki") && <Area type="monotone" dataKey="enwiki" stackId="a" stroke={COLOR.enwiki} fill={COLOR.enwiki} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />}
                 {wikis.includes("eswiki") && <Area type="monotone" dataKey="eswiki" stackId="a" stroke={COLOR.eswiki} fill={COLOR.eswiki} fillOpacity={0.25} strokeWidth={2} isAnimationActive={false} />}
               </AreaChart>

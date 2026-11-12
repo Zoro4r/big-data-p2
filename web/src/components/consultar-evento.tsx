@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Vacio } from "@/components/common"
 import { api } from "@/lib/api"
 import { NOMBRE_TIPO, nombreEspacio, tipoEvento } from "@/lib/eventos"
-import { bytes, entero, horaUTC } from "@/lib/format"
+import { bytes, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Consultar en MongoDB: filtros a la izquierda (con las coincidencias debajo de "Buscar")
@@ -34,7 +34,7 @@ function hace(f: string | null) {
   if (s < 60) return `hace ${Math.round(s)} s`
   if (s < 3600) return `hace ${Math.round(s / 60)} min`
   if (s < 86400) return `hace ${Math.round(s / 3600)} h`
-  return horaUTC(f)
+  return horaLocal(f)
 }
 
 export function useConsultaEventos(wikiCabecera: WikiCrud) {
@@ -197,7 +197,7 @@ export function FichaDocumento({ c, onActualizar, onEliminar }: { c: ConsultaEve
   const json = JSON.stringify(d, null, 2)
   const lineas = json.split("\n").length
   const datos: [string, React.ReactNode][] = [
-    ["Fecha", fecha ? `${horaUTC(fecha)} UTC` : "—"],
+    ["Fecha", fecha ? `${horaLocal(fecha)} UTC−5` : "—"],
     ...(delta != null ? [["Cambio", <span key="c" className={delta >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}>{bytes(delta)}</span>] as [string, React.ReactNode]] : []),
     ...(typeof largo.new === "number" ? [["Tamaño", typeof largo.old === "number" ? `${entero(largo.old)} → ${entero(largo.new)} B` : `${entero(largo.new)} B`] as [string, React.ReactNode]] : []),
     ["Espacio", `${nombreEspacio(typeof d.namespace === "number" ? d.namespace : null)}${typeof d.namespace === "number" ? ` (${d.namespace})` : ""}`],

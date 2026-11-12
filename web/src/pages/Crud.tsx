@@ -17,6 +17,7 @@ import { Neo4jDerecha, Neo4jIzquierda, useNeo4jCrud } from "@/components/neo4j-c
 import type { Registrar } from "@/components/crud-comun"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
+import { horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO" | "VALIDADOR"
@@ -24,7 +25,7 @@ interface Registro { op: Op; base: string; detalle: string; hora: string; ok: bo
 /** validacion: el validador $jsonSchema de MongoDB rechazó el documento (no es un fallo de la API) */
 interface Resultado { titulo: string; ok: boolean; validacion?: boolean; faltan?: string[]; json: unknown }
 
-const horaActual = () => new Date().toISOString().slice(11, 19)
+const horaActual = () => horaLocal(Date.now(), false, true)
 
 function Operaciones({ valor, onChange, opciones }: { valor: string; onChange: (v: string) => void; opciones: string[] }) {
   return (

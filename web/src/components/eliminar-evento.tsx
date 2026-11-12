@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/lib/api"
 import { NOMBRE_TIPO, tipoEvento } from "@/lib/eventos"
-import { horaUTC } from "@/lib/format"
+import { horaLocal } from "@/lib/format"
 
 /** Eliminar en MongoDB, con dos resguardos: escribir el _id para habilitar el botón y confirmar en un diálogo.
  *  Borrar no se puede deshacer. */
@@ -59,7 +59,7 @@ export type Eliminacion = ReturnType<typeof useEliminacion>
 
 function Ficha({ d }: { d: Doc }) {
   const der = (d.derived ?? {}) as Doc
-  const fecha = typeof der.event_time === "string" ? `${horaUTC(der.event_time)} UTC` : null
+  const fecha = typeof der.event_time === "string" ? `${horaLocal(der.event_time)} UTC−5` : null
   return (
     <div className="flex min-w-0 flex-col gap-0.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-left">
       <span className="truncate text-sm font-semibold text-foreground">{String(d.title ?? "—")}</span>

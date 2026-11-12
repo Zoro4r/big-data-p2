@@ -22,29 +22,45 @@ export function bytes(v: number | null | undefined, signo = true): string {
   return `${s}${ENTERO.format(a)} B`
 }
 
-/** "2026-10-31T23:00:00+00:00" → "31 oct · 23:00" (siempre en UTC). */
-export function horaUTC(iso: string, conDia = true): string {
-  const d = new Date(iso)
-  const hh = String(d.getUTCHours()).padStart(2, "0")
-  const mm = String(d.getUTCMinutes()).padStart(2, "0")
-  if (!conDia) return `${hh}:${mm}`
-  const mes = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][d.getUTCMonth()]
-  return `${d.getUTCDate()} ${mes} · ${hh}:${mm}`
+/** Zona horaria en la que el dashboard muestra las horas (Perú, sin horario de verano). Los datos se guardan en UTC. */
+export const ZONA = "UTC−5"
+const DESFASE_MS = -5 * 3_600_000
+const DIA_MS = 24 * 3_600_000
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+/** Fecha guardada en UTC (con o sin zona, como la devuelve Mongo) → la misma fecha corrida a UTC−5.
+ *  El resultado se lee con getUTC*() para obtener la hora en UTC−5. */
+export function aLocal(iso: string | number): Date {
+  const ms = typeof iso === "number" ? iso : new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`).getTime()
+  return new Date(ms + DESFASE_MS)
 }
 
-/** Eje de tiempo de un día completo (UTC): agrega `ms` a cada punto y fija marcas cada `horas` horas en punto
+const dos = (n: number) => String(n).padStart(2, "0")
+
+/** "2026-10-31T23:00:00+00:00" → "31 oct · 18:00" (en UTC−5). Con `segundos`, agrega :ss. */
+export function horaLocal(iso: string | number, conDia = true, segundos = false): string {
+  const d = aLocal(iso)
+  const hora = `${dos(d.getUTCHours())}:${dos(d.getUTCMinutes())}${segundos ? `:${dos(d.getUTCSeconds())}` : ""}`
+  return conDia ? `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} · ${hora}` : hora
+}
+
+/** Hora y día en UTC−5 de una celda guardada por (fecha, hora) en UTC: ("2026-11-11", 3) → "10 nov · 22:00". */
+export const horaDeCelda = (fecha: string, hora: number, conDia = true) => horaLocal(`${fecha}T${dos(hora)}:00:00Z`, conDia)
+
+/** Eje de tiempo de un día completo (en UTC−5): agrega `ms` a cada punto y fija marcas cada `horas` horas en punto
  *  (00:00, 02:00, 04:00…), en lugar de las que Recharts elige según el espacio (01:46, 03:38…). */
 export function ejeDia<T extends { t: string }>(serie: T[], horas = 2) {
   const datos = serie.map((p) => ({ ...p, ms: new Date(p.t).getTime() }))
-  const inicio = new Date(datos[0]?.ms ?? Date.now())
-  inicio.setUTCHours(0, 0, 0, 0)
-  const dia = inicio.getTime(), paso = horas * 3_600_000
+  const ref = datos[0]?.ms ?? Date.now()
+  // Medianoche en UTC−5 del día del primer punto, expresada en milisegundos reales.
+  const dia = Math.floor((ref + DESFASE_MS) / DIA_MS) * DIA_MS - DESFASE_MS
+  const paso = horas * 3_600_000
   const ticks = Array.from({ length: 24 / horas }, (_, i) => dia + i * paso)
-  return { datos, ticks, dominio: [dia, dia + 24 * 3_600_000] as [number, number] }
+  return { datos, ticks, dominio: [dia, dia + DIA_MS] as [number, number] }
 }
 
-/** Hora UTC "HH:MM" de una marca de tiempo en milisegundos. */
-export const horaMs = (ms: number | string) => horaUTC(new Date(Number(ms)).toISOString(), false)
+/** Hora "HH:MM" (UTC−5) de una marca de tiempo en milisegundos. */
+export const horaMs = (ms: number | string) => horaLocal(Number(ms), false)
 
 export const COLOR = {
   enwiki: "#2a78d6",

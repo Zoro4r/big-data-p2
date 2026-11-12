@@ -1,6 +1,6 @@
 import { baseDeCalculo } from "@/components/fuente"
 import { Base, ModalMetrica } from "@/components/modal-metrica"
-import { entero, horaUTC } from "@/lib/format"
+import { entero, horaLocal } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 const ORDEN = Object.keys(KPIS) as Kpi[]
@@ -45,7 +45,7 @@ export function DetalleKpi(props: {
       m={{
         titulo: meta.nombre,
         etiqueta,
-        momento: actual ? `${horaUTC(actual.ventana)}–${horaUTC(actual.ventana, false).slice(0, 2)}:59 UTC` : "Sin datos",
+        momento: actual ? `${horaLocal(actual.ventana)}–${horaLocal(actual.ventana, false).slice(0, 2)}:59 UTC−5` : "Sin datos",
         valor: entidad ? nombreEntidad(actual?.detalle) : formatoKpi(kpi, actual?.valor),
         valorEsTexto: entidad,
         nota: entidad ? `${entero(actual?.valor)} ${UNIDAD_ENTIDAD[kpi]}`

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api } from "@/lib/api"
-import { entero, horaUTC } from "@/lib/format"
+import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** CRUD del grafo de editores en Neo4j: nodos :Editor y relaciones entre editores.
@@ -26,9 +26,9 @@ const BASE = "Neo4j"
 const RELACIONES: [string, string][] = [["REVIRTIO", "REVIRTIO · revirtió a"], ["MENSAJE_A", "MENSAJE_A · le escribió a"], ["AGRADECIO", "AGRADECIO · agradeció a"], ["BLOQUEO", "BLOQUEO · bloqueó a"]]
 const TIPOS_REL = new Set(RELACIONES.map(([t]) => t))
 const TIPOS_EDITOR: [string, string][] = [["registrado", "Registrado"], ["temporal", "Temporal"], ["bot", "Bot"]]
-/** Valor legible: las fechas de Neo4j (ISO con nanosegundos) se muestran como «31 oct · 17:16 UTC». */
+/** Valor legible: las fechas de Neo4j (ISO con nanosegundos) se muestran en UTC−5: «31 oct · 12:16 UTC−5». */
 const mostrar = (v: unknown) => (v == null ? "—"
-  : typeof v === "string" ? (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v) ? `${horaUTC(v.replace(/\.(\d{3})\d*/, ".$1"))} UTC` : v)
+  : typeof v === "string" ? (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v) ? `${horaLocal(v.replace(/\.(\d{3})\d*/, ".$1"))} UTC−5` : v)
   : Array.isArray(v) ? `${v.length} elementos` : JSON.stringify(v))
 const props = (p: Record<string, unknown>) => Object.entries(p).filter(([k]) => k !== "ventanas").map(([k, v]) => `${k}: ${mostrar(v)}`).join(" · ") || "—"
 const nRel = (n: number) => `${entero(n)} ${n === 1 ? "relación" : "relaciones"}`

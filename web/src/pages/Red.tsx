@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, entero, horaUTC } from "@/lib/format"
+import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
 
 interface Ranking { editor: string; tipo: string; reversiones: number }
 interface Red {
@@ -37,7 +37,7 @@ function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) 
 function metricaRed(k: MetricaRed, c: NonNullable<Red["conteo"]>, etiqueta: string): MetricaModal {
   const porWiki = Boolean(c.ventana)
   const n = (x: string) => entero(c.nodos[x]), r = (x: string) => entero(c.relaciones[x])
-  const momento = porWiki ? `Al lote de ${horaUTC(c.ventana!)} UTC` : "Grafo acumulado desde el 31 oct"
+  const momento = porWiki ? `Al lote de ${horaLocal(c.ventana!)} UTC−5` : "Grafo acumulado desde el 31 oct"
   const origen = porWiki
     ? <>Lo calcula el DAG cada hora en <Base base="neo4j" /> y lo guarda en <Base base="mongo" /> (pipeline_runs), porque recorrer todas las páginas de una wiki toma unos segundos.</>
     : <>Se cuenta en <Base base="neo4j" /> al abrir la página, con los contadores internos del grafo.</>
@@ -142,7 +142,7 @@ export default function RedPage() {
             <div className="col-span-full"><Vacio titulo="Totales por wiki pendientes" texto="Se calculan en la próxima ejecución del DAG." /></div>
           ) : (
             <>
-              <TarjetaKpi etiqueta="Editores" titulo={c.ventana ? `Totales de ${etiqueta} al lote de ${horaUTC(c.ventana)} UTC` : undefined} valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} onAbrir={() => setMetrica("editores")} />
+              <TarjetaKpi etiqueta="Editores" titulo={c.ventana ? `Totales de ${etiqueta} al lote de ${horaLocal(c.ventana)} UTC−5` : undefined} valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} onAbrir={() => setMetrica("editores")} />
               <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} onAbrir={() => setMetrica("ediciones")} />
               <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} onAbrir={() => setMetrica("reversiones")} />
               {c.relaciones.COEDITA != null

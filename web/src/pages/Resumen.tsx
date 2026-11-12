@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorWiki, entero, horaUTC } from "@/lib/format"
+import { COLOR, colorWiki, entero, horaLocal } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
@@ -43,7 +43,7 @@ function TooltipEvolucion({ active, payload, kpi }: { active?: boolean; payload?
   const d = p.previo != null ? cambio(kpi, [{ ventana: p.ventana, valor: p.valor, detalle: null }, { ventana: "", valor: p.previo, detalle: null }]) : null
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
-      <div className="mb-1 font-medium">{horaUTC(p.ventana)} UTC{p.ultima ? " · última hora" : ""}</div>
+      <div className="mb-1 font-medium">{horaLocal(p.ventana)} UTC−5{p.ultima ? " · última hora" : ""}</div>
       <div className="flex items-center gap-3">
         <span className="text-muted-foreground">{KPIS[kpi].nombre}</span>
         <span className="ml-auto font-medium tabular-nums">{formatoKpi(kpi, p.valor)}</span>
@@ -89,7 +89,7 @@ export default function ResumenPage() {
   return (
     <>
       <Header ruta={["Panel", "Resumen"]} />
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaUTC(ultima)}–${horaUTC(ultima, false).slice(0, 2)}:59 UTC) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
+      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaLocal(ultima)}–${horaLocal(ultima, false).slice(0, 2)}:59 UTC−5) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
@@ -116,7 +116,7 @@ export default function ResumenPage() {
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={evolucion} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap={2}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="ventana" tickFormatter={(t) => horaUTC(t)} tickLine={false} axisLine={false} minTickGap={60} fontSize={11} stroke="var(--muted-foreground)" />
+                <XAxis dataKey="ventana" tickFormatter={(t) => horaLocal(t)} tickLine={false} axisLine={false} minTickGap={60} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
@@ -160,7 +160,7 @@ export default function ResumenPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Hora (UTC)</TableHead>
+                    <TableHead>Hora (UTC−5)</TableHead>
                     <TableHead className="text-right">Eventos</TableHead>
                     <TableHead>Bots</TableHead>
                     <TableHead className="text-right">Reversiones</TableHead>
@@ -172,7 +172,7 @@ export default function ResumenPage() {
                     const pct = (f.bots / Math.max(f.eventos, 1)) * 100
                     return (
                       <TableRow key={f.hora}>
-                        <TableCell className="font-medium">{horaUTC(f.hora)}</TableCell>
+                        <TableCell className="font-medium">{horaLocal(f.hora)}</TableCell>
                         <TableCell className="text-right tabular-nums">{entero(f.eventos)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
