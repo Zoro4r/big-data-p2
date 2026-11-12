@@ -969,9 +969,9 @@ Las 8 tarjetas de KPIs estaban sin un orden claro. Primero se ordenaron por fila
 | Eventos acumulados | Volumen neto de contenido | Tasa de automatización | Calidad de datos |
 | Eventos procesados | Tasa de creación | Actividad por editor humano | Tasa de reversión |
 
-En pantallas anchas la grilla se llena por columnas (`xl:grid-flow-col xl:grid-rows-2`). En pantallas angostas, las dos tarjetas de cada tema quedan seguidas.
+Las tarjetas se listan columna por columna, así en pantallas angostas las dos de cada tema quedan seguidas. En pantallas anchas, una clase `xl:order-N` en cada tarjeta las ubica en la grilla de 4 columnas. El primer intento, llenar la grilla por columnas con `grid-flow-col`, encimaba las tarjetas, porque cada tarjeta ocupa 3 filas de subgrid.
 
-Commits `refactor: order summary kpi cards from general to specific` y `refactor: group summary kpi cards by column`.
+Commits `refactor: order summary kpi cards from general to specific` `refactor: group summary kpi cards by column` y `fix: place summary kpi cards with order classes`.
 
 ---
 
