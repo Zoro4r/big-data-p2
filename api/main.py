@@ -109,7 +109,8 @@ def vivo(minutos: int = 30, wiki: str = "ambas"):
 def serie10(wiki: str = "ambas", fecha: date | None = None):
     fechas = q.fechas_con_datos()
     fecha = fecha or (date.fromisoformat(fechas[0]) if fechas else datetime.now(timezone.utc).date())
-    filas = [f for w in wikis_de(wiki) for f in q.serie_10min(w, fecha)]
+    filas = [f for w in wikis_de(wiki) for d in q.fechas_utc(fecha) for f in q.serie_10min(w, d)
+             if datetime.fromisoformat(f["t"]).astimezone(q.ZONA).date() == fecha]
     return {"fecha": fecha.isoformat(), "serie": sumar_por(filas, "t", ("eventos", "eventos_bot", "reversiones"))}
 
 
@@ -118,13 +119,22 @@ def actividad(wiki: str = "ambas", fecha: date | None = None):
     wikis = wikis_de(wiki)
     fechas = q.fechas_con_datos()
     fecha = fecha or (date.fromisoformat(fechas[0]) if fechas else datetime.now(timezone.utc).date())
-    horas = [h for h in q.resumen_por_hora(30) if h["wiki"] in wikis and h["fecha"] == fecha]
-    minutos = [m for w in wikis for m in q.serie_minuto(w, fecha)]
+    # `fecha` es un día en UTC−5: se leen las dos fechas UTC que lo cubren, se quedan las filas de ese día
+    # y la hora se devuelve en UTC−5.
+    def del_dia(f: date, h: int):
+        local = q.a_zona(f, h)
+        return local.hour if local.date() == fecha else None
+
+    horas = [{**h, "hora": hl} for h in q.resumen_por_hora(30)
+             if h["wiki"] in wikis and (hl := del_dia(h["fecha"], h["hora"])) is not None]
+    minutos = [m for w in wikis for d in q.fechas_utc(fecha) for m in q.serie_minuto(w, d)
+               if datetime.fromisoformat(m["t"]).astimezone(q.ZONA).date() == fecha]
     # Top de páginas: con "ambas" se juntan los dos rankings de cada hora y se vuelve a ordenar.
     top = []
     por_hora: dict = {}
-    for t in (t for w in wikis for t in q.paginas_top(w, fecha)):
-        por_hora.setdefault(t["hora"], []).append(t)
+    for t in (t for w in wikis for d in q.fechas_utc(fecha) for t in q.paginas_top(w, d)):
+        if (hl := del_dia(t["fecha"], t["hora"])) is not None:
+            por_hora.setdefault(hl, []).append({**t, "hora": hl})
     for hora, filas in por_hora.items():
         filas.sort(key=lambda t: (-t["editores"], -t["ediciones"]))
         top += [{**t, "posicion": i} for i, t in enumerate(filas[:20], start=1)]

@@ -67,6 +67,21 @@ def _cypher(query: str, **params) -> list[dict]:
         return s.run(query, **params).data()
 
 
+# El dashboard muestra días y horas en UTC−5 (Perú, sin horario de verano). Las tablas guardan todo en UTC:
+# un día en UTC−5 (00:00–23:59) va de las 05:00 UTC de esa fecha a las 04:59 UTC de la siguiente.
+ZONA = timezone(timedelta(hours=-5))
+
+
+def a_zona(fecha: date, hora: int) -> datetime:
+    """Hora guardada en UTC como (fecha, hora) → la misma hora en UTC−5."""
+    return datetime(fecha.year, fecha.month, fecha.day, hora, tzinfo=timezone.utc).astimezone(ZONA)
+
+
+def fechas_utc(dia: date) -> tuple[date, date]:
+    """Las dos fechas UTC que cubren un día en UTC−5."""
+    return dia, dia + timedelta(days=1)
+
+
 def _fechas(dias: int, hasta: date | None = None) -> list[date]:
     hasta = hasta or datetime.now(timezone.utc).date()
     return [hasta - timedelta(days=i) for i in range(dias)]
@@ -143,7 +158,8 @@ def paginas_top(wiki: str, fecha: date) -> list[dict]:
 
 @cacheado
 def fechas_con_datos() -> list[str]:
-    return sorted({f["fecha"].isoformat() for f in resumen_por_hora(dias=30)}, reverse=True)
+    """Días (en UTC−5) con datos, del más reciente al más antiguo."""
+    return sorted({a_zona(f["fecha"], f["hora"]).date().isoformat() for f in resumen_por_hora(dias=30)}, reverse=True)
 
 
 @cacheado
