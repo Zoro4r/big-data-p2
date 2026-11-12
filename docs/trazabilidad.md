@@ -979,9 +979,9 @@ Commits `refactor: order summary kpi cards from general to specific` `refactor: 
 
 - **Datos:** la serie del KPI que calcula el DAG en Cassandra (`kpis` / `kpis_por_wiki`), una barra por hora de las últimas 72 procesadas.
 - **Desplegable** para elegir el KPI; empieza en «Eventos procesados».
-- **Eventos procesados:** cada barra se divide en humanos y bots, usando la tasa de automatización de esa hora.
+- Las barras usan el color de la wiki elegida. Al principio, «Eventos procesados» separaba humanos y bots; el usuario pidió quitarlo.
 - **Última hora:** su barra va resaltada.
-- **Al pasar el mouse:** valor, humanos y bots, y el cambio frente a la hora anterior.
+- **Al pasar el mouse:** valor y cambio frente a la hora anterior.
 
 El ritmo cada 10 minutos sigue en «En vivo» y «Actividad en el tiempo». Commits `feat: replace summary charts with hourly kpi evolution` y `fix: draw stacked bars in summary evolution chart`. El segundo corrige que las barras apiladas no se dibujaran, porque Recharts no lee las barras dentro de un fragmento.
 
