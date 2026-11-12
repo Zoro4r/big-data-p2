@@ -983,7 +983,7 @@ Commits `refactor: order summary kpi cards from general to specific` `refactor: 
 - **Última hora:** su barra va resaltada.
 - **Al pasar el mouse:** valor, humanos y bots, y el cambio frente a la hora anterior.
 
-El ritmo cada 10 minutos sigue en «En vivo» y «Actividad en el tiempo». Commit `feat: replace summary charts with hourly kpi evolution`.
+El ritmo cada 10 minutos sigue en «En vivo» y «Actividad en el tiempo». Commits `feat: replace summary charts with hourly kpi evolution` y `fix: draw stacked bars in summary evolution chart`. El segundo corrige que las barras apiladas no se dibujaran, porque Recharts no lee las barras dentro de un fragmento.
 
 ---
 
