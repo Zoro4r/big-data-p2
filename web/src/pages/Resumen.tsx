@@ -19,15 +19,17 @@ interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: n
 interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number }
 interface Serie10 { fecha: string; serie: { t: string; eventos: number; eventos_bot: number }[] }
 
+// De lo general a lo específico. Fila 1: el dato en conjunto (todo lo guardado → la hora → qué tan
+// confiable es → cuánto contenido movió). Fila 2: cómo es esa actividad (quién la hace → qué hace → qué se deshace).
 const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
+  { kpi: "total_eventos_acumulados", pie: (r) => `${r.kpis.eventos_procesados.length} horas procesadas` },
   { kpi: "eventos_procesados", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
+  { kpi: "calidad_datos_pct", pie: () => "eventos válidos / extraídos" },
+  { kpi: "volumen_neto_bytes", pie: () => "bytes agregados − eliminados" },
   { kpi: "tasa_automatizacion_pct", pie: () => "eventos hechos por bots" },
-  { kpi: "tasa_reversion_pct", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
   { kpi: "actividad_por_editor", pie: () => "eventos por editor humano" },
   { kpi: "tasa_creacion_pct", pie: () => "páginas nuevas / ediciones" },
-  { kpi: "volumen_neto_bytes", pie: () => "bytes agregados − eliminados" },
-  { kpi: "total_eventos_acumulados", pie: (r) => `${r.kpis.eventos_procesados.length} horas procesadas` },
-  { kpi: "calidad_datos_pct", pie: () => "eventos válidos / extraídos" },
+  { kpi: "tasa_reversion_pct", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
 ]
 
 function TooltipChart({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: number }) {
