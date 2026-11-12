@@ -962,12 +962,16 @@ Esto arregla los backfills, los `trigger` con fecha pasada y la primera corrida 
 
 ### 36. Orden de las tarjetas del Resumen
 
-Las 8 tarjetas de KPIs estaban sin un orden claro. Ahora van de lo general a lo específico ([`TARJETAS` en `Resumen.tsx`](../web/src/pages/Resumen.tsx#L22-L33)):
+Las 8 tarjetas de KPIs estaban sin un orden claro. Primero se ordenaron por filas, y luego, a pedido del usuario, **por columnas**: cada columna es un tema, con el dato general arriba y uno más específico abajo ([`TARJETAS` en `Resumen.tsx`](../web/src/pages/Resumen.tsx#L22-L35)).
 
-- **Fila 1, el dato en conjunto:** Eventos acumulados → Eventos procesados (la hora) → Calidad de datos → Volumen neto de contenido.
-- **Fila 2, cómo es esa actividad:** Tasa de automatización (quién) → Actividad por editor humano → Tasa de creación (qué hace) → Tasa de reversión (qué se deshace).
+| Volumen | Contenido | Editores | Calidad |
+|---|---|---|---|
+| Eventos acumulados | Volumen neto de contenido | Tasa de automatización | Calidad de datos |
+| Eventos procesados | Tasa de creación | Actividad por editor humano | Tasa de reversión |
 
-Commit `refactor: order summary kpi cards from general to specific`.
+En pantallas anchas la grilla se llena por columnas (`xl:grid-flow-col xl:grid-rows-2`). En pantallas angostas, las dos tarjetas de cada tema quedan seguidas.
+
+Commits `refactor: order summary kpi cards from general to specific` y `refactor: group summary kpi cards by column`.
 
 ---
 
