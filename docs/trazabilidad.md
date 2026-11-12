@@ -1019,7 +1019,21 @@ Se corta cuando terminaron los dos. Al medirlo, en vivo solo emitía `codfw`; co
 | 10 nov 15:00 UTC, procesada tarde | 11,342 | 82 s | VM: 11,342 |
 | 12 nov 01:00 UTC, reciente | 19,075 | 70 s | — |
 
-Commit `fix: stop extraction when every datacenter is done or idle`. Las horas perdidas se recuperaron después (ver abajo).
+Commit `fix: stop extraction when every datacenter is done or idle`. Las horas perdidas se recuperaron en la entrada 40.
+
+### 40. Recuperación de las horas perdidas e informe técnico
+
+**Recuperación.** Se recuperaron las 6 horas perdidas del 11 de noviembre en la VM, ya con la regla de corte nueva:
+- las corridas fallidas de 07, 09, 12 y 15 UTC se reiniciaron con `airflow tasks clear --only-failed`;
+- las de 08 y 14 UTC, que no se habían intentado, se corrieron con `airflow dags backfill`.
+
+La corrida de las 00:00 UTC del 12 de noviembre había empezado su extracción 4 minutos antes del despliegue, con el código viejo. Se reinició: extrajo su hora en unos 36 s y terminó las 6 tareas en unos 2 min. Las 6 horas recuperadas terminaron en `success` antes de las 03:00 UTC.
+
+**Informe técnico.** Se redactó el informe como documento compartible (Claude Docs, exportable a PDF), con las secciones que piden las instrucciones:
+- introducción y problema, dataset, arquitectura (diagrama), pipeline de Airflow (diagrama), modelos de las tres bases, CRUD, KPIs y dashboard, con capturas de las 7 vistas tomadas de la VM;
+- además: despliegue, resultados (gráfico de eventos por hora de las últimas 72 horas, con la ráfaga de bots del 9 de noviembre), problemas y soluciones, y conclusiones.
+
+Las cifras son de la VM al 12 de noviembre de 2026.
 
 ---
 
@@ -1034,6 +1048,7 @@ Commit `fix: stop extraction when every datacenter is done or idle`. Las horas p
 - [x] Terraform y `deploy.sh` para GCP, con instrucciones de despliegue (`docs/despliegue.md`).
 - [x] Dashboard en Streamlit (5 páginas) con página de CRUD, en local y en la VM.
 - [x] Aprobar el mockup y migrar el dashboard a React + shadcn/ui + FastAPI.
-- [ ] Capturas del dashboard para el informe (cuando haya varios días de datos).
+- [x] Capturas del dashboard para el informe.
 - [x] Eliminar las reglas de firewall por defecto `default-allow-ssh` y `default-allow-rdp`.
-- [ ] Informe PDF y video.
+- [ ] Informe PDF: borrador listo; falta revisión del equipo y exportarlo.
+- [ ] Video.
