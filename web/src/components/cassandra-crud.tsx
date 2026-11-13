@@ -258,7 +258,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Operaciones valor={c.op} onChange={c.setOp} />
-      <BotonPrueba onClick={c.completarPrueba} ultimos={c.op !== "Crear"} />
+      <BotonPrueba onClick={c.completarPrueba} ultimos={c.op !== "Crear" && "las últimas filas"} />
       <ModalElegir abierto={c.ultimos.abierto} onCerrar={() => c.setUltimos({ abierto: false, filas: null })} onElegir={c.elegirUltimo}
         titulo="Últimas 5 filas" descripcion={`Elige una y confírmala para usarla en ${c.op}.`} columnas={["KPI", "Valor", "Hora"]}
         filas={c.ultimos.filas && c.ultimos.filas.map((f) => ({ id: `${f.kpi}|${f.ventana}`, titulo: nombreKpi(f.kpi), subtitulo: f.detalle ?? undefined,

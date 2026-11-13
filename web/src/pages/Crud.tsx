@@ -176,7 +176,7 @@ export default function CrudPage() {
               <Seccion titulo="Colección events" className="h-full" contenidoClassName="flex flex-1 flex-col">
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
-                  <BotonPrueba onClick={pruebaMongo} ultimos={mOp !== "Crear"} />
+                  <BotonPrueba onClick={pruebaMongo} ultimos={mOp !== "Crear" && "los últimos eventos"} />
                   <ModalUltimos abierto={ultimos.abierto} docs={ultimos.docs} onCerrar={() => setUltimos({ abierto: false, docs: null })} onElegir={elegirUltimo}
                     operacion={mOp} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />

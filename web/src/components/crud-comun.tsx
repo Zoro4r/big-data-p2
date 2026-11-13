@@ -220,10 +220,10 @@ export function BotonesGuardar({ n, deshabilitado, onCancelar }: { n: number; de
   )
 }
 
-export function BotonPrueba({ onClick, ultimos }: { onClick: () => void; ultimos?: boolean }) {
+export function BotonPrueba({ onClick, ultimos }: { onClick: () => void; ultimos?: string | false }) {
   return (
     <Button type="button" variant="outline" size="sm" className="w-full" onClick={onClick}>
-      {ultimos ? <><History aria-hidden />Elegir entre los últimos eventos</> : <><FlaskConical aria-hidden />Completar con datos de prueba</>}
+      {ultimos ? <><History aria-hidden />Elegir entre {ultimos}</> : <><FlaskConical aria-hidden />Completar con datos de prueba</>}
     </Button>
   )
 }

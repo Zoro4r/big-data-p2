@@ -236,7 +236,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Operaciones valor={n.op} onChange={n.setOp} />
-      <BotonPrueba onClick={n.completarPrueba} ultimos={n.op !== "Crear"} />
+      <BotonPrueba onClick={n.completarPrueba} ultimos={n.op !== "Crear" && "los últimos editores"} />
       <ModalElegir abierto={n.ultimos.abierto} onCerrar={() => n.setUltimos({ abierto: false, filas: null })} onElegir={n.elegirUltimo}
         titulo="Últimos 5 editores" descripcion={`Elige uno y confírmalo para usarlo en ${n.op}.`} columnas={["Editor", "Tipo", "Actividad"]}
         filas={n.ultimos.filas && n.ultimos.filas.map((e) => ({ id: e.user, titulo: e.user, subtitulo: nRel(e.relaciones),
