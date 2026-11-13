@@ -1316,6 +1316,20 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Verificado en la VM:** la hora 01:00 del 13 nov muestra minutos normales de unos 300 eventos y, desde las 01:23, ráfagas de bots de hasta 2 900 por minuto.
   - **Cambio posterior** (commits `fix: open minute breakdown of an hour in a modal` y `fix: soften minute chart hover cursor`): a pedido del usuario, el detalle minuto a minuto se abre en un modal al hacer clic en la hora y ya no ocupa una sección fija de la página. El cursor del gráfico usa el mismo gris que el gráfico por hora.
   - **Título:** el gráfico por hora pasó de «Humanos y bots por hora» a «Eventos por hora» (commit `fix: rename hourly chart to events per hour`).
+- **Columnas del CRUD con la altura de la más alta** (commit `fix: let crud columns share the taller height`): la columna derecha ya no se recorta a la altura del formulario con scroll interno. Neo4j › Consultar mostraba la red cortada. Ahora la fila de la grilla toma la altura de la columna más alta y las dos se estiran hasta ahí ([Crud.tsx](../web/src/pages/Crud.tsx)).
+- **Informe técnico actualizado con la interfaz aprobada** (revisiones 103 a 106 del documento en Claude Docs):
+  - **Sección 7 (Operaciones CRUD):**
+    - La introducción explica los formularios vacíos y los botones «Completar con datos de prueba» y «Elegir entre los últimos…». Ya no menciona el registro de la sesión.
+    - MongoDB menciona «Cancelar» en Actualizar.
+    - Cassandra pasa a la tabla `kpis`, con su clave `((kpi), ventana)` y las cuatro operaciones reescritas.
+    - Neo4j ya no dice que solo se escribe sobre «Demo_».
+    - En la tabla resumen, la columna de Cassandra pasa a `kpis`.
+    - La decisión de diseño «Escrituras solo sobre datos de demostración» se reemplazó por «Datos de prueba a un clic».
+    - Se reemplazaron las 12 capturas (4 operaciones × 3 bases), tomadas el 13 nov con datos `demo_…` que se borraron al terminar, y se reescribieron sus pies.
+  - **Sección 9 (Dashboard):**
+    - En la tabla de vistas, Actividad cuenta con el modal por minuto y el Explorador ya no tiene el filtro de reversiones; su base pasa a «MongoDB y Cassandra».
+    - Se actualizaron los textos y las capturas de Actividad (con el modal abierto), Explorador, Operaciones CRUD y Arquitectura (sin tarjetas).
+    - Las fechas de las capturas pasan a «entre el 11 y el 13 de noviembre».
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
