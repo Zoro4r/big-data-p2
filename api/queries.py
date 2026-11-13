@@ -312,9 +312,15 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
         "tipo_editor": d["derived"].get("user_type"), "delta_bytes": d["derived"].get("delta_bytes"),
         "revierte_a": d["derived"].get("revert_target"),
     }
+    # Editores distintos de la ventana, por tipo: se agrupa por editor y luego por su tipo.
+    editores = {r["_id"] or "registrado": r["n"] for r in db.events.aggregate([
+        {"$match": {"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": ahora - timedelta(minutes=minutos)}}},
+        {"$group": {"_id": "$user", "tipo": {"$first": "$derived.user_type"}}},
+        {"$group": {"_id": "$tipo", "n": {"$sum": 1}}}])}
     estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
     return {
         "ahora": ahora.isoformat(),
+        "editores": editores,
         "eventos_ultimo_minuto": db.events.count_documents(
             {"derived.event_dt": {"$gte": hace_un_minuto}, "wiki": {"$in": wikis}}),
         "por_minuto": sorted(por_minuto, key=lambda x: x["t"]),

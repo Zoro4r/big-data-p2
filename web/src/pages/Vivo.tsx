@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils"
 interface Vivo {
   ahora: string
   eventos_ultimo_minuto: number
+  /** Editores distintos de los últimos 30 minutos, por tipo (registrado, temporal, bot). */
+  editores: Record<string, number>
   por_minuto: { wiki: string; t: string; eventos: number; ediciones: number; eventos_bot: number; reversiones: number }[]
   ultimos: EventoResumen[]
   /** Cambios que borraron más de BORRADO_GRANDE bytes en la ventana. */
@@ -29,9 +31,9 @@ const REFRESCO_MS = 4000
 const MOSTRAR = 25
 
 /** Tarjetas de En vivo que abren su detalle. */
-type MetricaVivo = "eps" | "ult30" | "bots" | "rev"
-const ORDEN_VIVO: MetricaVivo[] = ["eps", "ult30", "bots", "rev"]
-const NOMBRE_METRICA: Record<MetricaVivo, string> = { eps: "Eventos por segundo", ult30: "Últimos 30 minutos", bots: "Hechos por bots", rev: "Reversiones" }
+type MetricaVivo = "eps" | "editores" | "bots" | "rev"
+const ORDEN_VIVO: MetricaVivo[] = ["eps", "editores", "bots", "rev"]
+const NOMBRE_METRICA: Record<MetricaVivo, string> = { eps: "Eventos por segundo", editores: "Editores activos", bots: "Hechos por bots", rev: "Reversiones" }
 
 /** Definición y datos de cada tarjeta de En vivo, a partir de la serie por minuto de Cassandra. */
 function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
@@ -61,16 +63,17 @@ function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
     lectura: "Muestra qué tan activa está Wikipedia en este momento. Varía con la hora del día y sube con noticias o con bots que trabajan en lote.",
     origen: <>Se cuenta en <Base base="mongo" /> (colección events) cada vez que se actualiza la página.</>,
   }
-  if (k === "ult30") return {
-    ...comun, titulo: NOMBRE_METRICA.ult30, valor: entero(ev), nota: `eventos de ${etiqueta}`,
-    serie: { valores: minutos.map(([, f]) => f.eventos), desde },
-    datos: [["Promedio por minuto", minutos.length ? entero(ev / minutos.length) : "—"],
-      ["Minuto más activo", minutos.length ? `${entero(pico("eventos")[1].eventos)} · ${hora(pico("eventos")[0])}` : "—"],
-      ["Ediciones", entero(ediciones)]],
-    definicion: "Eventos guardados por la capa de streaming en los últimos 30 minutos: ediciones, páginas nuevas, categorizaciones y registros.",
-    calculo: { texto: "Σ eventos por minuto de los últimos 30 minutos" },
-    lectura: "Volumen reciente de actividad. Sirve para comparar con la hora consolidada que muestra el Resumen.",
-    origen: enCassandra,
+  if (k === "editores") {
+    const e = d.editores, total = Object.values(e).reduce((s, n) => s + n, 0)
+    return {
+      ...comun, titulo: NOMBRE_METRICA.editores, valor: entero(total), nota: `${entero(ev)} eventos de ${etiqueta}`,
+      datos: [["Cuentas registradas", entero(e.registrado ?? 0)], ["Cuentas temporales", entero(e.temporal ?? 0)], ["Bots", entero(e.bot ?? 0)],
+        ["Eventos por editor", total ? (ev / total).toFixed(1) : "—"]],
+      definicion: "Editores distintos que hicieron al menos un cambio en los últimos 30 minutos.",
+      calculo: { codigo: "events.aggregate([{ $match: últimos 30 min }, { $group: { _id: \"$user\" } }, { $count }])" },
+      lectura: "Cuánta gente está trabajando ahora. Junto con los eventos dice si un pico viene de muchos editores o de pocos muy activos, como un bot en ráfaga o un ataque.",
+      origen: <>Se cuenta en <Base base="mongo" /> (colección events) cada vez que se actualiza la página.</>,
+    }
   }
   if (k === "bots") return {
     ...comun, titulo: NOMBRE_METRICA.bots, valor: ev ? `${((bots / ev) * 100).toFixed(1)} %` : "—", nota: `${entero(bots)} eventos en 30 min`,
@@ -223,7 +226,8 @@ export default function VivoPage() {
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
               <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
-              <TarjetaKpi etiqueta="Últimos 30 minutos" valor={entero(tot.ev)} pie={`eventos de ${etiqueta}`} onAbrir={() => setMetrica("ult30")} />
+              <TarjetaKpi etiqueta="Editores activos" valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
+                pie={`${entero((data.editores?.registrado ?? 0) + (data.editores?.temporal ?? 0))} personas · ${entero(data.editores?.bot ?? 0)} bots en 30 min`} onAbrir={() => setMetrica("editores")} />
               <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
               <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
             </>
