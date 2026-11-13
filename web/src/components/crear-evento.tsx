@@ -154,14 +154,14 @@ function Campo({ id, label, ayuda, children }: { id: string; label: string; ayud
   )
 }
 
-function Texto({ id, valor, onChange, mono }: { id: string; valor: unknown; onChange: (v: string) => void; mono?: boolean }) {
-  return <Input id={id} className={mono ? "font-mono" : undefined} value={valor == null ? "" : String(valor)} onChange={(e) => onChange(e.target.value)} />
+function Texto({ id, valor, onChange, mono, ph }: { id: string; valor: unknown; onChange: (v: string) => void; mono?: boolean; ph?: string }) {
+  return <Input id={id} placeholder={ph} className={mono ? "font-mono" : undefined} value={valor == null ? "" : String(valor)} onChange={(e) => onChange(e.target.value)} />
 }
 
-function Numero({ id, valor, onChange, sufijo }: { id: string; valor: unknown; onChange: (v: number | undefined) => void; sufijo?: ReactNode }) {
+function Numero({ id, valor, onChange, sufijo, ph }: { id: string; valor: unknown; onChange: (v: number | undefined) => void; sufijo?: ReactNode; ph?: string }) {
   return (
     <div className="relative">
-      <Input id={id} type="number" min={0} className="font-mono" value={typeof valor === "number" ? valor : ""}
+      <Input id={id} type="number" min={0} placeholder={ph} className="font-mono" value={typeof valor === "number" ? valor : ""}
         onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
       {sufijo && <span className="pointer-events-none absolute top-1/2 right-9 -translate-y-1/2 font-mono text-xs">{sufijo}</span>}
     </div>
@@ -197,8 +197,8 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
       <Desplegable id={id} valor={tipoEditorDe(d)} onChange={setTipoEditor} opciones={[["registrado", "Registrado"], ["temporal", "Temporal"], ["bot", "Bot"]]} />
     </Campo>
   )
-  const editor = (label = "Editor") => <Campo id="ev-user" label={label}><Texto id="ev-user" valor={d.user} onChange={(v) => set("user", v)} /></Campo>
-  const comentario = (label = "Comentario") => <Campo id="ev-com" label={label}><Texto id="ev-com" valor={d.comment} onChange={(v) => set("comment", v)} /></Campo>
+  const editor = (label = "Editor") => <Campo id="ev-user" label={label}><Texto id="ev-user" ph="Ej. Demo_Editor" valor={d.user} onChange={(v) => set("user", v)} /></Campo>
+  const comentario = (label = "Comentario") => <Campo id="ev-com" label={label}><Texto id="ev-com" ph="Ej. Corrección de ortografía" valor={d.comment} onChange={(v) => set("comment", v)} /></Campo>
   const par = (a: ReactNode, b: ReactNode) => <div className="grid grid-cols-2 gap-3">{a}{b}</div>
 
   // Categorización: el comentario dice qué página entra o sale de la categoría.
@@ -213,17 +213,17 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
     const delta = typeof largo.new === "number" ? largo.new - (typeof largo.old === "number" ? largo.old : 0) : null
     campos = (
       <>
-        <Campo id="ev-titulo" label={ev.tipo === "nueva" ? "Título de la página nueva" : "Título de la página"}><Texto id="ev-titulo" valor={d.title} onChange={(v) => set("title", v)} /></Campo>
+        <Campo id="ev-titulo" label={ev.tipo === "nueva" ? "Título de la página nueva" : "Título de la página"}><Texto id="ev-titulo" ph="Ej. Machu Picchu" valor={d.title} onChange={(v) => set("title", v)} /></Campo>
         {par(editor(), tipoEditor("ev-tipo-editor"))}
         {ev.tipo === "edicion" ? par(
-          <Campo id="ev-antes" label="Bytes antes"><Numero id="ev-antes" valor={largo.old} onChange={(v) => setEn("length", "old", v)} /></Campo>,
+          <Campo id="ev-antes" label="Bytes antes"><Numero id="ev-antes" ph="Ej. 12000" valor={largo.old} onChange={(v) => setEn("length", "old", v)} /></Campo>,
           <Campo id="ev-despues" label="Bytes después">
-            <Numero id="ev-despues" valor={largo.new} onChange={(v) => setEn("length", "new", v)}
+            <Numero id="ev-despues" ph="Ej. 12450" valor={largo.new} onChange={(v) => setEn("length", "new", v)}
               sufijo={delta != null && <span className={delta >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}>{delta >= 0 ? "+" : "−"}{Math.abs(delta)} B</span>} />
           </Campo>,
         ) : (
           <Campo id="ev-tam" label="Tamaño inicial (bytes)" ayuda="Una página nueva no tiene tamaño anterior.">
-            <Numero id="ev-tam" valor={largo.new} onChange={(v) => setEn("length", "new", v)} />
+            <Numero id="ev-tam" ph="Ej. 3500" valor={largo.new} onChange={(v) => setEn("length", "new", v)} />
           </Campo>
         )}
         {comentario()}
@@ -232,9 +232,9 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
   } else if (ev.tipo === "categorizacion") {
     campos = (
       <>
-        <Campo id="ev-cat" label="Categoría"><Texto id="ev-cat" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.categoria)} /></Campo>
+        <Campo id="ev-cat" label="Categoría"><Texto id="ev-cat" ph="Ej. Patrimonio de la Humanidad" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.categoria)} /></Campo>
         {par(
-          <Campo id="ev-pag" label="Página"><Texto id="ev-pag" valor={paginaCat} onChange={(v) => setCat(v, quitada)} /></Campo>,
+          <Campo id="ev-pag" label="Página"><Texto id="ev-pag" ph="Ej. Machu Picchu" valor={paginaCat} onChange={(v) => setCat(v, quitada)} /></Campo>,
           <Campo id="ev-cat-acc" label="La página se…">
             <Desplegable id="ev-cat-acc" valor={quitada ? "quitada" : "añadida"} onChange={(v) => setCat(paginaCat, v === "quitada")} opciones={[["añadida", "Añade"], ["quitada", "Quita"]]} />
           </Campo>,
@@ -251,36 +251,36 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
         </Campo>
         {a === "bloqueo" && (
           <>
-            {par(editor("Administrador"), <Campo id="ev-dest" label="Usuario bloqueado"><Texto id="ev-dest" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.usuario)} /></Campo>)}
+            {par(editor("Administrador"), <Campo id="ev-dest" label="Usuario bloqueado"><Texto id="ev-dest" ph="Ej. Vandalo123" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.usuario)} /></Campo>)}
             {par(<Campo id="ev-dur" label="Duración"><Desplegable id="ev-dur" valor={String(params.duration ?? "31 hours")} onChange={(v) => setEn("log_params", "duration", v)} opciones={DURACIONES} /></Campo>, tipoEditor("ev-tipo-editor"))}
             {comentario("Motivo")}
           </>
         )}
         {a === "agradecimiento" && (
           <>
-            {par(editor("Quién agradece"), <Campo id="ev-dest" label="Usuario agradecido"><Texto id="ev-dest" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.usuario)} /></Campo>)}
+            {par(editor("Quién agradece"), <Campo id="ev-dest" label="Usuario agradecido"><Texto id="ev-dest" ph="Ej. Demo_Editor" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.usuario)} /></Campo>)}
             {tipoEditor("ev-tipo-editor")}
           </>
         )}
         {a === "traslado" && (
           <>
-            {par(<Campo id="ev-titulo" label="Página original"><Texto id="ev-titulo" valor={d.title} onChange={(v) => set("title", v)} /></Campo>,
-              <Campo id="ev-dest" label="Nuevo título"><Texto id="ev-dest" valor={params.target} onChange={(v) => setEn("log_params", "target", v)} /></Campo>)}
+            {par(<Campo id="ev-titulo" label="Página original"><Texto id="ev-titulo" ph="Ej. Machu Pichu" valor={d.title} onChange={(v) => set("title", v)} /></Campo>,
+              <Campo id="ev-dest" label="Nuevo título"><Texto id="ev-dest" ph="Ej. Machu Picchu" valor={params.target} onChange={(v) => setEn("log_params", "target", v)} /></Campo>)}
             {par(editor(), tipoEditor("ev-tipo-editor"))}
             {comentario("Motivo")}
           </>
         )}
         {a === "subida" && (
           <>
-            <Campo id="ev-archivo" label="Nombre del archivo"><Texto id="ev-archivo" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.archivo)} /></Campo>
+            <Campo id="ev-archivo" label="Nombre del archivo"><Texto id="ev-archivo" ph="Ej. Machu_Picchu.jpg" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.archivo)} /></Campo>
             {par(editor(), tipoEditor("ev-tipo-editor"))}
             {comentario()}
           </>
         )}
         {a === "otra" && (
           <>
-            {par(<Campo id="ev-logtipo" label="Tipo de registro"><Texto id="ev-logtipo" mono valor={d.log_type} onChange={(v) => ev.cambiar((x) => ({ ...x, log_type: v, log_action: v }))} /></Campo>,
-              <Campo id="ev-titulo" label="Página afectada"><Texto id="ev-titulo" valor={d.title} onChange={(v) => set("title", v)} /></Campo>)}
+            {par(<Campo id="ev-logtipo" label="Tipo de registro"><Texto id="ev-logtipo" mono ph="Ej. protect" valor={d.log_type} onChange={(v) => ev.cambiar((x) => ({ ...x, log_type: v, log_action: v }))} /></Campo>,
+              <Campo id="ev-titulo" label="Página afectada"><Texto id="ev-titulo" ph="Ej. Machu Picchu" valor={d.title} onChange={(v) => set("title", v)} /></Campo>)}
             {par(editor(), tipoEditor("ev-tipo-editor"))}
             {comentario()}
           </>
