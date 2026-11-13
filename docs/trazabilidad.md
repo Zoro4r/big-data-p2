@@ -1204,6 +1204,24 @@ Revisión pedida por el usuario: la correctitud de los términos y la variedad d
       - Neo4j: la relación `Demo_Patrullero` → `Demo_Vandalo`.
     - Los tres se crearon, se actualizaron y se eliminaron en la misma sesión, a las 23:48–23:50 (UTC−5), así que las bases quedaron como estaban.
     - En Neo4j también se borró `Demo_Vandalo`, y los dos nodos «Demo_» que ya existían de pruebas anteriores.
+
+### 47. Página CRUD: formularios vacíos, datos de prueba y columnas de igual altura
+
+Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
+
+- **Subtítulos:** se quitó «insert_one · find · update_one ($set) · delete_one» en MongoDB y la lista de operaciones en Neo4j, que conserva solo la nota sobre «Demo_». El de Cassandra explica la clave y se mantiene.
+- **Formularios vacíos al entrar** (commit `feat: start crud forms empty and add test data button`):
+  - MongoDB: la plantilla del documento deja vacíos título, editor, comentario, bytes y parámetros (`plantilla(…, prueba=false)` en [crear-evento.tsx](../web/src/components/crear-evento.tsx)), y el `_id` de Actualizar y Eliminar empieza vacío;
+  - Cassandra y Neo4j: editor, métricas, relación y búsqueda empiezan vacíos.
+- **Botón «Completar con datos de prueba»** (`BotonPrueba` en [crud-comun.tsx](../web/src/components/crud-comun.tsx)), en cada operación de las tres bases:
+  - **Crear:** llena el formulario con datos «Demo_».
+  - **Consultar:** busca los datos de demostración.
+  - **Actualizar y Eliminar:** cargan el registro de demostración más reciente; si no existe, avisan que primero hay que crearlo.
+- **Altura de las columnas** (commits `fix: match crud editor height…`, `fix: match crud right column height…` y `fix: scroll crud match lists…`):
+  - en pantallas anchas, la columna derecha mide lo mismo que la izquierda en todas las vistas;
+  - si su contenido es más largo, se desplaza por dentro;
+  - las listas de coincidencias tienen un alto máximo y se desplazan por dentro, para no estirar la columna izquierda.
+- **Capturas del informe:** no se actualizan hasta que el usuario apruebe cómo se ve la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
