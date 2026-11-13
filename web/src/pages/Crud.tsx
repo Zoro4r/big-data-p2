@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { EditorEvento, FormularioEvento, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
-import { Coincidencias, FichaDocumento, FiltrosConsulta, useConsultaEventos } from "@/components/consultar-evento"
+import { Coincidencias, FichaDocumento, FiltrosConsulta, ModalUltimos, useConsultaEventos, type Coincidencia } from "@/components/consultar-evento"
 import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from "@/components/actualizar-evento"
 import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useEliminacion } from "@/components/eliminar-evento"
 import { CassandraDerecha, CassandraIzquierda, useCassandraCrud } from "@/components/cassandra-crud"
@@ -49,21 +49,22 @@ export default function CrudPage() {
   const [m, setM] = useState({ id: "" })
   const evento = useEventoNuevo(wikiForm)
 
-  /** Busca el documento de demostración más reciente («demo-…»), primero en la wiki del formulario. */
-  async function documentoDemo(): Promise<string | null> {
-    for (const w of [wikiForm, wikiForm === "enwiki" ? "eswiki" : "enwiki"]) {
-      const r = await api<{ documentos: { _id: string }[] }>(`/api/crud/mongo/buscar?${new URLSearchParams({ wiki: w, periodo: "todo", demo: "true", limite: "1" })}`)
-      if (r.documentos[0]) return r.documentos[0]._id
-    }
-    return null
-  }
-
-  /** «Completar con datos de prueba» en la operación elegida de MongoDB. */
+  // «Completar con datos de prueba» en Consultar, Actualizar y Eliminar: un modal con los últimos 5 eventos para elegir uno.
+  const [ultimos, setUltimos] = useState<{ abierto: boolean; docs: Coincidencia[] | null }>({ abierto: false, docs: null })
   async function pruebaMongo() {
     if (mOp === "Crear") { evento.completar(); return }
-    if (mOp === "Consultar") { consulta.setF({ ...consulta.f, tipo: "todos", periodo: "todo", editor: "Demo_Editor", titulo: "", id: "" }); return }
-    const id = await documentoDemo().catch(() => null)
-    if (!id) { toast.info("No hay documentos de demostración: crea uno en «Crear» y vuelve aquí"); return }
+    setUltimos({ abierto: true, docs: null })
+    try {
+      const r = await api<{ documentos: Coincidencia[] }>(`/api/crud/mongo/buscar?${new URLSearchParams({ wiki: wikiForm, periodo: "todo", limite: "5" })}`)
+      setUltimos({ abierto: true, docs: r.documentos })
+    } catch (e) {
+      setUltimos({ abierto: false, docs: null })
+      toast.error((e as Error).message)
+    }
+  }
+  function elegirUltimo(id: string) {
+    setUltimos({ abierto: false, docs: null })
+    if (mOp === "Consultar") { consulta.buscarId(id); return }
     setM((x) => ({ ...x, id }))
     if (mOp === "Actualizar") actualizacion.cargar(id)
     else eliminacion.cargar(id)
@@ -206,6 +207,8 @@ export default function CrudPage() {
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   <BotonPrueba onClick={pruebaMongo} />
+                  <ModalUltimos abierto={ultimos.abierto} docs={ultimos.docs} onCerrar={() => setUltimos({ abierto: false, docs: null })} onElegir={elegirUltimo}
+                    accion={mOp === "Consultar" ? "consultarlo" : mOp === "Actualizar" ? "actualizarlo" : "eliminarlo"} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
                     : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />
                     : mOp === "Actualizar" ? <FormularioActualizacion a={actualizacion} id={m.id} setId={(id) => setM({ ...m, id })} />

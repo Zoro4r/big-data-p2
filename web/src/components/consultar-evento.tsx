@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { NOMBRE_WIKI, resaltar, Segmentado, type WikiCrud } from "@/components/crear-evento"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils"
 /** Consultar en MongoDB: filtros a la izquierda (con las coincidencias debajo de "Buscar")
  *  y, a la derecha, la ficha y el JSON del documento elegido. */
 
-interface Coincidencia { _id: string; fecha: string | null; wiki: string; tipo: string; titulo: string; editor: string; log_type?: string | null; revierte_a?: string | null }
+export interface Coincidencia { _id: string; fecha: string | null; wiki: string; tipo: string; titulo: string; editor: string; log_type?: string | null; revierte_a?: string | null }
 interface Respuesta { documentos: Coincidencia[]; hay_mas: boolean; consulta: string; ms: number }
 type Doc = Record<string, unknown>
 
@@ -84,7 +85,22 @@ export function useConsultaEventos(wikiCabecera: WikiCrud) {
 
   const limpiar = () => { setRes(null); elegir(null) }
 
-  return { f, setF, res, elegido, doc, cargando, buscar, verMas, elegir, limpiar }
+  /** Consulta un documento por su _id exacto (lo usa el modal de datos de prueba). */
+  async function buscarId(id: string) {
+    setF((x) => ({ ...x, id }))
+    setCargando(true)
+    try {
+      const r = await api<Respuesta>(`/api/crud/mongo/buscar?${new URLSearchParams({ wiki: f.wiki, periodo: "todo", id, limite: "1" })}`)
+      setRes(r)
+      elegir(r.documentos[0]?._id ?? null)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setCargando(false)
+    }
+  }
+
+  return { f, setF, res, elegido, doc, cargando, buscar, buscarId, verMas, elegir, limpiar }
 }
 export type ConsultaEventos = ReturnType<typeof useConsultaEventos>
 
@@ -246,5 +262,37 @@ export function FichaDocumento({ c, onActualizar, onEliminar }: { c: ConsultaEve
         </div>
       </div>
     </div>
+  )
+}
+
+/** Modal de «Completar con datos de prueba»: los últimos 5 eventos guardados, para elegir uno. */
+export function ModalUltimos({ abierto, onCerrar, docs, onElegir, accion }: {
+  abierto: boolean; onCerrar: () => void; docs: Coincidencia[] | null; onElegir: (id: string) => void; accion: string
+}) {
+  return (
+    <Dialog open={abierto} onOpenChange={(a) => !a && onCerrar()}>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Últimos 5 eventos</DialogTitle>
+          <DialogDescription>Elige uno para {accion}.</DialogDescription>
+        </DialogHeader>
+        {!docs ? <p className="py-6 text-center text-sm text-muted-foreground">Cargando…</p> : docs.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No hay eventos guardados en esta wiki.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {docs.map((d) => (
+              <button key={d._id} type="button" onClick={() => onElegir(d._id)}
+                className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5 text-left transition-colors outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate text-[13px] font-medium">{d.titulo}</span>
+                  <span className="truncate text-xs text-muted-foreground">{d.editor} · <span className="font-mono text-[11px]">{d._id}</span></span>
+                </span>
+                <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">{nombreTipo(d)} · {hace(d.fecha)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
