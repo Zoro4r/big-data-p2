@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { NOMBRE_WIKI, resaltar, Segmentado, type WikiCrud } from "@/components/crear-evento"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ModalElegir } from "@/components/crud-comun"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -265,56 +265,14 @@ export function FichaDocumento({ c, onActualizar, onEliminar }: { c: ConsultaEve
   )
 }
 
-/** Modal de «Completar con datos de prueba»: los últimos 5 eventos guardados; se marca uno y se confirma. */
+/** Modal de «Elegir entre los últimos eventos»: los últimos 5 eventos guardados; se marca uno y se confirma. */
 export function ModalUltimos({ abierto, onCerrar, docs, onElegir, operacion }: {
   abierto: boolean; onCerrar: () => void; docs: Coincidencia[] | null; onElegir: (id: string) => void; operacion: string
 }) {
-  const [marcado, setMarcado] = useState<string | null>(null)
-  useEffect(() => setMarcado(docs?.[0]?._id ?? null), [docs])
-  const columnas = "grid grid-cols-[20px_minmax(0,1fr)_120px_72px] items-center gap-3"
   return (
-    <Dialog open={abierto} onOpenChange={(a) => !a && onCerrar()}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[600px]">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>Últimos 5 eventos</DialogTitle>
-          <DialogDescription>Elige uno y confírmalo para usarlo en {operacion}.</DialogDescription>
-        </DialogHeader>
-        <div className={cn(columnas, "border-y bg-muted/40 px-6 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase")}>
-          <span /><span>Página</span><span>Tipo</span><span className="text-right">Llegó</span>
-        </div>
-        {!docs ? <p className="py-10 text-center text-sm text-muted-foreground">Cargando…</p> : docs.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">No hay eventos guardados en esta wiki.</p>
-        ) : (
-          <div role="radiogroup" aria-label="Evento de prueba" className="flex flex-col">
-            {docs.map((d) => {
-              const activo = marcado === d._id
-              return (
-                <button key={d._id} type="button" role="radio" aria-checked={activo} onClick={() => setMarcado(d._id)}
-                  onDoubleClick={() => onElegir(d._id)}
-                  className={cn(columnas, "border-b px-6 py-2.5 text-left transition-colors outline-none last:border-b-0 hover:bg-accent/50 focus-visible:bg-accent/60",
-                    activo && "bg-accent/70")}>
-                  <span className={cn("flex size-4 items-center justify-center rounded-full border-[1.5px]", activo ? "border-foreground" : "border-muted-foreground/50")}>
-                    {activo && <span className="size-2 rounded-full bg-foreground" />}
-                  </span>
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-[13.5px] font-medium">{d.titulo}</span>
-                    <span className="truncate text-xs text-muted-foreground">{d.editor}</span>
-                  </span>
-                  <span className="truncate text-[12.5px] text-foreground/80">{nombreTipo(d)}</span>
-                  <span className="text-right text-xs whitespace-nowrap text-muted-foreground">{hace(d.fecha)}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-3 border-t px-6 py-4">
-          <span className="truncate font-mono text-[11px] text-muted-foreground">{marcado ? `_id ${marcado}` : ""}</span>
-          <div className="flex shrink-0 gap-2">
-            <Button type="button" variant="outline" onClick={onCerrar}>Cancelar</Button>
-            <Button type="button" disabled={!marcado} onClick={() => marcado && onElegir(marcado)}>Usar este evento</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ModalElegir abierto={abierto} onCerrar={onCerrar} onElegir={onElegir} titulo="Últimos 5 eventos"
+      descripcion={`Elige uno y confírmalo para usarlo en ${operacion}.`} columnas={["Página", "Tipo", "Llegó"]}
+      filas={docs && docs.map((d) => ({ id: d._id, titulo: d.titulo, subtitulo: d.editor, medio: nombreTipo(d), derecha: hace(d.fecha) }))}
+      vacio="No hay eventos guardados en esta wiki." pie={(id) => `_id ${id}`} accion="Usar este evento" />
   )
 }

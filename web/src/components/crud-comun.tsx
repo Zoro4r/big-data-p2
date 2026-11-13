@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Check, FlaskConical, History, Trash2, Undo2 } from "lucide-react"
 
 import { NOMBRE_WIKI, Segmentado, type WikiCrud } from "@/components/crear-evento"
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Piezas compartidas por el CRUD de Cassandra y Neo4j (mismos patrones que el de MongoDB). */
@@ -224,5 +225,72 @@ export function BotonPrueba({ onClick, ultimos }: { onClick: () => void; ultimos
     <Button type="button" variant="outline" size="sm" className="w-full" onClick={onClick}>
       {ultimos ? <><History aria-hidden />Elegir entre los últimos eventos</> : <><FlaskConical aria-hidden />Completar con datos de prueba</>}
     </Button>
+  )
+}
+
+/** «hace 18 s», «hace 5 min», «hace 3 h» o la fecha local si pasó más de un día. */
+export function haceTiempo(f: string | null | undefined) {
+  if (!f) return "—"
+  const s = Math.max(0, (Date.now() - new Date(f).getTime()) / 1000)
+  if (s < 60) return `hace ${Math.round(s)} s`
+  if (s < 3600) return `hace ${Math.round(s / 60)} min`
+  if (s < 86400) return `hace ${Math.round(s / 3600)} h`
+  return horaLocal(f)
+}
+
+export interface OpcionModal { id: string; titulo: string; subtitulo?: string; medio: string; derecha: string }
+
+/** Modal para elegir un registro reciente: tabla con selección y confirmación (el mismo en las tres bases). */
+export function ModalElegir({ abierto, onCerrar, titulo, descripcion, columnas, filas, vacio, pie, accion, onElegir }: {
+  abierto: boolean; onCerrar: () => void; titulo: string; descripcion: ReactNode; columnas: [string, string, string]
+  filas: OpcionModal[] | null; vacio: string; pie: (id: string) => string; accion: string; onElegir: (id: string) => void
+}) {
+  const [marcado, setMarcado] = useState<string | null>(null)
+  useEffect(() => setMarcado(filas?.[0]?.id ?? null), [filas])
+  const grid = "grid grid-cols-[20px_minmax(0,1fr)_120px_88px] items-center gap-3"
+  return (
+    <Dialog open={abierto} onOpenChange={(a) => !a && onCerrar()}>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+        <DialogHeader className="px-6 pt-6 pb-4">
+          <DialogTitle>{titulo}</DialogTitle>
+          <DialogDescription>{descripcion}</DialogDescription>
+        </DialogHeader>
+        <div className={cn(grid, "border-y bg-muted/40 px-6 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase")}>
+          <span /><span>{columnas[0]}</span><span>{columnas[1]}</span><span className="text-right">{columnas[2]}</span>
+        </div>
+        {!filas ? <p className="py-10 text-center text-sm text-muted-foreground">Cargando…</p> : filas.length === 0 ? (
+          <p className="px-6 py-10 text-center text-sm text-muted-foreground">{vacio}</p>
+        ) : (
+          <div role="radiogroup" aria-label={titulo} className="flex flex-col">
+            {filas.map((f) => {
+              const activo = marcado === f.id
+              return (
+                <button key={f.id} type="button" role="radio" aria-checked={activo} onClick={() => setMarcado(f.id)}
+                  onDoubleClick={() => onElegir(f.id)}
+                  className={cn(grid, "border-b px-6 py-2.5 text-left transition-colors outline-none last:border-b-0 hover:bg-accent/50 focus-visible:bg-accent/60",
+                    activo && "bg-accent/70")}>
+                  <span className={cn("flex size-4 items-center justify-center rounded-full border-[1.5px]", activo ? "border-foreground" : "border-muted-foreground/50")}>
+                    {activo && <span className="size-2 rounded-full bg-foreground" />}
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="truncate text-[13.5px] font-medium">{f.titulo}</span>
+                    {f.subtitulo && <span className="truncate text-xs text-muted-foreground">{f.subtitulo}</span>}
+                  </span>
+                  <span className="truncate text-[12.5px] text-foreground/80">{f.medio}</span>
+                  <span className="text-right text-xs whitespace-nowrap text-muted-foreground">{f.derecha}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3 border-t px-6 py-4">
+          <span className="truncate font-mono text-[11px] text-muted-foreground">{marcado ? pie(marcado) : ""}</span>
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" variant="outline" onClick={onCerrar}>Cancelar</Button>
+            <Button type="button" disabled={!marcado} onClick={() => marcado && onElegir(marcado)}>{accion}</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
