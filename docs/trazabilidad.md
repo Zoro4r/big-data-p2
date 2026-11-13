@@ -1175,7 +1175,14 @@ En la misma sección se reescribió «Por qué dos caminos»:
   - `cargar_cassandra`: las 4 tablas de `cassandra_store.load_window`;
   - `cargar_neo4j`: nodos, relaciones y COEDITA, de `neo4j_store.load_window`;
   - `calcular_kpis`: qué KPI sale de qué base, según `kpis.compute`.
-  - Se quitó la frase suelta «Las tareas 4 y 5 corren a la vez», que ahora está en la tarea 5. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
+  - Se quitó la frase suelta «Las tareas 4 y 5 corren a la vez», que ahora está en la tarea 5.
+- **Menciones a la falla del 11 de noviembre:** a pedido del usuario, se quitaron fuera de la sección 12:
+  - el párrafo «Esto último nos permitió recuperar seis horas…» (sección 5);
+  - la frase sobre las horas recuperadas en el componente Airflow (sección 4);
+  - la viñeta «Nos pasó» de los operadores (sección 2);
+  - la frase de horas perdidas en «Confianza (N7)» (sección 11);
+  - la fila N7 de las conclusiones (sección 13) ahora dice «permite detectar y recuperar una hora incompleta».
+  - La tabla de problemas de la sección 12 se mantiene. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
 
 ---
 
