@@ -14,7 +14,7 @@ import { COLOR, colorTipo, entero } from "@/lib/format"
 interface Ranking { editor: string; tipo: string; reversiones: number }
 interface Tarjetas {
   horas: number; reversiones: number; editores_revertidos: number; revertidos_por_varios: number
-  pares_agradecimiento: number; editores_agradecidos: number; humanos_activos: number; humanos_conectados: number
+  pares_agradecimiento: number; editores_agradecidos: number
 }
 interface Red {
   tarjetas: Tarjetas
@@ -27,8 +27,8 @@ interface Ego {
   centro: { user: string; tipo: string } | null
   relaciones: { origen: string; destino: string; tipo: string; peso: number; vecino: string; tipo_vecino: string }[]
 }
-type MetricaRed = "reversiones" | "varios" | "agradecidos" | "conectados"
-const ORDEN_RED: MetricaRed[] = ["reversiones", "varios", "agradecidos", "conectados"]
+type MetricaRed = "reversiones" | "varios" | "agradecidos"
+const ORDEN_RED: MetricaRed[] = ["reversiones", "varios", "agradecidos"]
 
 /** Anterior y siguiente (circular) para recorrer las tarjetas desde el modal. */
 function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) => void) {
@@ -57,21 +57,12 @@ function metricaRed(k: MetricaRed, t: Tarjetas, etiqueta: string): MetricaModal 
     lectura: "Cuando varios patrulleros revierten a la misma cuenta, lo más probable es un vándalo persistente o un recién llegado que necesita orientación. Son los casos a revisar primero.",
     origen: grafo,
   }
-  if (k === "agradecidos") return {
+  return {
     ...comun, titulo: "Editores agradecidos", valor: entero(t.editores_agradecidos),
     datos: [["Pares que se agradecieron", entero(t.pares_agradecimiento)]],
     definicion: "Editores que recibieron al menos un agradecimiento (la función «agradecer» de Wikipedia) en las últimas 24 horas.",
     calculo: { codigo: "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor)\nWHERE r.ultima_vez >= datetime($desde)\nRETURN count(DISTINCT b)" },
     lectura: "Señal de colaboración positiva: muestra a quién reconoce la comunidad por su trabajo.",
-    origen: grafo,
-  }
-  const pct = t.humanos_activos ? Math.round((t.humanos_conectados / t.humanos_activos) * 100) : 0
-  return {
-    ...comun, titulo: "Editores conectados", valor: entero(t.humanos_conectados),
-    datos: [["Humanos activos", entero(t.humanos_activos)], ["Proporción", `${pct} %`]],
-    definicion: "Editores humanos activos en las últimas 24 horas que comparten al menos una página con otro editor (relación COEDITA).",
-    calculo: { codigo: "MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($desde) AND e.tipo <> 'bot'\nRETURN sum(CASE WHEN EXISTS { (e)-[:COEDITA]-() } THEN 1 ELSE 0 END)" },
-    lectura: "Cuánta de la participación humana es trabajo compartido con otros. Si la proporción baja, la comunidad trabaja más aislada.",
     origen: grafo,
   }
 }
@@ -134,13 +125,12 @@ export default function RedPage() {
     <>
       <Header ruta={["Panel", "Red de editores"]} />
       <Pagina titulo="Red de editores" descripcion="Quién se relaciona con quién: reversiones, avisos, agradecimientos, bloqueos y páginas en común. Sirve para ver dónde hay conflicto (quién revierte a quién y qué páginas están en disputa) y quiénes sostienen la comunidad (los editores más conectados). Se calcula en Neo4j sobre la red acumulada.">
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          {!t ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {!t ? Array.from({ length: 3 }, (_, i) => <Cargando key={i} alto={120} />) : (
             <>
               <TarjetaKpi etiqueta="Reversiones" titulo={`${etiqueta} · últimas ${t.horas} horas`} valor={entero(t.reversiones)} pie={`${entero(t.editores_revertidos)} editores revertidos`} onAbrir={() => setMetrica("reversiones")} />
               <TarjetaKpi etiqueta="Revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="editores revertidos por 2 o más editores" onAbrir={() => setMetrica("varios")} />
               <TarjetaKpi etiqueta="Editores agradecidos" valor={entero(t.editores_agradecidos)} pie={`${entero(t.pares_agradecimiento)} pares que se agradecieron`} onAbrir={() => setMetrica("agradecidos")} />
-              <TarjetaKpi etiqueta="Editores conectados" valor={entero(t.humanos_conectados)} pie={`de ${entero(t.humanos_activos)} humanos activos`} onAbrir={() => setMetrica("conectados")} />
             </>
           )}
         </div>

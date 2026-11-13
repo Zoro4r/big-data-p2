@@ -407,7 +407,7 @@ def _desde(horas: int) -> str:
 
 @cacheado
 def tarjetas_red(horas: int = 24, wiki: str | None = None) -> dict:
-    """Las cuatro tarjetas de la vista Red de editores: conflicto (N2) y comunidad (N5) en las últimas horas."""
+    """Las tres tarjetas de la vista Red de editores: conflicto (N2) y comunidad (N5) en las últimas horas."""
     desde = _desde(horas)
     revertidos = _cypher(
         "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ultima_vez >= datetime($desde) AND ($wiki IS NULL OR r.wiki = $wiki) "
@@ -422,11 +422,6 @@ def tarjetas_red(horas: int = 24, wiki: str | None = None) -> dict:
     gracias = _cypher(
         "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor) WHERE r.ultima_vez >= datetime($desde) AND ($wiki IS NULL OR r.wiki = $wiki) "
         "RETURN count(r) AS pares, count(DISTINCT b) AS agradecidos", desde=desde, wiki=wiki)[0]
-    conectados = _cypher(
-        "MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($desde) AND e.tipo <> 'bot' "
-        "  AND ($wiki IS NULL OR EXISTS { (e)-[r:EDITO]->(p:Pagina) WHERE p.wiki = $wiki AND r.ultima_vez >= datetime($desde) }) "
-        "RETURN count(e) AS activos, sum(CASE WHEN EXISTS { (e)-[:COEDITA]-() } THEN 1 ELSE 0 END) AS conectados",
-        desde=desde, wiki=wiki)[0]
     return {
         "horas": horas,
         "reversiones": reversiones,
@@ -434,8 +429,6 @@ def tarjetas_red(horas: int = 24, wiki: str | None = None) -> dict:
         "revertidos_por_varios": revertidos["varios"],
         "pares_agradecimiento": gracias["pares"],
         "editores_agradecidos": gracias["agradecidos"],
-        "humanos_activos": conectados["activos"],
-        "humanos_conectados": conectados["conectados"],
     }
 
 
