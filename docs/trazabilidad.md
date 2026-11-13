@@ -1150,6 +1150,17 @@ A pedido del usuario, en la sección 4 la tabla «Por qué está cada componente
 - cada una explica «Qué es» y «Para qué sirve», con las necesidades que atiende, igual que se hizo con los públicos;
 - se quitó la columna «Alternativa descartada».
 
+En la misma sección se reescribió «Por qué dos caminos»:
+
+- **Camino rápido:**
+  - da información al instante (N1);
+  - reparte la carga de guardar: unos 4 a 5 cambios por segundo, en lugar de unos 16,000 de golpe cada hora, así que el proceso horario solo lee.
+- **Camino por lotes:**
+  - da información por hora, sobre periodos cerrados;
+  - hace el trabajo pesado una sola vez: red, resúmenes y KPIs;
+  - garantiza que los datos estén completos (N7).
+- La lista de lo que falta con cada camino por separado se amplió, y se quitó el párrafo «El camino por lotes corrige al rápido», que ya quedaba cubierto.
+
 ---
 
 ## Pendientes
