@@ -1163,6 +1163,7 @@ Revisión de las 7 vistas contra N1 a N7, a pedido del usuario. Cambios aprobado
     - Neo4j: el nodo pasó a `tipo = bot`, y se borraron sus 1,397 relaciones COEDITA, porque COEDITA solo une humanos;
     - Cassandra: 225 filas de `actividad_editor` con `tipo_editor = bot`.
   - **No se recalcularon** los agregados por hora ya escritos (`resumen_por_hora`, KPIs de horas pasadas). La tasa de automatización de eswiki de esas horas queda apenas más baja: 1,320 eventos en 12 días. Las horas nuevas ya salen bien.
+  - El usuario decidió no reprocesar: la regla rige desde ahora. En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
 
