@@ -182,8 +182,9 @@ def arquitectura_ejemplo(tipo: str | None = None):
 @app.get("/api/red")
 def red(wiki: str = "ambas"):
     w = None if wiki == "ambas" else wikis_de(wiki)[0]
-    return {"conteo": q.conteo_grafo() if w is None else q.conteo_grafo_wiki(w), "revertidos": q.ranking_revertidos(10, w),
-            "patrulleros": q.ranking_patrulleros(10, w), "disputadas": q.paginas_disputadas(24, 12, w)}
+    return {"tarjetas": q.tarjetas_red(24, w), "revertidos": q.ranking_revertidos(10, w),
+            "patrulleros": q.ranking_patrulleros(10, w), "conectados": q.ranking_conectados(10, 24, w),
+            "disputadas": q.paginas_disputadas(24, 12, w)}
 
 
 @app.get("/api/red/ego/{nombre}")

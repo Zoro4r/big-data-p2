@@ -10,21 +10,26 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
+import { COLOR, colorTipo, entero } from "@/lib/format"
 
 interface Ranking { editor: string; tipo: string; reversiones: number }
+interface Tarjetas {
+  horas: number; reversiones: number; editores_revertidos: number; revertidos_por_varios: number
+  pares_agradecimiento: number; editores_agradecidos: number; humanos_activos: number; humanos_conectados: number
+}
 interface Red {
-  conteo: { nodos: Record<string, number>; relaciones: Record<string, number>; ventana?: string } | null
+  tarjetas: Tarjetas
   revertidos: (Ranking & { revertido_por: number })[]
   patrulleros: (Ranking & { editores_revertidos: number })[]
+  conectados: { editor: string; tipo: string; coeditores: number }[]
   disputadas: { pagina: string; wiki: string; titulo: string; editores: number; humanos: number; ediciones: number }[]
 }
 interface Ego {
   centro: { user: string; tipo: string } | null
   relaciones: { origen: string; destino: string; tipo: string; peso: number; vecino: string; tipo_vecino: string }[]
 }
-type MetricaRed = "editores" | "ediciones" | "reversiones" | "colaboracion"
-const ORDEN_RED: MetricaRed[] = ["editores", "ediciones", "reversiones", "colaboracion"]
+type MetricaRed = "reversiones" | "varios" | "agradecidos" | "conectados"
+const ORDEN_RED: MetricaRed[] = ["reversiones", "varios", "agradecidos", "conectados"]
 
 /** Anterior y siguiente (circular) para recorrer las tarjetas desde el modal. */
 function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) => void) {
@@ -33,49 +38,42 @@ function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) 
   return { anterior: { nombre: nombre(a), ir: () => ir(a) }, siguiente: { nombre: nombre(s), ir: () => ir(s) } }
 }
 
-/** Detalle de cada total del grafo: qué cuenta, con qué consulta Cypher y de dónde sale. */
-function metricaRed(k: MetricaRed, c: NonNullable<Red["conteo"]>, etiqueta: string): MetricaModal {
-  const porWiki = Boolean(c.ventana)
-  const n = (x: string) => entero(c.nodos[x]), r = (x: string) => entero(c.relaciones[x])
-  const momento = porWiki ? `Al lote de ${horaLocal(c.ventana!)} UTC−5` : "Grafo acumulado desde el 31 oct"
-  const origen = porWiki
-    ? <>Lo calcula el DAG cada hora en <Base base="neo4j" /> y lo guarda en <Base base="mongo" /> (pipeline_runs), porque recorrer todas las páginas de una wiki toma unos segundos.</>
-    : <>Se cuenta en <Base base="neo4j" /> al abrir la página, con los contadores internos del grafo.</>
-  const comun = { etiqueta, momento, origen }
-  if (k === "editores") return {
-    ...comun, titulo: "Editores", valor: n("Editor"), nota: "nodos (:Editor)",
-    datos: [["Páginas", n("Pagina")], ["Categorías", n("Categoria")]],
-    definicion: "Editores distintos del grafo: personas registradas, cuentas temporales y bots que hicieron al menos un evento desde que empezó la recolección.",
-    calculo: { codigo: porWiki ? "MATCH (:Wiki {nombre: $wiki})<-[:PERTENECE_A]-(:Pagina)<-[:EDITO]-(e:Editor) RETURN count(DISTINCT e)" : "MATCH (e:Editor) RETURN count(e)" },
-    lectura: "Tamaño de la comunidad observada. Crece cada hora con los editores que aparecen por primera vez.",
-  }
-  if (k === "ediciones") return {
-    ...comun, titulo: "Ediciones", valor: r("EDITO"), nota: "relaciones -[:EDITO]->",
-    datos: [["Páginas creadas", r("CREO")], ["Páginas", n("Pagina")]],
-    definicion: "Pares editor–página distintos: si un editor modifica la misma página varias veces, es una sola relación EDITO que guarda cuántas ediciones hizo.",
-    calculo: { codigo: "MATCH (:Editor)-[r:EDITO]->(:Pagina) RETURN count(r)" },
-    lectura: "Cuántas conexiones hay entre editores y páginas. Es la base para medir páginas disputadas y coedición.",
-  }
+/** Detalle de cada tarjeta: qué cuenta, cómo se calcula y para qué sirve. Las cuatro miran las últimas 24 horas. */
+function metricaRed(k: MetricaRed, t: Tarjetas, etiqueta: string): MetricaModal {
+  const comun = { etiqueta, momento: `Últimas ${t.horas} horas` }
+  const grafo = <>Se calcula en <Base base="neo4j" /> al abrir la página, sobre las relaciones con actividad en las últimas {t.horas} horas.</>
   if (k === "reversiones") return {
-    ...comun, titulo: "Reversiones", valor: r("REVIRTIO"), nota: "relaciones -[:REVIRTIO]->",
-    datos: [["Avisos (MENSAJE_A)", r("MENSAJE_A")], ["Bloqueos", r("BLOQUEO")]],
-    definicion: "Pares de editores en que uno deshizo ediciones del otro. La relación guarda cuántas veces ocurrió.",
-    calculo: { codigo: "MATCH (:Editor)-[r:REVIRTIO]->(:Editor) RETURN count(r)" },
-    lectura: "Base para detectar vandalismo y guerras de ediciones: los rankings de abajo usan estas relaciones.",
+    ...comun, titulo: "Reversiones", valor: entero(t.reversiones),
+    datos: [["Editores revertidos", entero(t.editores_revertidos)]],
+    definicion: "Ediciones que deshicieron el cambio de otro editor en las últimas 24 horas, y cuántos editores distintos fueron revertidos.",
+    calculo: { texto: "Suma de las reversiones de cada hora (resumen_por_hora) · editores con al menos una relación REVIRTIO recibida en 24 h" },
+    lectura: "Cuánto trabajo de control hubo. Un salto respecto de lo habitual suele indicar un ataque o una guerra de ediciones: conviene mirar las páginas disputadas.",
+    origen: <>Las reversiones salen de <Base base="cassandra" />, ya sumadas por hora; los editores revertidos, de <Base base="neo4j" />.</>,
   }
-  if (c.relaciones.COEDITA == null) return {
-    ...comun, titulo: "Agradecimientos", valor: r("AGRADECIO"), nota: "relaciones -[:AGRADECIO]->",
-    datos: [],
-    definicion: "Un editor agradeció una edición de otro con la función «agradecer» de Wikipedia.",
-    calculo: { codigo: "MATCH (:Editor)-[r:AGRADECIO]->(:Editor) WHERE r.wiki = $wiki RETURN count(r)" },
-    lectura: "Señal de colaboración positiva. COEDITA no guarda la wiki, por eso con una sola wiki se muestran los agradecimientos.",
+  if (k === "varios") return {
+    ...comun, titulo: "Revertidos por varios editores", valor: entero(t.revertidos_por_varios),
+    datos: [["Editores revertidos", entero(t.editores_revertidos)]],
+    definicion: "Editores a los que dos o más editores distintos les deshicieron cambios en las últimas 24 horas.",
+    calculo: { codigo: "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor)\nWHERE r.ultima_vez >= datetime($desde)\nWITH b, count(DISTINCT a) AS por\nRETURN sum(CASE WHEN por >= 2 THEN 1 ELSE 0 END)" },
+    lectura: "Cuando varios patrulleros revierten a la misma cuenta, lo más probable es un vándalo persistente o un recién llegado que necesita orientación. Son los casos a revisar primero.",
+    origen: grafo,
   }
+  if (k === "agradecidos") return {
+    ...comun, titulo: "Editores agradecidos", valor: entero(t.editores_agradecidos),
+    datos: [["Pares que se agradecieron", entero(t.pares_agradecimiento)]],
+    definicion: "Editores que recibieron al menos un agradecimiento (la función «agradecer» de Wikipedia) en las últimas 24 horas.",
+    calculo: { codigo: "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor)\nWHERE r.ultima_vez >= datetime($desde)\nRETURN count(DISTINCT b)" },
+    lectura: "Señal de colaboración positiva: muestra a quién reconoce la comunidad por su trabajo.",
+    origen: grafo,
+  }
+  const pct = t.humanos_activos ? Math.round((t.humanos_conectados / t.humanos_activos) * 100) : 0
   return {
-    ...comun, titulo: "Colaboración", valor: r("COEDITA"), nota: "relaciones -[:COEDITA]-",
-    datos: [["Agradecimientos", r("AGRADECIO")]],
-    definicion: "Pares de editores humanos que editaron al menos una misma página.",
-    calculo: { codigo: "MATCH (:Editor)-[r:COEDITA]-(:Editor) RETURN count(r)" },
-    lectura: "Red de colaboración: los editores con más coeditores son los más centrales de la comunidad.",
+    ...comun, titulo: "Editores conectados", valor: entero(t.humanos_conectados),
+    datos: [["Humanos activos", entero(t.humanos_activos)], ["Proporción", `${pct} %`]],
+    definicion: "Editores humanos activos en las últimas 24 horas que comparten al menos una página con otro editor (relación COEDITA).",
+    calculo: { codigo: "MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($desde) AND e.tipo <> 'bot'\nRETURN sum(CASE WHEN EXISTS { (e)-[:COEDITA]-() } THEN 1 ELSE 0 END)" },
+    lectura: "Cuánta de la participación humana es trabajo compartido con otros. Si la proporción baja, la comunidad trabaja más aislada.",
+    origen: grafo,
   }
 }
 
@@ -132,22 +130,18 @@ export default function RedPage() {
     if (busqueda.trim()) setUsuario(busqueda.trim())
   }
 
-  const c = data?.conteo
+  const t = data?.tarjetas
   return (
     <>
       <Header ruta={["Panel", "Red de editores"]} />
-      <Pagina titulo="Red de editores" descripcion="Quién interactúa con quién: reversiones, avisos, agradecimientos y bloqueos entre editores. Aquí aparecen los patrulleros, el vandalismo y las páginas en disputa. El grafo en Neo4j tiene 4 tipos de nodo y 11 tipos de relación.">
+      <Pagina titulo="Red de editores" descripcion="Quién se relaciona con quién: reversiones, avisos, agradecimientos, bloqueos y páginas en común. Sirve para ver dónde hay conflicto (quién revierte a quién y qué páginas están en disputa) y quiénes sostienen la comunidad (los editores más conectados). Se calcula en Neo4j sobre la red acumulada.">
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : !c ? (
-            <div className="col-span-full"><Vacio titulo="Totales por wiki pendientes" texto="Se calculan en la próxima ejecución del DAG." /></div>
-          ) : (
+          {!t ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={120} />) : (
             <>
-              <TarjetaKpi etiqueta="Editores" titulo={c.ventana ? `Totales de ${etiqueta} al lote de ${horaLocal(c.ventana)} UTC−5` : undefined} valor={entero(c.nodos.Editor)} pie={`${entero(c.nodos.Pagina)} páginas · ${entero(c.nodos.Categoria)} categorías`} onAbrir={() => setMetrica("editores")} />
-              <TarjetaKpi etiqueta="Ediciones" valor={entero(c.relaciones.EDITO)} pie={`${entero(c.relaciones.CREO)} páginas creadas`} onAbrir={() => setMetrica("ediciones")} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(c.relaciones.REVIRTIO)} pie={`${entero(c.relaciones.MENSAJE_A)} avisos · ${entero(c.relaciones.BLOQUEO)} bloqueos`} onAbrir={() => setMetrica("reversiones")} />
-              {c.relaciones.COEDITA != null
-                ? <TarjetaKpi etiqueta="Colaboración" valor={entero(c.relaciones.COEDITA)} pie={`${entero(c.relaciones.AGRADECIO)} agradecimientos`} onAbrir={() => setMetrica("colaboracion")} />
-                : <TarjetaKpi etiqueta="Agradecimientos" valor={entero(c.relaciones.AGRADECIO)} pie="COEDITA no distingue wiki" onAbrir={() => setMetrica("colaboracion")} />}
+              <TarjetaKpi etiqueta="Reversiones" titulo={`${etiqueta} · últimas ${t.horas} horas`} valor={entero(t.reversiones)} pie={`${entero(t.editores_revertidos)} editores revertidos`} onAbrir={() => setMetrica("reversiones")} />
+              <TarjetaKpi etiqueta="Revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="editores revertidos por 2 o más editores" onAbrir={() => setMetrica("varios")} />
+              <TarjetaKpi etiqueta="Editores agradecidos" valor={entero(t.editores_agradecidos)} pie={`${entero(t.pares_agradecimiento)} pares que se agradecieron`} onAbrir={() => setMetrica("agradecidos")} />
+              <TarjetaKpi etiqueta="Editores conectados" valor={entero(t.humanos_conectados)} pie={`de ${entero(t.humanos_activos)} humanos activos`} onAbrir={() => setMetrica("conectados")} />
             </>
           )}
         </div>
@@ -212,7 +206,7 @@ export default function RedPage() {
           </div>
         </Seccion>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <Seccion titulo="Editores más revertidos" descripcion={`Reversiones recibidas en ${etiqueta} · posible vandalismo`}>
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
@@ -230,6 +224,17 @@ export default function RedPage() {
                 {data.patrulleros.map((r) => (
                   <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-muted/50" title={`Revirtió a ${r.editores_revertidos} editor(es) · ver su red`}>
                     <FilaBarra nombre={r.editor} valor={r.reversiones} max={data.patrulleros[0].reversiones} color={colorTipo(r.tipo)} mono />
+                  </button>
+                ))}
+              </div>
+            )}
+          </Seccion>
+          <Seccion titulo="Editores más conectados" descripcion={`Humanos activos en 24 h en ${etiqueta} · con más coeditores`}>
+            {!data ? <Cargando alto={260} /> : data.conectados.length === 0 ? <Vacio titulo="Sin datos" texto="No hay editores humanos con coeditores en las últimas 24 horas." /> : (
+              <div className="flex flex-col gap-2.5">
+                {data.conectados.map((r) => (
+                  <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-muted/50" title={`Comparte páginas con ${entero(r.coeditores)} editores · ver su red`}>
+                    <FilaBarra nombre={r.editor} valor={r.coeditores} max={data.conectados[0].coeditores} color={colorTipo(r.tipo)} mono />
                   </button>
                 ))}
               </div>
@@ -261,9 +266,9 @@ export default function RedPage() {
           )}
         </Seccion>
       </Pagina>
-      {metrica && c && (
-        <ModalMetrica m={metricaRed(metrica, c, etiqueta)}
-          {...vecinos(ORDEN_RED, metrica, (k) => metricaRed(k, c, etiqueta).titulo, setMetrica)} onCerrar={() => setMetrica(null)} />
+      {metrica && t && (
+        <ModalMetrica m={metricaRed(metrica, t, etiqueta)}
+          {...vecinos(ORDEN_RED, metrica, (k) => metricaRed(k, t, etiqueta).titulo, setMetrica)} onCerrar={() => setMetrica(null)} />
       )}
     </>
   )

@@ -385,6 +385,55 @@ def conteo_grafo() -> dict:
     return {"nodos": nodos, "relaciones": rels}
 
 
+def _desde(horas: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
+
+
+@cacheado
+def tarjetas_red(horas: int = 24, wiki: str | None = None) -> dict:
+    """Las cuatro tarjetas de la vista Red de editores: conflicto (N2) y comunidad (N5) en las últimas horas."""
+    desde = _desde(horas)
+    revertidos = _cypher(
+        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ultima_vez >= datetime($desde) AND ($wiki IS NULL OR r.wiki = $wiki) "
+        "WITH b, count(DISTINCT a) AS por RETURN count(b) AS revertidos, sum(CASE WHEN por >= 2 THEN 1 ELSE 0 END) AS varios",
+        desde=desde, wiki=wiki)[0]
+    # Las reversiones ya están sumadas por hora en Cassandra: contarlas en MongoDB tardaría un minuto.
+    wikis = [wiki] if wiki else sorted(config.WIKIS)
+    limite = datetime.now(timezone.utc) - timedelta(hours=horas)
+    reversiones = sum(f["reversiones"] or 0 for f in resumen_por_hora(2)
+                      if f["wiki"] in wikis and datetime.combine(f["fecha"], datetime.min.time(), timezone.utc)
+                      + timedelta(hours=f["hora"]) >= limite)
+    gracias = _cypher(
+        "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor) WHERE r.ultima_vez >= datetime($desde) AND ($wiki IS NULL OR r.wiki = $wiki) "
+        "RETURN count(r) AS pares, count(DISTINCT b) AS agradecidos", desde=desde, wiki=wiki)[0]
+    conectados = _cypher(
+        "MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($desde) AND e.tipo <> 'bot' "
+        "  AND ($wiki IS NULL OR EXISTS { (e)-[r:EDITO]->(p:Pagina) WHERE p.wiki = $wiki AND r.ultima_vez >= datetime($desde) }) "
+        "RETURN count(e) AS activos, sum(CASE WHEN EXISTS { (e)-[:COEDITA]-() } THEN 1 ELSE 0 END) AS conectados",
+        desde=desde, wiki=wiki)[0]
+    return {
+        "horas": horas,
+        "reversiones": reversiones,
+        "editores_revertidos": revertidos["revertidos"],
+        "revertidos_por_varios": revertidos["varios"],
+        "pares_agradecimiento": gracias["pares"],
+        "editores_agradecidos": gracias["agradecidos"],
+        "humanos_activos": conectados["activos"],
+        "humanos_conectados": conectados["conectados"],
+    }
+
+
+@cacheado
+def ranking_conectados(limite: int = 10, horas: int = 24, wiki: str | None = None) -> list[dict]:
+    """Editores humanos activos en las últimas horas con más coeditores (relación COEDITA, N5)."""
+    return _cypher(
+        "MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($desde) AND e.tipo <> 'bot' "
+        "  AND ($wiki IS NULL OR EXISTS { (e)-[r:EDITO]->(p:Pagina) WHERE p.wiki = $wiki AND r.ultima_vez >= datetime($desde) }) "
+        "WITH e, COUNT { (e)-[:COEDITA]-() } AS coeditores WHERE coeditores > 0 "
+        "RETURN e.user AS editor, e.tipo AS tipo, coeditores ORDER BY coeditores DESC, editor LIMIT $limite",
+        desde=_desde(horas), limite=limite, wiki=wiki)
+
+
 @cacheado
 def ranking_revertidos(limite: int = 10, wiki: str | None = None) -> list[dict]:
     return _cypher(
