@@ -23,17 +23,20 @@ function Fraccion({ arriba, abajo }: { arriba: string; abajo: string }) {
 
 /** Línea gris de la serie con el punto actual marcado. */
 function MiniSerie({ serie, etiqueta }: { serie: number[]; etiqueta: string }) {
-  const w = 232, h = 72
-  const min = Math.min(...serie), max = Math.max(...serie)
-  const y = (v: number) => (max === min ? h / 2 : 6 + (1 - (v - min) / (max - min)) * (h - 12))
-  const x = (i: number) => (i / (serie.length - 1)) * (w - 6)
-  const puntos = serie.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")
-  const ultimo = serie.length - 1
+  // Mismo tipo de gráfico que el resto del dashboard: una barra por punto, la última resaltada.
+  const w = 232, h = 72, n = serie.length
+  const min = Math.min(0, ...serie), max = Math.max(...serie)
+  const rango = max - min || 1
+  const ancho = w / n
+  const cero = h - 1 - ((0 - min) / rango) * (h - 8)
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="h-[72px] w-full" preserveAspectRatio="none" role="img" aria-label={etiqueta}>
-      <line x1="0" y1={h - 1} x2={w} y2={h - 1} className="stroke-border" />
-      <polyline fill="none" points={puntos} className="stroke-muted-foreground/60" strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={x(ultimo)} cy={y(serie[ultimo])} r={4} className="fill-foreground stroke-muted" strokeWidth={2} />
+      <line x1="0" y1={cero} x2={w} y2={cero} className="stroke-border" />
+      {serie.map((v, i) => {
+        const y = h - 1 - ((v - min) / rango) * (h - 8)
+        return <rect key={i} x={i * ancho + ancho * 0.15} width={ancho * 0.7} y={Math.min(y, cero)} height={Math.max(Math.abs(cero - y), 1)}
+          className={i === n - 1 ? "fill-foreground" : "fill-muted-foreground/40"} />
+      })}
     </svg>
   )
 }

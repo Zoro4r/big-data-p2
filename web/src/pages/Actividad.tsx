@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { UserRound } from "lucide-react"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
@@ -104,6 +104,8 @@ export default function ActividadPage() {
   }, [data])
 
   const ejeMinutos = useMemo(() => ejeDia(data?.minutos ?? []), [data])
+  // Humanos = eventos − bots, para apilar las dos partes en cada barra.
+  const minutosApilados = useMemo(() => ejeMinutos.datos.map((m) => ({ ...m, humanos: m.eventos - m.eventos_bot })), [ejeMinutos])
   const horas = useMemo(() => (data?.horas ?? []).slice().sort((a, b) => a.hora - b.hora).map((h) => ({ ...h, etiqueta: `${String(h.hora).padStart(2, "0")}:00` })), [data])
   const horasTop = useMemo(() => [...new Set((data?.top ?? []).map((t) => t.hora))].sort((a, b) => b - a), [data])
   const horaSel = hora ?? horasTop[0] ?? null
@@ -127,7 +129,7 @@ export default function ActividadPage() {
   return (
     <>
       <Header ruta={["Panel", "Actividad en el tiempo"]} />
-      <Pagina titulo="Actividad en el tiempo" descripcion={`Pulso de ${etiqueta} el ${data?.fecha ?? "…"} (UTC−5). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}
+      <Pagina titulo="Actividad en el tiempo" descripcion={`Actividad de ${etiqueta} el ${data?.fecha ?? "…"} (UTC−5). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}
         acciones={
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Día (UTC−5)</span>
@@ -163,23 +165,23 @@ export default function ActividadPage() {
           )}
         </Seccion>
 
-        <Seccion titulo="Eventos por minuto" descripcion="Cada punto es un minuto; los picos suelen ser bots en ráfaga o una noticia">
+        <Seccion titulo="Eventos por minuto" descripcion="Cada barra es un minuto, con humanos y bots apilados; los picos suelen ser bots en ráfaga o una noticia" accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={200} /> : (
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={ejeMinutos.datos} margin={{ left: 0, right: 16, top: 8 }}>
+              <BarChart data={minutosApilados} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap={0}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="ms" type="number" scale="time" domain={ejeMinutos.dominio} ticks={ejeMinutos.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Line type="monotone" dataKey="eventos" name="eventos" stroke={colorWiki(wiki)} strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="eventos_bot" name="de bots" stroke={COLOR.bot} strokeWidth={1.5} dot={false} />
-              </LineChart>
+                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
+                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} isAnimationActive={false} />
+              </BarChart>
             </ResponsiveContainer>
           )}
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <Seccion className="lg:col-span-3" titulo="Páginas más editadas" descripcion="Por editores distintos · Cassandra paginas_top_por_hora"
+          <Seccion className="lg:col-span-3" titulo="Páginas con más editores" descripcion="Editores distintos en la hora · Cassandra paginas_top_por_hora"
             accion={
               <Select value={horaSel != null ? String(horaSel) : ""} onValueChange={(v) => setHora(Number(v))}>
                 <SelectTrigger size="sm" className="w-28" aria-label="Hora (UTC−5)"><SelectValue placeholder="Hora" /></SelectTrigger>
@@ -208,7 +210,7 @@ export default function ActividadPage() {
             </form>
             <div className="mt-4">
               {!editor ? (
-                <Vacio icono={<UserRound className="size-5" aria-hidden />} titulo="Busca un editor" texto="Verás sus ediciones por hora y las reversiones que hizo y recibió." />
+                <Vacio icono={<UserRound className="size-5" aria-hidden />} titulo="Busca un editor" texto="Verás sus eventos por hora y las reversiones que hizo y recibió." />
               ) : historial.cargando ? <Cargando alto={160} /> : hist.filas.length === 0 ? (
                 <Vacio titulo="Sin actividad" texto={`No hay filas para «${editor}».`} />
               ) : (

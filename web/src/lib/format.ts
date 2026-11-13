@@ -62,11 +62,16 @@ export function ejeDia<T extends { t: string }>(serie: T[], horas = 2) {
 /** Hora "HH:MM" (UTC−5) de una marca de tiempo en milisegundos. */
 export const horaMs = (ms: number | string) => horaLocal(Number(ms), false)
 
+/**
+ * Dos paletas que no se cruzan: las wikis (azul y naranja) y el tipo de editor (gris, violeta y verde).
+ * Así un mismo color significa siempre lo mismo en todo el dashboard.
+ */
 export const COLOR = {
   enwiki: "#2a78d6",
   eswiki: "#eb6834",
-  registrado: "#2a78d6",
-  temporal: "#eb6834",
+  registrado: "#71717a",
+  temporal: "#8b5cf6",
+  ip: "#8b5cf6",
   bot: "#1baf7a",
   otro: "#a1a1aa",
 } as const

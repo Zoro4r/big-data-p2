@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { ChevronRight, Filter, X } from "lucide-react"
 
 import { Cargando, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
@@ -230,22 +230,22 @@ export default function VivoPage() {
           )}
         </div>
 
-        <Seccion titulo="Pulso por minuto" descripcion="Últimos 30 minutos · el minuto en curso todavía se está llenando" accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
+        <Seccion titulo="Eventos por minuto" descripcion="Últimos 30 minutos · barras apiladas por wiki · el minuto en curso todavía se está llenando" accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
           {!data ? <Cargando alto={240} /> : (
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={serie} margin={{ left: 0, right: 8, top: 8 }}>
+              <BarChart data={serie} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="15%">
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="t" tickFormatter={(t) => horaLocal(t, false)} tickLine={false} axisLine={false} minTickGap={40} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={40} fontSize={11} stroke="var(--muted-foreground)" />
-                <Tooltip labelFormatter={(t) => `${horaLocal(String(t), false)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                {wikis.includes("enwiki") && <Area type="monotone" dataKey="enwiki" stackId="a" stroke={COLOR.enwiki} fill={COLOR.enwiki} fillOpacity={0.15} strokeWidth={2} isAnimationActive={false} />}
-                {wikis.includes("eswiki") && <Area type="monotone" dataKey="eswiki" stackId="a" stroke={COLOR.eswiki} fill={COLOR.eswiki} fillOpacity={0.25} strokeWidth={2} isAnimationActive={false} />}
-              </AreaChart>
+                <Tooltip cursor={{ fill: "var(--muted)" }} labelFormatter={(t) => `${horaLocal(String(t), false)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
+                {wikis.includes("enwiki") && <Bar dataKey="enwiki" stackId="a" fill={COLOR.enwiki} isAnimationActive={false} />}
+                {wikis.includes("eswiki") && <Bar dataKey="eswiki" stackId="a" fill={COLOR.eswiki} radius={[2, 2, 0, 0]} isAnimationActive={false} />}
+              </BarChart>
             </ResponsiveContainer>
           )}
         </Seccion>
 
-        <Seccion titulo="Últimas ediciones"
+        <Seccion titulo="Últimos eventos"
           descripcion={!data ? "Llegan del stream de Wikipedia y se guardan en MongoDB en unos 2 segundos" : hayFiltros
             ? filtros.borrados
               ? `${entero(filtrados.length)} borrados grandes en los últimos 30 minutos · haz clic en uno para ver su detalle`
