@@ -1227,6 +1227,18 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - en Consultar de MongoDB, el tipo de evento es un selector segmentado, como en Crear;
   - se quitaron la ayuda «Empieza con…» y la casilla «Solo documentos de demostración»; el filtro ahora empieza desactivado;
   - los botones de borrar ya no terminan en «…».
+- **CRUD de Cassandra sobre la tabla `kpis`** (opción del usuario; commit `feat: run cassandra crud on the kpis table with demo kpis`):
+  - Antes usaba `actividad_editor`. Ahora cada fila es el resultado ya calculado de un KPI en una hora: clave `((kpi), ventana)`, con `valor` y `detalle`.
+  - Solo se escribe sobre KPIs `demo_…`, que el dashboard no muestra porque no tienen tarjeta. Los 12 reales se pueden consultar, pero no modificar.
+  - Código:
+    - [crud.py](../src/wikipipe/crud.py): funciones `kpi_*` y demo por consola;
+    - [main.py](../api/main.py): endpoints `/api/crud/cassandra*` y `/api/crud/cassandra/kpis`, que lista los KPIs con `SELECT DISTINCT`;
+    - [cassandra-crud.tsx](../web/src/components/cassandra-crud.tsx), reescrito.
+  - Probado en la VM: se creó `demo_kpi` (42), se consultó, se actualizó a 84 y se eliminó.
+- **Otros cambios del CRUD:**
+  - se quitaron los subtítulos de Cassandra y Neo4j;
+  - en Consultar de MongoDB, el tipo de evento ya no tiene «Todos»: sin elegir se buscan todos, y un segundo clic deselecciona.
+- **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
