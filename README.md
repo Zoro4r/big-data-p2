@@ -33,7 +33,7 @@ docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (Airflow), Airflow,
 ## Arquitectura: capa rápida + capa por lotes (Lambda)
 
 - **Capa rápida (servicio `stream`):** lee el stream de Wikipedia sin parar y cada ~2 s guarda los eventos en MongoDB y los contadores por minuto en Cassandra. El dashboard los muestra en la página "En vivo".
-- **Capa por lotes (DAG de Airflow, cada hora):** vuelve a extraer la hora completa, la valida, construye el grafo, los agregados por hora y los KPIs, y corrige los contadores por minuto. Las dos capas guardan cada evento con el mismo `_id`, así que no hay duplicados.
+- **Capa por lotes (DAG de Airflow, cada hora):** toma la hora completa de MongoDB si la capa rápida la cubrió sin cortes (si no, la vuelve a pedir a EventStreams; ver `src/wikipipe/fuente.py`), la valida, construye el grafo, los agregados por hora y los KPIs, y corrige los contadores por minuto. Las dos capas guardan cada evento con el mismo `_id`, así que no hay duplicados.
 
 ## Flujo del DAG
 
