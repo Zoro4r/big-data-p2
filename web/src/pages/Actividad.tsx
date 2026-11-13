@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { UserRound } from "lucide-react"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
@@ -93,6 +93,9 @@ export default function ActividadPage() {
   const [editor, setEditor] = useState<string | null>(null)
   const { data } = useApi<Actividad>(`/api/actividad?wiki=${wiki}${fecha ? `&fecha=${fecha}` : ""}`)
   useEffect(() => setHora(null), [wiki, fecha])
+  // Hora que se ve minuto a minuto: la que se elige en el gráfico por hora; si no, la última con datos.
+  const [horaMin, setHoraMin] = useState<number | null>(null)
+  useEffect(() => setHoraMin(null), [wiki, fecha])
   const historial = useApi<FilaEditor[]>(editor ? `/api/editor/${encodeURIComponent(editor)}` : null)
 
   const tot = useMemo(() => {
@@ -103,10 +106,17 @@ export default function ActividadPage() {
     return { ev, bots, rev: data.minutos.reduce((s, m) => s + m.reversiones, 0), min: data.minutos.length, pico }
   }, [data])
 
-  const ejeMinutos = useMemo(() => ejeDia(data?.minutos ?? []), [data])
-  // Humanos = eventos − bots, para apilar las dos partes en cada barra.
-  const minutosApilados = useMemo(() => ejeMinutos.datos.map((m) => ({ ...m, humanos: m.eventos - m.eventos_bot })), [ejeMinutos])
   const horas = useMemo(() => (data?.horas ?? []).slice().sort((a, b) => a.hora - b.hora).map((h) => ({ ...h, etiqueta: `${String(h.hora).padStart(2, "0")}:00` })), [data])
+  const horaVista = horaMin ?? horas[horas.length - 1]?.hora ?? null
+  // Los 60 minutos de la hora elegida (UTC−5); humanos = eventos − bots, para apilar las dos partes en cada barra.
+  const ejeHora = useMemo(() => {
+    const dia = ejeDia(data?.minutos ?? []).dominio[0]
+    const inicio = dia + (horaVista ?? 0) * 3_600_000, fin = inicio + 3_600_000
+    const datos = (data?.minutos ?? []).map((m) => ({ ...m, ms: new Date(m.t).getTime(), humanos: m.eventos - m.eventos_bot }))
+      .filter((m) => m.ms >= inicio && m.ms < fin)
+    return { datos, dominio: [inicio - 30_000, fin - 30_000] as [number, number], ticks: Array.from({ length: 7 }, (_, i) => inicio + i * 600_000) }
+  }, [data, horaVista])
+  const etiquetaHora = (h: number) => `${String(h).padStart(2, "0")}:00`
   const horasTop = useMemo(() => [...new Set((data?.top ?? []).map((t) => t.hora))].sort((a, b) => b - a), [data])
   const horaSel = hora ?? horasTop[0] ?? null
   const top = (data?.top ?? []).filter((t) => t.hora === horaSel).sort((a, b) => a.posicion - b.posicion).slice(0, 10)
@@ -150,31 +160,37 @@ export default function ActividadPage() {
           )}
         </div>
 
-        <Seccion titulo="Humanos y bots por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
+        <Seccion titulo="Humanos y bots por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora · haz clic en una hora para verla minuto a minuto`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%">
+              <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%" className="cursor-pointer"
+                onClick={(e) => { const h = horas.find((x) => x.etiqueta === e?.activeLabel); if (h) setHoraMin(h.hora) }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado} />
-                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado}>
+                  {horas.map((h) => <Cell key={h.etiqueta} fillOpacity={h.hora === horaVista ? 1 : 0.45} />)}
+                </Bar>
+                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]}>
+                  {horas.map((h) => <Cell key={h.etiqueta} fillOpacity={h.hora === horaVista ? 1 : 0.45} />)}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </Seccion>
 
-        <Seccion titulo="Eventos por minuto" descripcion="Cada barra es un minuto, con humanos y bots apilados; los picos suelen ser bots en ráfaga o una noticia" accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
+        <Seccion titulo={`Eventos por minuto${horaVista != null ? ` · ${etiquetaHora(horaVista)}–${etiquetaHora((horaVista + 1) % 24)}` : ""}`}
+          descripcion="Los 60 minutos de la hora elegida arriba, con humanos y bots apilados; los picos suelen ser bots en ráfaga o una noticia" accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={200} /> : (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={minutosApilados} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap={0}>
+              <BarChart data={ejeHora.datos} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="15%">
                 <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="ms" type="number" scale="time" domain={ejeMinutos.dominio} ticks={ejeMinutos.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
+                <XAxis dataKey="ms" type="number" scale="time" domain={ejeHora.dominio} ticks={ejeHora.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
-                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} isAnimationActive={false} />
+                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[3, 3, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           )}
