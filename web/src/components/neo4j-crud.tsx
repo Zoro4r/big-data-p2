@@ -339,7 +339,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
           )}
           {n.cargado && <AvisoDemo nombre={u} />}
           <Button type="submit" variant="destructive" disabled={n.ocupado || !n.listoParaBorrar || !esDemo(u)} className="h-10 w-full text-sm">
-            <Trash2 aria-hidden />{n.modoBorrar === "nodo" ? "Eliminar nodo…" : "Eliminar relación…"}
+            <Trash2 aria-hidden />{n.modoBorrar === "nodo" ? "Eliminar nodo" : "Eliminar relación"}
           </Button>
           <DialogoBorrar abierto={n.dialogo} onCerrar={() => n.setDialogo(false)} onConfirmar={n.eliminar} ocupado={n.ocupado}
             titulo={n.modoBorrar === "nodo" ? `¿Eliminar a ${u}?` : "¿Eliminar la relación?"}

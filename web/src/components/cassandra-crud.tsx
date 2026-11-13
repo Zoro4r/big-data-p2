@@ -347,7 +347,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
             </>
           )}
           <Button type="submit" variant="destructive" disabled={c.ocupado || !c.listoParaBorrar || !esDemo(c.clave.editor)} className="h-10 w-full text-sm">
-            <Trash2 aria-hidden />{c.modo === "fila" ? "Eliminar fila…" : "Eliminar partición…"}
+            <Trash2 aria-hidden />{c.modo === "fila" ? "Eliminar fila" : "Eliminar partición"}
           </Button>
           <DialogoBorrar abierto={c.dialogo} onCerrar={() => c.setDialogo(false)} onConfirmar={c.eliminar} ocupado={c.ocupado}
             titulo={c.modo === "fila" ? `¿Eliminar la fila de ${c.clave.editor}?` : `¿Eliminar toda la partición de ${c.clave.editor}?`}

@@ -61,7 +61,7 @@ export default function CrudPage() {
   /** «Completar con datos de prueba» en la operación elegida de MongoDB. */
   async function pruebaMongo() {
     if (mOp === "Crear") { evento.completar(); return }
-    if (mOp === "Consultar") { consulta.setF({ ...consulta.f, demo: true, periodo: "todo", editor: "Demo_Editor", titulo: "", id: "" }); return }
+    if (mOp === "Consultar") { consulta.setF({ ...consulta.f, tipo: "todos", periodo: "todo", editor: "Demo_Editor", titulo: "", id: "" }); return }
     const id = await documentoDemo().catch(() => null)
     if (!id) { toast.info("No hay documentos de demostración: crea uno en «Crear» y vuelve aquí"); return }
     setM((x) => ({ ...x, id }))
@@ -216,7 +216,7 @@ export default function CrudPage() {
                       ? <Button type="submit" disabled={ocupado || !actualizacion.nCambios} className="h-10 w-full text-sm"><Check aria-hidden />
                           {actualizacion.nCambios ? `Guardar ${actualizacion.nCambios} ${actualizacion.nCambios === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}</Button>
                       : mOp === "Eliminar"
-                        ? <Button type="submit" variant="destructive" disabled={ocupado || !eliminacion.confirmado} className="h-10 w-full text-sm"><Trash2 aria-hidden />Eliminar documento…</Button>
+                        ? <Button type="submit" variant="destructive" disabled={ocupado || !eliminacion.confirmado} className="h-10 w-full text-sm"><Trash2 aria-hidden />Eliminar documento</Button>
                         : boton("Insertar documento")}
                   <ConfirmarEliminacion e={eliminacion} abierto={confirmar} onCerrar={() => setConfirmar(false)} onConfirmar={confirmarEliminacion} ocupado={ocupado} />
                   {mOp === "Consultar" && <Coincidencias c={consulta} />}

@@ -4,7 +4,6 @@ import { toast } from "sonner"
 
 import { NOMBRE_WIKI, resaltar, Segmentado, type WikiCrud } from "@/components/crear-evento"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -38,7 +37,7 @@ function hace(f: string | null) {
 }
 
 export function useConsultaEventos(wikiCabecera: WikiCrud) {
-  const [f, setF] = useState({ wiki: wikiCabecera, tipo: "todos", periodo: "todo", editor: "", titulo: "", demo: true, id: "" })
+  const [f, setF] = useState({ wiki: wikiCabecera, tipo: "todos", periodo: "todo", editor: "", titulo: "", demo: false, id: "" })
   const [res, setRes] = useState<Respuesta | null>(null)
   const [elegido, setElegido] = useState<string | null>(null)
   const [doc, setDoc] = useState<Doc | null>(null)
@@ -122,24 +121,18 @@ export function FiltrosConsulta({ c }: { c: ConsultaEventos }) {
       </div>
 
       <fieldset disabled={conId} className="flex flex-col gap-3 disabled:opacity-50">
+        <Campo id="q-tipo" label="Tipo de evento">
+          <Segmentado etiqueta="Tipo de evento" valor={f.tipo} onChange={(v) => setF({ ...f, tipo: v })}
+            opciones={[["todos", "Todos"], ["edit", "Edición"], ["new", "Página nueva"], ["categorize", "Categorización"], ["log", "Otros"]]} />
+        </Campo>
+        <Campo id="q-periodo" label="Periodo">
+          <Desplegable id="q-periodo" valor={f.periodo} onChange={(v) => setF({ ...f, periodo: v })}
+            opciones={[["hora", "Última hora"], ["dia", "Últimas 24 horas"], ["semana", "Últimos 7 días"], ["todo", "Todo"]]} />
+        </Campo>
         <div className="grid grid-cols-2 gap-3">
-          <Campo id="q-tipo" label="Tipo de evento">
-            <Desplegable id="q-tipo" valor={f.tipo} onChange={(v) => setF({ ...f, tipo: v })}
-              opciones={[["todos", "Todos"], ["edit", "Edición"], ["new", "Página nueva"], ["categorize", "Categorización"], ["log", "Otros (registros)"]]} />
-          </Campo>
-          <Campo id="q-periodo" label="Periodo">
-            <Desplegable id="q-periodo" valor={f.periodo} onChange={(v) => setF({ ...f, periodo: v })}
-              opciones={[["hora", "Última hora"], ["dia", "Últimas 24 horas"], ["semana", "Últimos 7 días"], ["todo", "Todo"]]} />
-          </Campo>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Campo id="q-editor" label="Editor" ayuda="Empieza con…"><Input id="q-editor" placeholder="cualquiera" value={f.editor} onChange={(e) => setF({ ...f, editor: e.target.value })} /></Campo>
+          <Campo id="q-editor" label="Editor"><Input id="q-editor" placeholder="cualquiera" value={f.editor} onChange={(e) => setF({ ...f, editor: e.target.value })} /></Campo>
           <Campo id="q-titulo" label="Título contiene"><Input id="q-titulo" placeholder="cualquiera" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} /></Campo>
         </div>
-        <label htmlFor="q-demo" className="flex items-center gap-2 text-[13px]">
-          <Checkbox id="q-demo" checked={f.demo} onCheckedChange={(v) => setF({ ...f, demo: v === true })} />
-          Solo documentos de demostración (_id «demo-»)
-        </label>
       </fieldset>
 
       <Campo id="q-id" label="_id exacto" ayuda="Si lo llenas, se ignoran los demás filtros.">
@@ -187,7 +180,7 @@ export function FichaDocumento({ c, onActualizar, onEliminar }: { c: ConsultaEve
   const d = c.doc
   const docs = c.res?.documentos ?? []
   if (!c.res) return <Vacio titulo="Realiza una consulta" texto="Elige los filtros de la izquierda y presiona Buscar; el documento aparecerá aquí." />
-  if (!docs.length) return <Vacio titulo="Sin coincidencias" texto="Prueba con otro periodo, otra wiki o quita «Solo documentos de demostración»." />
+  if (!docs.length) return <Vacio titulo="Sin coincidencias" texto="Prueba con otro periodo, otra wiki u otro editor." />
   if (!d) return <Vacio titulo="Cargando documento…" texto=" " />
 
   const der = (d.derived ?? {}) as Doc
