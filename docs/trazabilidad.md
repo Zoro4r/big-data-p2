@@ -1167,6 +1167,7 @@ En la misma sección se reescribió «Por qué dos caminos»:
   - **rápido:** la inmediatez;
   - **por lotes:** la confiabilidad.
   - Cada una con sus razones en sub-viñetas.
+  - El camino por lotes tiene una razón más: hace posible la red de Neo4j. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
 
 ---
 
