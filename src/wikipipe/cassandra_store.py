@@ -69,7 +69,7 @@ def aggregate(events) -> dict:
     minutos = defaultdict(lambda: defaultdict(int))
     editores = defaultdict(lambda: {"tipo": None, "eventos": 0, "ediciones": 0, "paginas": set(),
                                     "delta": 0, "rev_hechas": 0, "rev_recibidas": 0})
-    paginas = defaultdict(lambda: {"ediciones": 0, "editores": set(), "delta": 0})
+    paginas = defaultdict(lambda: {"ediciones": 0, "editores": set(), "delta": 0, "reversiones": 0})
 
     for e in events:
         d, wiki, user, etype = e["derived"], e["wiki"], e["user"], e["type"]
@@ -112,6 +112,8 @@ def aggregate(events) -> dict:
             p["ediciones"] += 1
             p["editores"].add(user)
             p["delta"] += delta
+            # Una página en disputa es la que recibe reversiones: alguien deshace lo que hizo otro en ella.
+            p["reversiones"] += 1 if reverted else 0
 
     # Editores que en esta hora solo fueron revertidos: el tipo se deduce por el nombre.
     for (user, *_), ed in editores.items():
@@ -150,11 +152,17 @@ def load_window(session: Session, events) -> dict:
     for (w, f, h, title), p in agg["paginas"].items():
         rankings[(w, f, h)].append((title, p))
     pagina_rows, horas = [], []
+    disputa_rows = []
     for (w, f, h), items in rankings.items():
         horas.append((w, _day(f), h))
         items.sort(key=lambda it: (-len(it[1]["editores"]), -it[1]["ediciones"], it[0]))
         for pos, (title, p) in enumerate(items[:TOP_PAGES], start=1):
             pagina_rows.append((w, _day(f), h, pos, title, p["ediciones"], len(p["editores"]), p["delta"]))
+        # Páginas en disputa: las que más reversiones recibieron en la hora.
+        con_reversiones = sorted((it for it in items if it[1]["reversiones"]),
+                                 key=lambda it: (-it[1]["reversiones"], -len(it[1]["editores"]), it[0]))
+        for pos, (title, p) in enumerate(con_reversiones[:TOP_PAGES], start=1):
+            disputa_rows.append((w, _day(f), h, pos, title, p["reversiones"], p["ediciones"], len(p["editores"])))
 
     statements = {
         "resumen_por_hora": (
@@ -173,6 +181,11 @@ def load_window(session: Session, events) -> dict:
     statements["paginas_top_por_hora"] = (
         "INSERT INTO paginas_top_por_hora (wiki, fecha, hora, posicion, pagina, ediciones, editores, delta_bytes) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", pagina_rows)
+    delete_disputa = session.prepare("DELETE FROM paginas_disputadas_por_hora WHERE wiki = ? AND fecha = ? AND hora = ?")
+    execute_concurrent_with_args(session, delete_disputa, horas, concurrency=20, raise_on_first_error=True)
+    statements["paginas_disputadas_por_hora"] = (
+        "INSERT INTO paginas_disputadas_por_hora (wiki, fecha, hora, posicion, pagina, reversiones, ediciones, editores) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", disputa_rows)
 
     stats = {}
     for table, (cql, rows) in statements.items():

@@ -460,14 +460,20 @@ def ranking_patrulleros(limite: int = 10, wiki: str | None = None) -> list[dict]
 
 @cacheado
 def paginas_disputadas(horas: int = 24, limite: int = 12, wiki: str | None = None) -> list[dict]:
-    desde = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
-    return _cypher(
-        "MATCH (p:Pagina) WHERE p.ultima_edicion >= datetime($desde) AND ($wiki IS NULL OR p.wiki = $wiki) "
-        "MATCH (e:Editor)-[r:EDITO]->(p) "
-        "WITH p, count(e) AS editores, sum(r.ediciones) AS ediciones, "
-        "     sum(CASE WHEN e.tipo = 'bot' THEN 0 ELSE 1 END) AS humanos "
-        "RETURN p.key AS pagina, p.wiki AS wiki, p.titulo AS titulo, editores, humanos, ediciones "
-        "ORDER BY editores DESC LIMIT $limite", desde=desde, limite=limite, wiki=wiki)
+    """Páginas con más reversiones recibidas en las últimas horas (tabla paginas_disputadas_por_hora)."""
+    limite_t = datetime.now(timezone.utc) - timedelta(hours=horas)
+    s, suma = cassandra(), {}
+    for w in ([wiki] if wiki else sorted(config.WIKIS)):
+        for f in _fechas(2):
+            for r in s.execute("SELECT * FROM paginas_disputadas_por_hora WHERE wiki = %s AND fecha = %s", (w, f)):
+                if datetime.combine(r.fecha.date(), datetime.min.time(), timezone.utc) + timedelta(hours=r.hora) < limite_t:
+                    continue
+                p = suma.setdefault((w, r.pagina), {"pagina": f"{w}:{r.pagina}", "wiki": w, "titulo": r.pagina,
+                                                     "reversiones": 0, "ediciones": 0, "horas": 0})
+                p["reversiones"] += r.reversiones or 0
+                p["ediciones"] += r.ediciones or 0
+                p["horas"] += 1
+    return sorted(suma.values(), key=lambda p: (-p["reversiones"], -p["ediciones"]))[:limite]
 
 
 @cacheado

@@ -7,7 +7,6 @@ import { Header, Pagina } from "@/components/layout"
 import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { COLOR, colorTipo, entero } from "@/lib/format"
@@ -22,7 +21,7 @@ interface Red {
   revertidos: (Ranking & { revertido_por: number })[]
   patrulleros: (Ranking & { editores_revertidos: number })[]
   conectados: { editor: string; tipo: string; coeditores: number }[]
-  disputadas: { pagina: string; wiki: string; titulo: string; editores: number; humanos: number; ediciones: number }[]
+  disputadas: { pagina: string; wiki: string; titulo: string; reversiones: number; ediciones: number; horas: number }[]
 }
 interface Ego {
   centro: { user: string; tipo: string } | null
@@ -242,27 +241,15 @@ export default function RedPage() {
           </Seccion>
         </div>
 
-        <Seccion titulo="Páginas más disputadas" descripcion={`${etiqueta} · editadas en las últimas 24 h · ordenadas por editores distintos en toda su historia`}>
-          {!data ? <Cargando alto={260} /> : (
-            <Table>
-              <TableHeader><TableRow><TableHead>Página</TableHead><TableHead>Wiki</TableHead><TableHead className="w-[30%]">Editores distintos</TableHead><TableHead className="text-right">Humanos</TableHead><TableHead className="text-right">Ediciones</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {data.disputadas.map((p) => (
-                  <TableRow key={p.pagina}>
-                    <TableCell className="max-w-80 truncate font-medium" title={p.titulo}>{p.titulo}</TableCell>
-                    <TableCell><span className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: COLOR[p.wiki as "enwiki"] ?? COLOR.otro }} />{p.wiki}</span></TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-foreground/75" style={{ width: `${(p.editores / data.disputadas[0].editores) * 100}%` }} /></div>
-                        <span className="w-6 text-right tabular-nums">{p.editores}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{p.humanos}</TableCell>
-                    <TableCell className="text-right tabular-nums">{p.ediciones}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <Seccion titulo="Páginas más disputadas" descripcion={`${etiqueta} · reversiones recibidas en las últimas 24 h · una página en disputa es la que tiene cambios que otros deshacen`}>
+          {!data ? <Cargando alto={260} /> : data.disputadas.length === 0 ? <Vacio titulo="Sin reversiones" texto="Ninguna página recibió reversiones en las últimas 24 horas." /> : (
+            <div className="flex flex-col gap-2.5">
+              {data.disputadas.map((p) => (
+                <div key={p.pagina} title={`${p.reversiones} reversiones · ${p.ediciones} ediciones · en ${p.horas} ${p.horas === 1 ? "hora" : "horas"}`}>
+                  <FilaBarra nombre={p.titulo} valor={p.reversiones} max={data.disputadas[0].reversiones} color={COLOR[p.wiki as "enwiki"] ?? COLOR.otro} />
+                </div>
+              ))}
+            </div>
           )}
         </Seccion>
       </Pagina>

@@ -9,7 +9,7 @@
 | volumen_neto_bytes         | MongoDB   | Σ (length.new − length.old)                          |
 | tasa_reversion_pct         | MongoDB   | ediciones que revierten a otro editor / ediciones × 100 |
 | total_eventos_acumulados   | MongoDB   | documentos en events con fecha anterior al fin de la ventana |
-| pagina_mas_disputada       | Neo4j     | página editada en la hora con más editores distintos (histórico) |
+| pagina_mas_disputada       | Cassandra | página que más reversiones recibió en la hora          |
 | editor_mas_conectado       | Neo4j     | editor humano activo en la hora con más relaciones COEDITA |
 | editor_mas_revertido       | Neo4j     | editor con más reversiones recibidas, entre los revertidos en la hora |
 | calidad_datos_pct          | limpieza  | eventos válidos / eventos extraídos × 100            |
@@ -53,7 +53,20 @@ def from_cassandra(session, start: datetime, wiki: str | None = None) -> dict:
         "tasa_automatizacion_pct": (_pct(now["eventos_bot"], now["eventos"]), None),
         "actividad_por_editor": (
             round(now["eventos_humanos"] / now["editores_humanos"], 2) if now["editores_humanos"] else None, None),
+        "pagina_mas_disputada": _pagina_disputada(session, start, wiki),
     }
+
+
+def _pagina_disputada(session, start: datetime, wiki: str | None = None) -> tuple:
+    """La página que más reversiones recibió en la hora (tabla paginas_disputadas_por_hora)."""
+    mejor = None
+    for w in ([wiki] if wiki else sorted(config.WIKIS)):
+        fila = session.execute(
+            "SELECT pagina, reversiones FROM paginas_disputadas_por_hora WHERE wiki = %s AND fecha = %s AND hora = %s LIMIT 1",
+            (w, start.date(), start.hour)).one()
+        if fila and (mejor is None or fila.reversiones > mejor[0]):
+            mejor = (fila.reversiones, f"{w}:{fila.pagina}")
+    return mejor if mejor else (None, None)
 
 
 def from_mongo(db, start: datetime, end: datetime, wiki: str | None = None) -> dict:
@@ -80,12 +93,6 @@ def from_mongo(db, start: datetime, end: datetime, wiki: str | None = None) -> d
     }
 
 
-Q_PAGINA = """
-MATCH (p:Pagina) WHERE p.ultima_edicion >= datetime($start) AND ($wiki IS NULL OR p.wiki = $wiki)
-MATCH (e:Editor)-[:EDITO]->(p)
-WITH p, count(e) AS editores ORDER BY editores DESC LIMIT 1
-RETURN p.key AS nombre, editores AS valor
-"""
 Q_CONECTADO = """
 MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($start) AND e.tipo <> 'bot'
   AND ($wiki IS NULL OR EXISTS {
@@ -106,8 +113,7 @@ RETURN b.user AS nombre, reversiones AS valor, patrulleros ORDER BY valor DESC, 
 def from_neo4j(driver, start: datetime, wiki: str | None = None) -> dict:
     out = {}
     with driver.session() as session:
-        for kpi, query in (("pagina_mas_disputada", Q_PAGINA), ("editor_mas_conectado", Q_CONECTADO),
-                           ("editor_mas_revertido", Q_REVERTIDO)):
+        for kpi, query in (("editor_mas_conectado", Q_CONECTADO), ("editor_mas_revertido", Q_REVERTIDO)):
             rec = session.run(query, start=start.isoformat(), wiki=wiki).single()
             if rec is None:
                 out[kpi] = (None, None)

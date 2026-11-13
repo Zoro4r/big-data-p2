@@ -129,11 +129,11 @@ export default function ResumenPage() {
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${etiqueta} · calculados en Neo4j sobre el grafo acumulado`}>
+          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${etiqueta} · la página, en Cassandra; los editores, en Neo4j sobre la red acumulada`}>
             {!data ? <Cargando alto={200} /> : (
               <div className="flex flex-col">
                 {([
-                  ["pagina_mas_disputada", FileText, "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400", "editores"],
+                  ["pagina_mas_disputada", FileText, "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400", "reversiones"],
                   ["editor_mas_conectado", Share2, "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400", "coeditores"],
                   ["editor_mas_revertido", Undo2, "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400", "reversiones"],
                 ] as const).map(([kpi, Icono, estilo, unidad], i) => {

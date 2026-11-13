@@ -64,6 +64,19 @@ CREATE TABLE IF NOT EXISTS wikipipe.paginas_top_por_hora (
   PRIMARY KEY ((wiki, fecha), hora, posicion)
 ) WITH CLUSTERING ORDER BY (hora DESC, posicion ASC);
 
+-- Consulta: páginas en disputa de cada hora en una wiki (top 20 por reversiones recibidas).
+CREATE TABLE IF NOT EXISTS wikipipe.paginas_disputadas_por_hora (
+  wiki text,
+  fecha date,
+  hora int,
+  posicion int,
+  pagina text,
+  reversiones int,
+  ediciones int,
+  editores int,
+  PRIMARY KEY ((wiki, fecha), hora, posicion)
+) WITH CLUSTERING ORDER BY (hora DESC, posicion ASC);
+
 -- Consulta: serie de tiempo de un KPI (el valor más reciente es la primera fila).
 CREATE TABLE IF NOT EXISTS wikipipe.kpis (
   kpi text,

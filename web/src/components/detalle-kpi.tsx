@@ -5,7 +5,7 @@ import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 const ORDEN = Object.keys(KPIS) as Kpi[]
 const UNIDAD_ENTIDAD: Partial<Record<Kpi, string>> = {
-  pagina_mas_disputada: "editores distintos",
+  pagina_mas_disputada: "reversiones recibidas",
   editor_mas_conectado: "coeditores",
   editor_mas_revertido: "reversiones",
 }
