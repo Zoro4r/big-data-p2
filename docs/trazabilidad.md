@@ -1295,6 +1295,14 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - **MongoDB:** `cambiarMOp` en [Crud.tsx](../web/src/pages/Crud.tsx) y `limpiar` en `useActualizacion`/`useEliminacion`.
   - **Se mantiene:** los botones «Actualizar este» y «Eliminar» de Consultar siguen llevando el registro elegido, porque esa navegación es explícita.
   - **Se quitó:** después de Crear en MongoDB, el `_id` nuevo ya no queda puesto en las otras operaciones.
+- **Vista Arquitectura** (commit `fix: redraw architecture flow and drop summary cards`), a pedido del usuario:
+  - **Tarjetas:** se quitaron las cuatro de abajo (eventos guardados, ritmo, corridas, calidad), porque no correspondían a esa sección.
+  - **Diagrama:** ahora muestra el flujo actual ([Arquitectura.tsx, `FLECHAS`](../web/src/pages/Arquitectura.tsx)):
+    - el lote lee cada hora de MongoDB (flecha MongoDB → capa por lotes);
+    - EventStreams → capa por lotes es una línea punteada (respaldo);
+    - ya no hay flecha del lote a MongoDB;
+    - las flechas llegan a puntos distintos de cada caja, sin amontonarse.
+  - **Pie del diagrama:** explica la línea punteada.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
