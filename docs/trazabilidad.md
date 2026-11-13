@@ -1083,6 +1083,41 @@ Cambios hechos a partir de las observaciones del usuario:
   - Neo4j: 1.66 millones de nodos.
 - **«Características»:** el reparto por wiki, por bots y personas y por tipo pasó a ser subviñetas de «Volumen».
 
+### 43. El proceso horario lee la hora de MongoDB; EventStreams queda de respaldo
+
+**Motivo.** Deducir el fin de la hora en EventStreams, que no tiene parámetro «hasta», causó dos fallas en una semana (entradas 39 y 40). El servicio stream ya guarda cada evento en MongoDB, así que la hora puede leerse de ahí cuando está completa. A propuesta del usuario.
+
+**Cambios en el código** (commit `feat: read hourly batch from mongodb when the stream covered the hour`):
+
+- [`src/wikipipe/fuente.py`](../src/wikipipe/fuente.py) (nuevo) decide la fuente con `decidir`:
+  - **MongoDB:** si un tramo de cobertura del servicio stream cubre la hora y llega 5 min más allá de su fin (`MARGEN`).
+  - **Esperar:** si el tramo va llegando, hasta 10 min (`ESPERA_MAX`).
+  - **EventStreams:** si no hay tramo, o si el tramo se detuvo; usa `extract_window` con la regla de corte de siempre.
+  - Las dos fuentes escriben el mismo archivo crudo, así que las tareas siguientes no cambian. Solo entran eventos con `inicio <= meta.dt < fin`.
+- [`src/wikipipe/streaming.py`](../src/wikipipe/streaming.py), docstring del módulo y funciones `rechazo`, `rango_en_vivo` y `guardar`:
+  - registra los tramos en `stream_cobertura`. Un reinicio que retoma con `Last-Event-ID` continúa el tramo; uno que arranca en vivo abre otro. `fin` avanza solo con eventos de menos de 60 s de retraso;
+  - guarda `received_at` en cada evento;
+  - guarda en `events_rejected` los eventos de enwiki/eswiki que no pasan la validación, con `ventana_dt`, para que la calidad se mida igual.
+- [`src/wikipipe/mongo.py`](../src/wikipipe/mongo.py), `load_events`: los rechazados que carga el DAG también guardan `ventana_dt`.
+- [`db/mongo/schema.json`](../db/mongo/schema.json): índice `por_fecha` en `events_rejected` y colección `stream_cobertura`.
+- [`airflow/dags/wikipedia_pipeline.py`](../airflow/dags/wikipedia_pipeline.py), tarea `extraer`: usa `fuente.extraer_hora`.
+- Pruebas: [`tests/test_fuente.py`](../tests/test_fuente.py) (nuevo) y [`tests/test_streaming.py`](../tests/test_streaming.py). Pasan las 16 pruebas.
+
+**Despliegue y validación (12 nov, UTC−5):**
+
+- Desplegado a las 20:27, entre dos ejecuciones horarias. El servicio stream retomó desde el marcador y abrió el primer tramo de cobertura a las 20:28.
+- **Ventana 20:29–20:34:** MongoDB dio 1,598 eventos en 0.2 s; EventStreams dio los mismos 1,598 identificadores en 48.9 s. Diferencias: 0.
+- **Ventana de las 19:00,** anterior al registro de cobertura: usó el respaldo EventStreams, como se esperaba.
+- **Retraso medido en vivo** (60 s de muestra): mediana de 0 s y máximo de 1.3 s.
+
+**Documentación:**
+
+- [README.md](../README.md), sección de arquitectura: viñeta «Capa por lotes».
+- Informe:
+  - sección 4: paso 6, el párrafo «El camino por lotes corrige al rápido» y el diagrama;
+  - sección 5: tarea `extraer`, plazo de unos 9 días y el nuevo párrafo «De dónde lee la extracción»;
+  - sección 12: fila nueva en la tabla de problemas.
+
 ---
 
 ## Pendientes
