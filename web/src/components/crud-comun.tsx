@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { FlaskConical, History, Trash2, Undo2 } from "lucide-react"
+import { Check, FlaskConical, History, Trash2, Undo2 } from "lucide-react"
 
 import { NOMBRE_WIKI, Segmentado, type WikiCrud } from "@/components/crear-evento"
 import { Button } from "@/components/ui/button"
@@ -207,6 +207,18 @@ export function QuePasa({ filas }: { filas: [string, ReactNode][] }) {
 }
 
 /** Completa la operación con datos de demostración («demo_…»): los formularios empiezan vacíos. */
+/** Pie de Actualizar: «Cancelar» descarta lo editado y «Guardar N cambios» lo envía. */
+export function BotonesGuardar({ n, deshabilitado, onCancelar }: { n: number; deshabilitado: boolean; onCancelar: () => void }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
+      <Button type="button" variant="outline" disabled={!n} className="h-10 text-sm" onClick={onCancelar}>Cancelar</Button>
+      <Button type="submit" disabled={deshabilitado || !n} className="h-10 text-sm">
+        <Check aria-hidden />{n ? `Guardar ${n} ${n === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}
+      </Button>
+    </div>
+  )
+}
+
 export function BotonPrueba({ onClick, ultimos }: { onClick: () => void; ultimos?: boolean }) {
   return (
     <Button type="button" variant="outline" size="sm" className="w-full" onClick={onClick}>

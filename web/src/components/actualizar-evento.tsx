@@ -73,6 +73,7 @@ export function useActualizacion() {
   const poner = (ruta: string, v: unknown) =>
     setCambios((c) => (igual(v, obtener(original, ruta)) ? sin(c, ruta) : { ...c, [ruta]: v }))
   const deshacer = (ruta: string) => setCambios((c) => sin(c, ruta))
+  const descartar = () => setCambios({})
 
   const nuevo = useMemo(() => (original ? aplicar(original, cambios) : null), [original, cambios])
 
@@ -114,7 +115,7 @@ export function useActualizacion() {
     return { id, campos: Object.keys(cambios), ...r }
   }
 
-  return { original, cambios, valor, poner, deshacer, filas, despues, cargar, cargando, guardar, nCambios: Object.keys(cambios).length }
+  return { original, cambios, valor, poner, deshacer, descartar, filas, despues, cargar, cargando, guardar, nCambios: Object.keys(cambios).length }
 }
 export type Actualizacion = ReturnType<typeof useActualizacion>
 

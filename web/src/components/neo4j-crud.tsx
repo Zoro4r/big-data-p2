@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { Check, Plus, Search, Trash2 } from "lucide-react"
+import { Plus, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Segmentado, type WikiCrud } from "@/components/crear-evento"
 import {
-  Antes, AvisoDemo, BotonPrueba, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
+  Antes, AvisoDemo, BotonesGuardar, BotonPrueba, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
   Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -122,6 +122,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   const valor = (k: string) => (k in cambios ? cambios[k] : original(k))
   const poner = (k: string, v: string) => setCambios((x) => { const s = { ...x, [k]: v }; if (v === original(k)) delete s[k]; return s })
   const deshacer = (k: string) => setCambios((x) => { const s = { ...x }; delete s[k]; return s })
+  const descartar = () => { setCambios({}); setNuevaProp({ clave: "", valor: "" }) }
   function agregarProp() {
     const k = nuevaProp.clave.trim()
     if (!k || k === "user") { toast.error(k === "user" ? "user es la clave única y no se cambia" : "Escribe el nombre de la propiedad"); return }
@@ -185,7 +186,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     op, setOp, ocupado,
     modoCrear, setModoCrear, nodo, setNodo, rel, setRel, existe, crear,
     filtro, setFiltro, encontrados, elegido, elegir, detalle, buscar,
-    user, setUser, cargado, cargar, cambios, valor, original, poner, deshacer, nuevaProp, setNuevaProp, agregarProp, guardar,
+    user, setUser, cargado, cargar, cambios, valor, original, poner, deshacer, descartar, nuevaProp, setNuevaProp, agregarProp, guardar,
     modoBorrar, setModoBorrar, relElegida, setRelElegida, relacionesBorrables, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
     completarPrueba,
   }
@@ -298,9 +299,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
               </div>
             </>
           )}
-          <Button type="submit" disabled={n.ocupado || !nCambios || !n.cargado || !esDemo(u)} className="h-10 w-full text-sm">
-            <Check aria-hidden />{nCambios ? `Guardar ${nCambios} ${nCambios === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}
-          </Button>
+          <BotonesGuardar n={nCambios} deshabilitado={n.ocupado || !n.cargado || !esDemo(u)} onCancelar={n.descartar} />
         </>
       )}
 

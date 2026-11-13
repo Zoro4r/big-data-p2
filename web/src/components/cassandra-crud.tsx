@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { Check, Search, Trash2 } from "lucide-react"
+import { Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Segmentado } from "@/components/crear-evento"
 import {
-  Antes, BotonPrueba, Campo, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, Ficha, InputEditable,
+  Antes, BotonesGuardar, BotonPrueba, Campo, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, Ficha, InputEditable,
   Nota, Operaciones, Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -141,6 +141,7 @@ export function useCassandraCrud() {
     return sig
   })
   const deshacer = (c: string) => setCambios((x) => { const sig = { ...x }; delete sig[c]; return sig })
+  const descartar = () => setCambios({})
   const convertir = (c: string, v: string) => (v === "" ? null : c === "valor" ? Number(v) : v)
   async function guardar() {
     if (!original) return
@@ -206,7 +207,7 @@ export function useCassandraCrud() {
     op, setOp, ocupado, nombres,
     nueva, setNueva, filaNueva, existente, insertada, insertar,
     consulta, setConsulta, resultados, elegido, setElegido, buscar,
-    clave, setClave, original, cambios, valor, poner, deshacer, cargar, guardar,
+    clave, setClave, original, cambios, valor, poner, deshacer, descartar, cargar, guardar,
     modo, setModo, particion, cargarParticion, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
     completarPrueba,
   }
@@ -304,9 +305,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
               </div>
             </>
           )}
-          <Button type="submit" disabled={c.ocupado || !nCambios || !c.original || !esKpiDemo(c.original.kpi)} className="h-10 w-full text-sm">
-            <Check aria-hidden />{nCambios ? `Guardar ${nCambios} ${nCambios === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}
-          </Button>
+          <BotonesGuardar n={nCambios} deshabilitado={c.ocupado || !c.original || !esKpiDemo(c.original.kpi)} onCancelar={c.descartar} />
         </>
       )}
 

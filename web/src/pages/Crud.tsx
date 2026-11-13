@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { Check, CheckCircle2, Copy, Search, Trash2, XCircle, ShieldCheck } from "lucide-react"
+import { CheckCircle2, Copy, Search, Trash2, XCircle, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
 import { Seccion, Vacio } from "@/components/common"
@@ -13,7 +13,7 @@ import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from 
 import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useEliminacion } from "@/components/eliminar-evento"
 import { CassandraDerecha, CassandraIzquierda, useCassandraCrud } from "@/components/cassandra-crud"
 import { Neo4jDerecha, Neo4jIzquierda, useNeo4jCrud } from "@/components/neo4j-crud"
-import { BotonPrueba } from "@/components/crud-comun"
+import { BotonesGuardar, BotonPrueba } from "@/components/crud-comun"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
@@ -186,8 +186,7 @@ export default function CrudPage() {
                   {mOp === "Consultar"
                     ? <Button type="submit" disabled={ocupado} className="h-10 w-full text-sm"><Search aria-hidden />Buscar</Button>
                     : mOp === "Actualizar"
-                      ? <Button type="submit" disabled={ocupado || !actualizacion.nCambios} className="h-10 w-full text-sm"><Check aria-hidden />
-                          {actualizacion.nCambios ? `Guardar ${actualizacion.nCambios} ${actualizacion.nCambios === 1 ? "cambio" : "cambios"}` : "Guardar cambios"}</Button>
+                      ? <BotonesGuardar n={actualizacion.nCambios} deshabilitado={ocupado} onCancelar={actualizacion.descartar} />
                       : mOp === "Eliminar"
                         ? <Button type="submit" variant="destructive" disabled={ocupado || !eliminacion.confirmado} className="h-10 w-full text-sm"><Trash2 aria-hidden />Eliminar documento</Button>
                         : boton("Insertar documento")}
