@@ -1163,6 +1163,9 @@ En la misma sección se reescribió «Por qué dos caminos»:
 - A pedido del usuario, esa lista ya no menciona las fallas de la sección 12. Ahora explica qué se pierde en utilidad sin cada camino:
   - **sin el rápido:** hasta 60 minutos de atraso y la carga concentrada al cierre de la hora;
   - **sin el de lotes:** no hay horas cerradas, todo se recalcula con cada cambio y los cortes pasan sin que nadie los note.
+- Luego, a pedido del usuario, ese cierre dejó de plantearse como «qué falta» y presenta la importancia de cada camino:
+  - **rápido:** la inmediatez;
+  - **por lotes:** la confiabilidad.
 
 ---
 
