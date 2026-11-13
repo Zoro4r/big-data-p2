@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { cumpleFiltros, FILTROS_EDITOR, FILTROS_TIPO, NOMBRE_EDITOR, NOMBRE_TIPO, PLURAL_TIPO, tipoEvento, type EventoResumen, type Filtros } from "@/lib/eventos"
+import { BORRADO_GRANDE, cumpleFiltros, FILTROS_EDITOR, SIN_FILTROS, FILTROS_TIPO, NOMBRE_EDITOR, NOMBRE_TIPO, PLURAL_TIPO, tipoEvento, type EventoResumen, type Filtros } from "@/lib/eventos"
 import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +20,8 @@ interface Vivo {
   eventos_ultimo_minuto: number
   por_minuto: { wiki: string; t: string; eventos: number; ediciones: number; eventos_bot: number; reversiones: number }[]
   ultimos: EventoResumen[]
+  /** Cambios que borraron más de BORRADO_GRANDE bytes en la ventana. */
+  borrados: EventoResumen[]
   stream: { ultimo_evento: string | null; actualizado: string | null }
 }
 
@@ -91,9 +93,9 @@ function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
   }
 }
 
-/** Menú de filtros: tipo de evento y tipo de editor. "Todos" equivale a no filtrar ese grupo. */
+/** Menú de filtros: tamaño, tipo de evento y tipo de editor. "Todos" equivale a no filtrar ese grupo. */
 function MenuFiltros({ filtros, setFiltros }: { filtros: Filtros; setFiltros: (f: Filtros) => void }) {
-  const activos = filtros.tipos.size + filtros.editores.size
+  const activos = filtros.tipos.size + filtros.editores.size + (filtros.borrados ? 1 : 0)
   const alternar = <T,>(conjunto: Set<T>, valor: T) => { const n = new Set(conjunto); if (n.has(valor)) n.delete(valor); else n.add(valor); return n }
   return (
     <Popover>
@@ -104,6 +106,11 @@ function MenuFiltros({ filtros, setFiltros }: { filtros: Filtros; setFiltros: (f
         </Button>
       </PopoverTrigger>
       <PopoverContent className="flex flex-col gap-3.5">
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Para patrullar</legend>
+          <Opcion etiqueta={`Borrados grandes (más de ${entero(BORRADO_GRANDE)} bytes)`} marcado={filtros.borrados} onCambio={() => setFiltros({ ...filtros, borrados: !filtros.borrados })} />
+        </fieldset>
+        <div className="h-px bg-border" />
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Tipo de evento</legend>
           <Opcion etiqueta="Todos" marcado={filtros.tipos.size === 0} onCambio={() => setFiltros({ ...filtros, tipos: new Set() })} />
@@ -116,7 +123,7 @@ function MenuFiltros({ filtros, setFiltros }: { filtros: Filtros; setFiltros: (f
           {FILTROS_EDITOR.map((k) => <Opcion key={k} etiqueta={NOMBRE_EDITOR[k]} marcado={filtros.editores.has(k)} onCambio={() => setFiltros({ ...filtros, editores: alternar(filtros.editores, k) })} />)}
         </fieldset>
         <div className="h-px bg-border" />
-        <Button variant="outline" size="sm" disabled={!activos} onClick={() => setFiltros({ tipos: new Set(), editores: new Set() })}>Limpiar filtros</Button>
+        <Button variant="outline" size="sm" disabled={!activos} onClick={() => setFiltros(SIN_FILTROS)}>Limpiar filtros</Button>
       </PopoverContent>
     </Popover>
   )
@@ -133,6 +140,7 @@ function Opcion({ etiqueta, marcado, onCambio }: { etiqueta: string; marcado: bo
 /** Fichas de los filtros activos, cada una con su X, y "Limpiar filtros". */
 function FichasFiltros({ filtros, setFiltros }: { filtros: Filtros; setFiltros: (f: Filtros) => void }) {
   const fichas = [
+    ...(filtros.borrados ? [{ clave: "borrados", texto: "Borrados grandes", quitar: () => setFiltros({ ...filtros, borrados: false }) }] : []),
     ...[...filtros.tipos].map((t) => ({ clave: t, texto: PLURAL_TIPO[t], quitar: () => { const n = new Set(filtros.tipos); n.delete(t); setFiltros({ ...filtros, tipos: n }) } })),
     ...[...filtros.editores].map((k) => ({ clave: k, texto: NOMBRE_EDITOR[k], quitar: () => { const n = new Set(filtros.editores); n.delete(k); setFiltros({ ...filtros, editores: n }) } })),
   ]
@@ -144,7 +152,7 @@ function FichasFiltros({ filtros, setFiltros }: { filtros: Filtros; setFiltros: 
           <button type="button" onClick={f.quitar} aria-label={`Quitar filtro ${f.texto}`} className="inline-flex size-[18px] items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground"><X className="size-3" aria-hidden /></button>
         </span>
       ))}
-      <button type="button" onClick={() => setFiltros({ tipos: new Set(), editores: new Set() })} className="px-1.5 text-xs text-muted-foreground underline underline-offset-[3px] hover:text-foreground">Limpiar filtros</button>
+      <button type="button" onClick={() => setFiltros(SIN_FILTROS)} className="px-1.5 text-xs text-muted-foreground underline underline-offset-[3px] hover:text-foreground">Limpiar filtros</button>
     </div>
   )
 }
@@ -190,9 +198,10 @@ export default function VivoPage() {
     return [...m.values()].sort((a, b) => a.t.localeCompare(b.t))
   }, [data])
 
-  const [filtros, setFiltros] = useState<Filtros>({ tipos: new Set(), editores: new Set() })
-  const hayFiltros = filtros.tipos.size > 0 || filtros.editores.size > 0
-  const filtrados = useMemo(() => (data?.ultimos ?? []).filter((e) => cumpleFiltros(e, filtros)), [data, filtros])
+  const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS)
+  const hayFiltros = filtros.tipos.size > 0 || filtros.editores.size > 0 || filtros.borrados
+  // Con «Borrados grandes» se usa la lista aparte que trae la API: entre los últimos 100 eventos casi nunca hay uno.
+  const filtrados = useMemo(() => ((filtros.borrados ? data?.borrados : data?.ultimos) ?? []).filter((e) => cumpleFiltros(e, filtros)), [data, filtros])
   const visibles = filtrados.slice(0, MOSTRAR)
   // El modal navega sobre la lista que se veía al abrirlo: la lista en vivo sigue cambiando cada 4 s.
   const [abierto, setAbierto] = useState<string | null>(null)
@@ -238,7 +247,9 @@ export default function VivoPage() {
 
         <Seccion titulo="Últimas ediciones"
           descripcion={!data ? "Llegan del stream de Wikipedia y se guardan en MongoDB en unos 2 segundos" : hayFiltros
-            ? `${entero(filtrados.length)} de ${entero(data.ultimos.length)} eventos recientes con estos filtros · haz clic en uno para ver su detalle`
+            ? filtros.borrados
+              ? `${entero(filtrados.length)} borrados grandes en los últimos 30 minutos · haz clic en uno para ver su detalle`
+              : `${entero(filtrados.length)} de ${entero(data.ultimos.length)} eventos recientes con estos filtros · haz clic en uno para ver su detalle`
             : "Llegan del stream de Wikipedia y se guardan en MongoDB en unos 2 segundos · haz clic en un evento para ver su detalle"}
           accion={<MenuFiltros filtros={filtros} setFiltros={setFiltros} />}>
           {hayFiltros && <FichasFiltros filtros={filtros} setFiltros={setFiltros} />}

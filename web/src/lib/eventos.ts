@@ -45,7 +45,13 @@ export const NOMBRE_EDITOR: Record<TipoEditor, string> = { registrado: "Registra
 export interface Filtros {
   tipos: Set<TipoEvento>
   editores: Set<TipoEditor>
+  /** Solo cambios que borran mucho texto: vaciar o recortar una página es una forma común de vandalismo. */
+  borrados: boolean
 }
+
+/** Bytes que tiene que quitar un cambio para contar como «borrado grande». */
+export const BORRADO_GRANDE = 1000
+export const SIN_FILTROS: Filtros = { tipos: new Set(), editores: new Set(), borrados: false }
 
 export const FILTROS_TIPO: TipoEvento[] = ["edicion", "nueva", "categorizacion", "reversion"]
 export const FILTROS_EDITOR: TipoEditor[] = ["registrado", "temporal", "bot"]
@@ -53,7 +59,8 @@ export const FILTROS_EDITOR: TipoEditor[] = ["registrado", "temporal", "bot"]
 export function cumpleFiltros(e: EventoResumen, f: Filtros): boolean {
   const okTipo = f.tipos.size === 0 || f.tipos.has(tipoEvento(e))
   const okEditor = f.editores.size === 0 || f.editores.has(e.tipo_editor as TipoEditor)
-  return okTipo && okEditor
+  const okBorrado = !f.borrados || (e.delta_bytes != null && e.delta_bytes <= -BORRADO_GRANDE)
+  return okTipo && okEditor && okBorrado
 }
 
 /** Espacios de nombres de MediaWiki (los más comunes), con su nombre en español. */

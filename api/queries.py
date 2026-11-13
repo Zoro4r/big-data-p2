@@ -279,6 +279,9 @@ def estado() -> dict:
     }
 
 
+BORRADO_GRANDE = 1000  # bytes; igual que en web/src/lib/eventos.ts
+
+
 def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     """Actividad de los últimos minutos escrita por el servicio de streaming (sin caché)."""
     ahora = datetime.now(timezone.utc)
@@ -296,20 +299,25 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
                        for r in filas]
     db = mongo_db()
     hace_un_minuto = ahora - timedelta(seconds=60)
-    ultimos = db.events.find({"wiki": {"$in": wikis}}, {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}) \
-        .sort("derived.event_dt", -1).limit(100)  # el dashboard filtra y muestra 25
+    proy = {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}
+    ultimos = db.events.find({"wiki": {"$in": wikis}}, proy).sort("derived.event_dt", -1).limit(100)  # el dashboard filtra y muestra 25
+    # Borrados grandes de la ventana: entre los últimos 100 casi nunca hay uno, así que se buscan aparte.
+    borrados = db.events.find({"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": ahora - timedelta(minutes=minutos)},
+                               "derived.delta_bytes": {"$lte": -BORRADO_GRANDE}}, proy).sort("derived.event_dt", -1).limit(25)
+    resumen = lambda d: {
+        "_id": d["_id"], "fecha": d["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat(),
+        "wiki": d["wiki"], "tipo": d["type"], "titulo": d["title"], "editor": d["user"],
+        "tipo_editor": d["derived"].get("user_type"), "delta_bytes": d["derived"].get("delta_bytes"),
+        "revierte_a": d["derived"].get("revert_target"),
+    }
     estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
     return {
         "ahora": ahora.isoformat(),
         "eventos_ultimo_minuto": db.events.count_documents(
             {"derived.event_dt": {"$gte": hace_un_minuto}, "wiki": {"$in": wikis}}),
         "por_minuto": sorted(por_minuto, key=lambda x: x["t"]),
-        "ultimos": [{
-            "_id": d["_id"], "fecha": d["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat(),
-            "wiki": d["wiki"], "tipo": d["type"], "titulo": d["title"], "editor": d["user"],
-            "tipo_editor": d["derived"].get("user_type"), "delta_bytes": d["derived"].get("delta_bytes"),
-            "revierte_a": d["derived"].get("revert_target"),
-        } for d in ultimos],
+        "ultimos": [resumen(d) for d in ultimos],
+        "borrados": [resumen(d) for d in borrados],
         "stream": {
             "ultimo_evento": estado.get("last_dt"),
             "actualizado": estado["updated_at"].replace(tzinfo=timezone.utc).isoformat() if estado.get("updated_at") else None,
