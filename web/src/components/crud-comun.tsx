@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { FlaskConical, Trash2, Undo2 } from "lucide-react"
+import { FlaskConical, History, Trash2, Undo2 } from "lucide-react"
 
 import { NOMBRE_WIKI, Segmentado, type WikiCrud } from "@/components/crear-evento"
 import { Button } from "@/components/ui/button"
@@ -210,10 +210,10 @@ export function QuePasa({ filas }: { filas: [string, ReactNode][] }) {
 }
 
 /** Completa la operación con datos de demostración («Demo_…»): los formularios empiezan vacíos. */
-export function BotonPrueba({ onClick }: { onClick: () => void }) {
+export function BotonPrueba({ onClick, ultimos }: { onClick: () => void; ultimos?: boolean }) {
   return (
     <Button type="button" variant="outline" size="sm" className="w-full" onClick={onClick}>
-      <FlaskConical aria-hidden />Completar con datos de prueba
+      {ultimos ? <><History aria-hidden />Elegir entre los últimos eventos</> : <><FlaskConical aria-hidden />Completar con datos de prueba</>}
     </Button>
   )
 }
