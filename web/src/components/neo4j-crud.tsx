@@ -206,7 +206,7 @@ function CargarEditor({ n, etiqueta = "Editor" }: { n: Neo4jCrud; etiqueta?: str
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
       <Campo id="nk-user" label={etiqueta} ayuda="Escribe el nombre exacto o llega desde Consultar.">
-        <Input id="nk-user" value={n.user} onChange={(e) => n.setUser(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); n.cargar() } }} />
+        <Input id="nk-user" placeholder="Ej. Demo_John_Doe" value={n.user} onChange={(e) => n.setUser(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); n.cargar() } }} />
       </Campo>
       <Button type="button" variant="outline" className="mb-5" disabled={n.ocupado || !n.user.trim()} onClick={() => n.cargar()}>Cargar</Button>
     </div>
@@ -240,18 +240,18 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
           <Campo id="nc-que" label="Qué crear"><Segmentado etiqueta="Qué crear" valor={n.modoCrear} onChange={n.setModoCrear} opciones={[["nodo", "Nodo :Editor"], ["relacion", "Relación"]]} /></Campo>
           {n.modoCrear === "nodo" ? (
             <div className="grid grid-cols-2 gap-3">
-              <Campo id="nc-user" label="Editor (user)" ayuda={<AvisoDemo nombre={n.nodo.user} />}><Input id="nc-user" value={n.nodo.user} onChange={(e) => n.setNodo({ ...n.nodo, user: e.target.value })} /></Campo>
+              <Campo id="nc-user" label="Editor (user)" ayuda={<AvisoDemo nombre={n.nodo.user} />}><Input id="nc-user" placeholder="Ej. Demo_John_Doe" value={n.nodo.user} onChange={(e) => n.setNodo({ ...n.nodo, user: e.target.value })} /></Campo>
               <Campo id="nc-tipo" label="Tipo de editor"><Selector id="nc-tipo" valor={n.nodo.tipo} opciones={TIPOS_EDITOR} onChange={(v) => n.setNodo({ ...n.nodo, tipo: v })} /></Campo>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <Campo id="nc-origen" label="Desde (editor)" ayuda={<AvisoDemo nombre={r.origen} />}><Input id="nc-origen" value={r.origen} onChange={(e) => n.setRel({ ...r, origen: e.target.value })} /></Campo>
-                <Campo id="nc-destino" label="Hacia (editor)" ayuda={<AvisoDemo nombre={r.destino} />}><Input id="nc-destino" value={r.destino} onChange={(e) => n.setRel({ ...r, destino: e.target.value })} /></Campo>
+                <Campo id="nc-origen" label="Desde (editor)" ayuda={<AvisoDemo nombre={r.origen} />}><Input id="nc-origen" placeholder="Ej. Demo_John_Doe" value={r.origen} onChange={(e) => n.setRel({ ...r, origen: e.target.value })} /></Campo>
+                <Campo id="nc-destino" label="Hacia (editor)" ayuda={<AvisoDemo nombre={r.destino} />}><Input id="nc-destino" placeholder="Ej. Demo_Jane_Doe" value={r.destino} onChange={(e) => n.setRel({ ...r, destino: e.target.value })} /></Campo>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
                 <Campo id="nc-tipo-rel" label="Tipo de relación"><Selector id="nc-tipo-rel" valor={r.tipo} opciones={RELACIONES} onChange={(v) => n.setRel({ ...r, tipo: v })} /></Campo>
-                <Campo id="nc-veces" label="Veces"><Input id="nc-veces" type="number" min={1} className="font-mono" value={r.veces} onChange={(e) => n.setRel({ ...r, veces: e.target.value })} /></Campo>
+                <Campo id="nc-veces" label="Veces"><Input id="nc-veces" placeholder="Ej. 3" type="number" min={1} className="font-mono" value={r.veces} onChange={(e) => n.setRel({ ...r, veces: e.target.value })} /></Campo>
               </div>
               <Campo id="nc-wiki" label="Wiki" ayuda="En qué wiki ocurrió; por defecto, la del encabezado.">
                 <Segmentado etiqueta="Wiki de la relación" valor={r.wiki as WikiCrud} onChange={(w) => n.setRel({ ...r, wiki: w })} opciones={[["enwiki", "enwiki"], ["eswiki", "eswiki"]]} />
@@ -266,7 +266,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
       {n.op === "Consultar" && (
         <>
           <Campo id="nq-prefijo" label="Editor" ayuda="Empieza con… Funciona con cualquier editor real.">
-            <Input id="nq-prefijo" value={n.filtro.prefijo} onChange={(e) => n.setFiltro({ ...n.filtro, prefijo: e.target.value })} />
+            <Input id="nq-prefijo" placeholder="Ej. Demo_" value={n.filtro.prefijo} onChange={(e) => n.setFiltro({ ...n.filtro, prefijo: e.target.value })} />
           </Campo>
           <Campo id="nq-tipo" label="Tipo de editor"><Selector id="nq-tipo" valor={n.filtro.tipo} opciones={[["todos", "Todos"], ...TIPOS_EDITOR]} onChange={(v) => n.setFiltro({ ...n.filtro, tipo: v })} /></Campo>
           <Button type="submit" disabled={n.ocupado} className="h-10 w-full text-sm"><Search aria-hidden />Buscar</Button>
@@ -298,8 +298,8 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
                   </div>
                 )}
                 <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
-                  <Campo id="nu-nueva-clave" label="Nueva propiedad"><Input id="nu-nueva-clave" placeholder="rol" value={n.nuevaProp.clave} onChange={(e) => n.setNuevaProp({ ...n.nuevaProp, clave: e.target.value })} /></Campo>
-                  <Campo id="nu-nueva-valor" label="Valor"><Input id="nu-nueva-valor" placeholder="patrullero" value={n.nuevaProp.valor} onChange={(e) => n.setNuevaProp({ ...n.nuevaProp, valor: e.target.value })} /></Campo>
+                  <Campo id="nu-nueva-clave" label="Nueva propiedad"><Input id="nu-nueva-clave" placeholder="Ej. rol" value={n.nuevaProp.clave} onChange={(e) => n.setNuevaProp({ ...n.nuevaProp, clave: e.target.value })} /></Campo>
+                  <Campo id="nu-nueva-valor" label="Valor"><Input id="nu-nueva-valor" placeholder="Ej. patrullero" value={n.nuevaProp.valor} onChange={(e) => n.setNuevaProp({ ...n.nuevaProp, valor: e.target.value })} /></Campo>
                   <Button type="button" variant="outline" onClick={n.agregarProp}><Plus aria-hidden />Agregar</Button>
                 </div>
                 <AvisoDemo nombre={u} />
