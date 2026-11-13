@@ -178,12 +178,11 @@ def kpi_nombres(session) -> list[str]:
     return sorted(r.kpi for r in session.execute("SELECT DISTINCT kpi FROM kpis"))
 
 
-def kpi_ultimas(session, demo: bool, n: int = 5) -> list:
-    """Las n filas más recientes entre los KPIs (los de demostración o los reales): la última de cada partición."""
+def kpi_ultimas(session, n: int = 5) -> list:
+    """Las n filas más recientes de la tabla: la última de cada partición (KPI), de la más nueva a la más antigua."""
     filas = []
     for kpi in kpi_nombres(session):
-        if es_kpi_demo(kpi) == demo:
-            filas += kpi_consultar(session, kpi, limite=1)
+        filas += kpi_consultar(session, kpi, limite=1)
     return sorted(filas, key=lambda r: r.ventana, reverse=True)[:n]
 
 
@@ -240,19 +239,13 @@ def neo4j_buscar_editores(driver, prefijo: str, tipo: str | None, limite: int) -
             p=prefijo, tipo=tipo, limite=limite)]
 
 
-def neo4j_ultimos_editores(driver, demo: bool, n: int = 5) -> list[dict]:
-    """Los n editores con actividad más reciente (usa el índice de ultima_actividad); los de demostración no tienen
-    actividad, así que van por nombre."""
-    if demo:
-        consulta = ("MATCH (e:Editor) WHERE e.user STARTS WITH $p "
-                    "RETURN e.user AS user, e.tipo AS tipo, COUNT { (e)--() } AS relaciones, e.ultima_actividad AS actividad "
-                    "ORDER BY user LIMIT $n")
-    else:
-        consulta = ("MATCH (e:Editor) WHERE e.ultima_actividad IS NOT NULL "
-                    "WITH e ORDER BY e.ultima_actividad DESC LIMIT $n "
-                    "RETURN e.user AS user, e.tipo AS tipo, COUNT { (e)--() } AS relaciones, e.ultima_actividad AS actividad")
+def neo4j_ultimos_editores(driver, n: int = 5) -> list[dict]:
+    """Los n editores con actividad más reciente (usa el índice de ultima_actividad)."""
     with driver.session() as s:
-        return [_plano(dict(r)) for r in s.run(consulta, p=PREFIJO_KPI_DEMO, n=n)]
+        return [_plano(dict(r)) for r in s.run(
+            "MATCH (e:Editor) WHERE e.ultima_actividad IS NOT NULL "
+            "WITH e ORDER BY e.ultima_actividad DESC LIMIT $n "
+            "RETURN e.user AS user, e.tipo AS tipo, COUNT { (e)--() } AS relaciones, e.ultima_actividad AS actividad", n=n)]
 
 
 def _plano(v):

@@ -15,13 +15,10 @@ import { api } from "@/lib/api"
 import { KPIS } from "@/lib/kpis"
 
 /** CRUD de la tabla kpis de Cassandra (clave ((kpi), ventana)): cada fila es el valor ya calculado de un KPI en una hora.
- *  Consultar sirve para cualquier KPI; crear, actualizar y eliminar, solo para KPIs de demostración («demo_…»),
- *  que el dashboard no muestra porque no tienen tarjeta. */
+ *  Los datos de prueba usan KPIs «demo_…», que el dashboard no muestra porque no tienen tarjeta. */
 
 export interface Fila { kpi: string; ventana: string; valor: number | null; detalle: string | null }
 
-const PREFIJO = "demo_"
-const esKpiDemo = (k: string) => k.startsWith(PREFIJO)
 const hoy = () => new Date().toISOString().slice(0, 10)
 const horaUtc = () => String(new Date().getUTCHours())
 const HORAS: [string, string][] = Array.from({ length: 24 }, (_, h) => [String(h), `${String(h).padStart(2, "0")}:00`])
@@ -49,13 +46,6 @@ const Selector = ({ id, valor, opciones, onChange }: { id: string; valor: string
   </Select>
 )
 
-/** Aviso bajo el nombre: solo se escribe sobre KPIs «demo_…». */
-function AvisoKpi({ kpi }: { kpi: string }) {
-  if (!kpi) return <>Debe empezar con «{PREFIJO}».</>
-  return esKpiDemo(kpi)
-    ? <>KPI de demostración: no tiene tarjeta, así que no aparece en el dashboard.</>
-    : <span className="text-red-700 dark:text-red-400">Solo se escribe sobre KPIs que empiezan con «{PREFIJO}».</span>
-}
 
 export function useCassandraCrud() {
   const [op, setOp] = useState<Operacion>("Crear")
@@ -185,10 +175,9 @@ export function useCassandraCrud() {
   /** «Completar con datos de prueba»: los formularios empiezan vacíos y esto los llena con el KPI «demo_kpi». */
   async function completarPrueba() {
     if (op === "Crear") { setNueva({ kpi: "demo_kpi", fecha: hoy(), hora: horaUtc(), valor: "42", detalle: "valor de demostración" }); return }
-    // Consultar, Actualizar y Eliminar: se elige entre las 5 filas más recientes. Consultar usa los KPIs reales;
-    // Actualizar y Eliminar, los de demostración (son los únicos que se pueden escribir).
+    // Consultar, Actualizar y Eliminar: se elige entre las 5 filas más recientes de la tabla.
     setUltimos({ abierto: true, filas: null })
-    const filas = await api<Fila[]>(`/api/crud/cassandra/ultimas?demo=${op !== "Consultar"}`).catch((e) => { toast.error((e as Error).message); return [] })
+    const filas = await api<Fila[]>("/api/crud/cassandra/ultimas").catch((e) => { toast.error((e as Error).message); return [] })
     setUltimos({ abierto: true, filas })
   }
   const [ultimos, setUltimos] = useState<{ abierto: boolean; filas: Fila[] | null }>({ abierto: false, filas: null })
@@ -263,13 +252,13 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
         titulo="Últimas 5 filas" descripcion={`Elige una y confírmala para usarla en ${c.op}.`} columnas={["KPI", "Valor", "Hora"]}
         filas={c.ultimos.filas && c.ultimos.filas.map((f) => ({ id: `${f.kpi}|${f.ventana}`, titulo: nombreKpi(f.kpi), subtitulo: f.detalle ?? undefined,
           medio: f.valor == null ? "—" : String(f.valor), derecha: etiquetaVentana(f.ventana).slice(13) }))}
-        vacio={c.op === "Consultar" ? "No hay filas en la tabla kpis." : "No hay KPIs de demostración: crea uno en «Crear» y vuelve aquí."}
+        vacio="No hay filas en la tabla kpis."
         pie={(id) => id.replace("|", " · ")} accion="Usar esta fila" />
 
       {c.op === "Crear" && (
         <>
           <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">Clave de la fila</span>
-          <Campo id="cn-kpi" label="KPI" clave="partición" ayuda={<AvisoKpi kpi={n.kpi} />}>
+          <Campo id="cn-kpi" label="KPI" clave="partición">
             <Input id="cn-kpi" className="font-mono" placeholder="Ej. tasa_reversion_pct" value={n.kpi} onChange={(e) => c.setNueva({ ...n, kpi: e.target.value })} />
           </Campo>
           <div className="grid grid-cols-2 gap-3">
@@ -281,7 +270,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
             <Campo id="cn-valor" label="Valor"><Input id="cn-valor" placeholder="Ej. 4.2" type="number" step="any" className="font-mono" value={n.valor} onChange={(e) => c.setNueva({ ...n, valor: e.target.value })} /></Campo>
             <Campo id="cn-detalle" label="Detalle"><Input id="cn-detalle" placeholder="Ej. 38 reversiones" value={n.detalle} onChange={(e) => c.setNueva({ ...n, detalle: e.target.value })} /></Campo>
           </div>
-          <Button type="submit" disabled={c.ocupado || !esKpiDemo(n.kpi)} className="h-10 w-full text-sm">Insertar fila</Button>
+          <Button type="submit" disabled={c.ocupado || !n.kpi} className="h-10 w-full text-sm">Insertar fila</Button>
         </>
       )}
 
@@ -322,11 +311,10 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
                     <InputEditable id="cu-detalle" valor={c.valor("detalle")} original={c.original.detalle ?? ""} onChange={(v) => c.poner("detalle", v)} onDeshacer={() => c.deshacer("detalle")} />
                   </Campo>
                 </div>
-                <span className="text-xs text-muted-foreground"><AvisoKpi kpi={c.original.kpi} /></span>
               </div>
             </>
           )}
-          <BotonesGuardar n={nCambios} deshabilitado={c.ocupado || !c.original || !esKpiDemo(c.original.kpi)} onCancelar={c.descartar} />
+          <BotonesGuardar n={nCambios} deshabilitado={c.ocupado || !c.original} onCancelar={c.descartar} />
         </>
       )}
 
@@ -345,10 +333,9 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
           {((c.modo === "fila" && c.original) || (c.modo === "particion" && c.particion?.length)) && (
             <>
               <ConfirmarEscribiendo id="cd-confirmar" etiqueta="Para confirmar, escribe el KPI" valor={c.clave.kpi} texto={c.confirmacion} onChange={c.setConfirmacion} />
-              <span className="text-xs text-muted-foreground"><AvisoKpi kpi={c.clave.kpi} /></span>
             </>
           )}
-          <Button type="submit" variant="destructive" disabled={c.ocupado || !c.listoParaBorrar || !esKpiDemo(c.clave.kpi)} className="h-10 w-full text-sm">
+          <Button type="submit" variant="destructive" disabled={c.ocupado || !c.listoParaBorrar} className="h-10 w-full text-sm">
             <Trash2 aria-hidden />{c.modo === "fila" ? "Eliminar fila" : "Eliminar partición"}
           </Button>
           <DialogoBorrar abierto={c.dialogo} onCerrar={() => c.setDialogo(false)} onConfirmar={c.eliminar} ocupado={c.ocupado}
@@ -415,12 +402,12 @@ export function CassandraDerecha({ c }: { c: CassandraCrud }) {
         <Panel titulo={`${nombreKpi(f.kpi)} · ${etiquetaVentana(f.ventana)}`} derecha={c.resultados.length > 1 ? `Fila ${c.elegido + 1} de ${c.resultados.length}` : "Encontrada"}>
           <Cifras f={f} />
         </Panel>
-        <Panel titulo="Fila completa" derecha={esKpiDemo(f.kpi) ? (
+        <Panel titulo="Fila completa" derecha={(
           <>
             <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => c.irA("Actualizar", f)}>Actualizar esta</Button>
             <Button type="button" variant="outline" size="sm" className="h-7 border-red-200 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400" onClick={() => c.irA("Eliminar", f)}>Eliminar</Button>
           </>
-        ) : "KPI real: solo lectura"}>
+        )}>
           <Tabla columnas={["Columna", "Valor"]} anchos="230px minmax(0,1fr)" filas={columnas(f)} />
         </Panel>
       </div>

@@ -275,24 +275,9 @@ def mongo_eliminar(event_id: str):
     return {"eliminados": n}
 
 
-# Cassandra y Neo4j guardan datos que calcula el pipeline: las escrituras del CRUD se limitan a nombres
-# de demostración («demo_…») para no alterar los datos reales que alimentan los KPIs. Consultar no tiene límite.
-PREFIJO_DEMO = "demo_"
-
-
-def solo_demo(nombre: str) -> None:
-    if not nombre.startswith(PREFIJO_DEMO):
-        raise HTTPException(403, f"Para no alterar los datos reales, solo se puede escribir sobre nombres que empiezan con «{PREFIJO_DEMO}»")
-
-
 def _fila_kpi(r) -> dict:
     return {"kpi": r.kpi, "ventana": r.ventana.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
             "valor": r.valor, "detalle": r.detalle}
-
-
-def solo_kpi_demo(kpi: str) -> None:
-    if not crud.es_kpi_demo(kpi):
-        raise HTTPException(403, f"Para no alterar los KPIs reales, solo se puede escribir sobre KPIs que empiezan con «{crud.PREFIJO_KPI_DEMO}»")
 
 
 def _hora(ventana: datetime) -> datetime:
@@ -322,15 +307,14 @@ def cassandra_kpis():
 
 
 @app.get("/api/crud/cassandra/ultimas")
-def cassandra_ultimas(demo: bool = False):
-    """Las 5 filas más recientes, para elegir datos de prueba: de los KPIs de demostración o de los reales."""
-    return [_fila_kpi(r) for r in crud.kpi_ultimas(q.cassandra(), demo)]
+def cassandra_ultimas():
+    """Las 5 filas más recientes de la tabla kpis, para elegir datos de prueba."""
+    return [_fila_kpi(r) for r in crud.kpi_ultimas(q.cassandra())]
 
 
 @app.post("/api/crud/cassandra")
 def cassandra_insertar(f: FilaKpi):
     """INSERT de una fila completa. En Cassandra, si la clave ya existe la fila se reemplaza (upsert)."""
-    solo_kpi_demo(f.kpi)
     s, v = q.cassandra(), _hora(f.ventana)
     existia = crud.kpi_fila(s, f.kpi, v) is not None
     crud.kpi_insertar(s, f.kpi, v, f.valor, f.detalle)
@@ -365,7 +349,6 @@ def cassandra_leer(kpi: str, fecha: date | None = None, hora: int | None = None,
 
 @app.patch("/api/crud/cassandra")
 def cassandra_actualizar(body: CambiosKpi):
-    solo_kpi_demo(body.kpi)
     s, v = q.cassandra(), _hora(body.ventana)
     if crud.kpi_fila(s, body.kpi, v) is None:
         raise HTTPException(404, "No hay una fila con esa clave (en Cassandra, UPDATE la crearía)")
@@ -380,7 +363,6 @@ def cassandra_actualizar(body: CambiosKpi):
 @app.delete("/api/crud/cassandra")
 def cassandra_eliminar(kpi: str, ventana: datetime | None = None):
     """Sin ventana borra la partición entera del KPI; con ventana, una sola fila."""
-    solo_kpi_demo(kpi)
     s = q.cassandra()
     if ventana is None:
         n = len(crud.kpi_consultar(s, kpi, limite=100000))
@@ -415,7 +397,6 @@ class CambiosNodo(BaseModel):
 
 @app.post("/api/crud/neo4j/editor")
 def neo_crear_editor(n: NodoEditor):
-    solo_demo(n.user)
     if n.tipo not in TIPOS_EDITOR:
         raise HTTPException(400, "Tipo de editor no válido")
     existia = crud.neo4j_detalle_editor(q.neo4j(), n.user, 0) is not None
@@ -426,8 +407,6 @@ def neo_crear_editor(n: NodoEditor):
 @app.post("/api/crud/neo4j/relacion")
 def neo_crear_relacion(r: Relacion):
     """MERGE de la relación; si alguno de los dos editores no existe, se crea con él."""
-    solo_demo(r.origen)
-    solo_demo(r.destino)
     if r.tipo not in crud.RELACIONES_EDITOR:
         raise HTTPException(400, "Tipo de relación no permitido")
     d = q.neo4j()
@@ -439,13 +418,13 @@ def neo_crear_relacion(r: Relacion):
 
 
 @app.get("/api/crud/neo4j/ultimos")
-def neo_ultimos(demo: bool = False):
-    """Los 5 editores más recientes, para elegir datos de prueba: los de demostración o los reales."""
-    return crud.neo4j_ultimos_editores(q.neo4j(), demo)
+def neo_ultimos():
+    """Los 5 editores con actividad más reciente, para elegir datos de prueba."""
+    return crud.neo4j_ultimos_editores(q.neo4j())
 
 
 @app.get("/api/crud/neo4j/editores")
-def neo_buscar(prefijo: str = PREFIJO_DEMO, tipo: str | None = None, limite: int = 10):
+def neo_buscar(prefijo: str, tipo: str | None = None, limite: int = 10):
     if not prefijo.strip():
         raise HTTPException(400, "Escribe el comienzo del nombre del editor")
     return crud.neo4j_buscar_editores(q.neo4j(), prefijo.strip(), tipo if tipo in TIPOS_EDITOR else None, min(max(limite, 1), 50))
@@ -461,7 +440,6 @@ def neo_leer(user: str):
 
 @app.patch("/api/crud/neo4j/editor/{user}")
 def neo_actualizar(user: str, body: CambiosNodo):
-    solo_demo(user)
     if "user" in body.cambios:
         raise HTTPException(400, "La clave única (user) no se puede cambiar")
     if "tipo" in body.cambios and body.cambios["tipo"] not in TIPOS_EDITOR:
@@ -475,7 +453,6 @@ def neo_actualizar(user: str, body: CambiosNodo):
 
 @app.delete("/api/crud/neo4j/relacion")
 def neo_eliminar_relacion(origen: str, destino: str, tipo: str):
-    solo_demo(origen)
     try:
         n = crud.neo4j_eliminar_relacion(q.neo4j(), origen, destino, tipo)
     except ValueError as exc:
@@ -486,7 +463,6 @@ def neo_eliminar_relacion(origen: str, destino: str, tipo: str):
 
 @app.delete("/api/crud/neo4j/editor/{user}")
 def neo_eliminar_editor(user: str):
-    solo_demo(user)
     d = crud.neo4j_detalle_editor(q.neo4j(), user, 0)
     n = crud.neo4j_eliminar_nodo(q.neo4j(), "Editor", "user", user)
     q.limpiar_cache()

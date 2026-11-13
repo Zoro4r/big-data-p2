@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Segmentado, type WikiCrud } from "@/components/crear-evento"
 import {
-  Antes, AvisoDemo, BotonesGuardar, BotonPrueba, haceTiempo, ModalElegir, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
+  Antes, BotonesGuardar, BotonPrueba, haceTiempo, ModalElegir, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, Ficha, InputEditable, Nota, Operaciones,
   Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -16,7 +16,7 @@ import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** CRUD del grafo de editores en Neo4j: nodos :Editor y relaciones entre editores.
- *  Consultar sirve para cualquier editor; crear, actualizar y eliminar, solo para editores «demo_…». */
+ *  Los datos de prueba usan editores «demo_…». */
 
 interface Rel { tipo: string; con: string; etiqueta: string; props: Record<string, unknown> }
 interface Detalle { editor: Record<string, unknown>; n_salientes: number; n_entrantes: number; salientes: Rel[]; entrantes: Rel[] }
@@ -169,10 +169,9 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
       else setRel({ origen: "demo_editor", destino: "demo_editor_2", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera })
       return
     }
-    // Consultar, Actualizar y Eliminar: se elige entre 5 editores. Consultar usa los de actividad más reciente;
-    // Actualizar y Eliminar, los de demostración (son los únicos que se pueden escribir).
+    // Consultar, Actualizar y Eliminar: se elige entre los 5 editores con actividad más reciente.
     setUltimos({ abierto: true, filas: null })
-    const filas = await api<Ultimo[]>(`/api/crud/neo4j/ultimos?demo=${op !== "Consultar"}`).catch((e) => { toast.error((e as Error).message); return [] })
+    const filas = await api<Ultimo[]>("/api/crud/neo4j/ultimos").catch((e) => { toast.error((e as Error).message); return [] })
     setUltimos({ abierto: true, filas })
   }
   const [ultimos, setUltimos] = useState<{ abierto: boolean; filas: Ultimo[] | null }>({ abierto: false, filas: null })
@@ -230,7 +229,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
   }
   const nCambios = Object.keys(n.cambios).length
   const r = n.rel
-  const puedeCrear = n.modoCrear === "nodo" ? esDemo(n.nodo.user) : esDemo(r.origen) && esDemo(r.destino) && r.origen !== r.destino
+  const puedeCrear = n.modoCrear === "nodo" ? Boolean(n.nodo.user.trim()) : Boolean(r.origen.trim() && r.destino.trim()) && r.origen !== r.destino
   const editoresEditables = n.cargado ? Object.keys({ ...n.cargado.editor, ...n.cambios }).filter((k) => !["user", "tipo"].includes(k) && typeof (n.cargado!.editor[k] ?? "") !== "object") : []
   const u = n.cargado ? String(n.cargado.editor.user) : ""
   return (
@@ -241,7 +240,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
         titulo="Últimos 5 editores" descripcion={`Elige uno y confírmalo para usarlo en ${n.op}.`} columnas={["Editor", "Tipo", "Actividad"]}
         filas={n.ultimos.filas && n.ultimos.filas.map((e) => ({ id: e.user, titulo: e.user, subtitulo: nRel(e.relaciones),
           medio: e.tipo ?? "—", derecha: haceTiempo(e.actividad) }))}
-        vacio={n.op === "Consultar" ? "No hay editores con actividad." : "No hay editores de demostración: crea uno en «Crear» y vuelve aquí."}
+        vacio="No hay editores con actividad."
         pie={(id) => id} accion="Usar este editor" />
 
       {n.op === "Crear" && (
@@ -249,14 +248,14 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
           <Campo id="nc-que" label="Qué crear"><Segmentado etiqueta="Qué crear" valor={n.modoCrear} onChange={n.setModoCrear} opciones={[["nodo", "Nodo :Editor"], ["relacion", "Relación"]]} /></Campo>
           {n.modoCrear === "nodo" ? (
             <div className="grid grid-cols-2 gap-3">
-              <Campo id="nc-user" label="Editor (user)" ayuda={<AvisoDemo nombre={n.nodo.user} />}><Input id="nc-user" placeholder="Ej. John Doe" value={n.nodo.user} onChange={(e) => n.setNodo({ ...n.nodo, user: e.target.value })} /></Campo>
+              <Campo id="nc-user" label="Editor (user)"><Input id="nc-user" placeholder="Ej. John Doe" value={n.nodo.user} onChange={(e) => n.setNodo({ ...n.nodo, user: e.target.value })} /></Campo>
               <Campo id="nc-tipo" label="Tipo de editor"><Selector id="nc-tipo" valor={n.nodo.tipo} opciones={TIPOS_EDITOR} onChange={(v) => n.setNodo({ ...n.nodo, tipo: v })} /></Campo>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <Campo id="nc-origen" label="Desde (editor)" ayuda={<AvisoDemo nombre={r.origen} />}><Input id="nc-origen" placeholder="Ej. John Doe" value={r.origen} onChange={(e) => n.setRel({ ...r, origen: e.target.value })} /></Campo>
-                <Campo id="nc-destino" label="Hacia (editor)" ayuda={<AvisoDemo nombre={r.destino} />}><Input id="nc-destino" placeholder="Ej. Jane Doe" value={r.destino} onChange={(e) => n.setRel({ ...r, destino: e.target.value })} /></Campo>
+                <Campo id="nc-origen" label="Desde (editor)"><Input id="nc-origen" placeholder="Ej. John Doe" value={r.origen} onChange={(e) => n.setRel({ ...r, origen: e.target.value })} /></Campo>
+                <Campo id="nc-destino" label="Hacia (editor)"><Input id="nc-destino" placeholder="Ej. Jane Doe" value={r.destino} onChange={(e) => n.setRel({ ...r, destino: e.target.value })} /></Campo>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
                 <Campo id="nc-tipo-rel" label="Tipo de relación"><Selector id="nc-tipo-rel" valor={r.tipo} opciones={RELACIONES} onChange={(v) => n.setRel({ ...r, tipo: v })} /></Campo>
@@ -311,11 +310,10 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
                   <Campo id="nu-nueva-valor" label="Valor"><Input id="nu-nueva-valor" placeholder="Ej. patrullero" value={n.nuevaProp.valor} onChange={(e) => n.setNuevaProp({ ...n.nuevaProp, valor: e.target.value })} /></Campo>
                   <Button type="button" variant="outline" onClick={n.agregarProp}><Plus aria-hidden />Agregar</Button>
                 </div>
-                <AvisoDemo nombre={u} />
               </div>
             </>
           )}
-          <BotonesGuardar n={nCambios} deshabilitado={n.ocupado || !n.cargado || !esDemo(u)} onCancelar={n.descartar} />
+          <BotonesGuardar n={nCambios} deshabilitado={n.ocupado || !n.cargado} onCancelar={n.descartar} />
         </>
       )}
 
@@ -344,8 +342,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
               </div>
             ) : <p className="border-t pt-3 text-[13px] text-muted-foreground">Este editor no tiene relaciones salientes con otros editores.</p>
           )}
-          {n.cargado && <AvisoDemo nombre={u} />}
-          <Button type="submit" variant="destructive" disabled={n.ocupado || !n.listoParaBorrar || !esDemo(u)} className="h-10 w-full text-sm">
+          <Button type="submit" variant="destructive" disabled={n.ocupado || !n.listoParaBorrar} className="h-10 w-full text-sm">
             <Trash2 aria-hidden />{n.modoBorrar === "nodo" ? "Eliminar nodo" : "Eliminar relación"}
           </Button>
           <DialogoBorrar abierto={n.dialogo} onCerrar={() => n.setDialogo(false)} onConfirmar={n.eliminar} ocupado={n.ocupado}
@@ -464,12 +461,12 @@ export function Neo4jDerecha({ n }: { n: Neo4jCrud }) {
         <Panel titulo={u} derecha={n.encontrados.length > 1 ? `Coincidencia ${n.elegido + 1} de ${n.encontrados.length}` : "Encontrado"}>
           <MiniGrafo d={d} />
         </Panel>
-        <Panel titulo="Relaciones" derecha={esDemo(u) ? (
+        <Panel titulo="Relaciones" derecha={(
           <>
             <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => n.irA("Actualizar", u)}>Actualizar este</Button>
             <Button type="button" variant="outline" size="sm" className="h-7 border-red-200 text-xs text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400" onClick={() => n.irA("Eliminar", u)}>Eliminar</Button>
           </>
-        ) : "editor real: solo lectura"}>
+        )}>
           <TablaRelaciones d={d} alto={320} />
         </Panel>
         <Panel titulo="Propiedades">

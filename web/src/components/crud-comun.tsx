@@ -14,10 +14,6 @@ import { cn } from "@/lib/utils"
 
 export type Operacion = "Crear" | "Consultar" | "Actualizar" | "Eliminar"
 
-/** Cassandra y Neo4j guardan datos que calcula el pipeline: solo se escribe sobre nombres «demo_…». */
-export const PREFIJO_DEMO = "demo_"
-export const esDemo = (s: string) => s.startsWith(PREFIJO_DEMO)
-
 export function Operaciones({ valor, onChange }: { valor: Operacion; onChange: (v: Operacion) => void }) {
   return (
     <ToggleGroup type="single" value={valor} onValueChange={(v) => v && onChange(v as Operacion)} variant="outline" className="w-full" aria-label="Operación">
@@ -77,11 +73,6 @@ export function CajaWiki({ wiki, onChange, verbo }: { wiki: WikiCrud; onChange: 
   )
 }
 
-/** Aviso bajo un nombre que no es de demostración. */
-export function AvisoDemo({ nombre }: { nombre: string }) {
-  if (!nombre || esDemo(nombre)) return null
-  return <span className="text-xs text-muted-foreground">Para no alterar los datos reales, solo se escribe sobre nombres que empiezan con «{PREFIJO_DEMO}».</span>
-}
 
 export function Ficha({ titulo, children }: { titulo: string; children?: ReactNode }) {
   return (
