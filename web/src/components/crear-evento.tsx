@@ -204,7 +204,7 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
   // Categorización: el comentario dice qué página entra o sale de la categoría.
   const cat = TEXTO_CAT[ev.wiki]
   const com = String(d.comment ?? "")
-  const paginaCat = com.match(/\[\[:?([^|\]]+)/)?.[1] ?? ""
+  const paginaCat = com.match(/\[\[:?([^|\]]*)/)?.[1] ?? ""
   const quitada = com.includes(cat.quitada)
   const setCat = (pagina: string, quitar: boolean) => set("comment", `[[:${pagina}]] ${quitar ? cat.quitada : cat.añadida}`)
 
