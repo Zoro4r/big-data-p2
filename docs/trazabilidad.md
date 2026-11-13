@@ -1330,6 +1330,12 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - En la tabla de vistas, Actividad cuenta con el modal por minuto y el Explorador ya no tiene el filtro de reversiones; su base pasa a «MongoDB y Cassandra».
     - Se actualizaron los textos y las capturas de Actividad (con el modal abierto), Explorador, Operaciones CRUD y Arquitectura (sin tarjetas).
     - Las fechas de las capturas pasan a «entre el 11 y el 13 de noviembre».
+- **Informe, sección 8 (KPIs) reescrita con capturas anotadas** (revisiones 107 a 112 del documento):
+  - Se tomó la vista «Resumen y KPIs» del 13 nov (hora 10:00–10:59 UTC−5) y se hicieron dos recortes con círculos rojos numerados del ① al ⑫: las tarjetas y «Protagonistas de la hora». Los números siguen el orden de la sección.
+  - La sección se organiza por público: patrulleros (N2), Fundación Wikimedia (N3 y N4), comunidad (N5 y N6) y operadores (N7). Cada KPI indica para quién es, para qué sirve, cómo se calcula y su valor en la captura.
+  - Se quitaron las tablas por necesidad y la lista «Valores en la última hora revisada (11 nov)», que quedaron reemplazadas por los valores de la captura.
+  - Se agregó la subsección «El resto de la vista "Resumen y KPIs"», con una captura completa marcada con letras A–E: filtro de wiki, estado de los datos, evolución por hora, protagonistas y ejecuciones del pipeline, cada una con su público y su utilidad.
+  - Las imágenes se anotaron con una página HTML local y Playwright, sin instalar dependencias.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
