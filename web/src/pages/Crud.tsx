@@ -173,7 +173,7 @@ export default function CrudPage() {
     <>
       <Header ruta={["Administración", "Operaciones CRUD"]} />
       <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
-        <div className={cn("grid grid-cols-1 gap-4 lg:grid-cols-5", actualizando ? "items-start lg:items-stretch" : "items-start")}>
+        <div className={cn("grid grid-cols-1 gap-4 lg:grid-cols-5", actualizando || creando ? "items-start lg:items-stretch" : "items-start")}>
           <Tabs value={base} onValueChange={setBase} className="gap-4 lg:col-span-2">
             <TabsList className="w-full">
               <TabsTrigger value="mongo">MongoDB</TabsTrigger>
@@ -182,7 +182,7 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" descripcion="insert_one · find · update_one ($set) · delete_one" className="h-full" contenidoClassName="flex flex-1 flex-col">
+              <Seccion titulo="Colección events" className="h-full" contenidoClassName="flex flex-1 flex-col">
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
@@ -216,7 +216,7 @@ export default function CrudPage() {
             </TabsContent>
           </Tabs>
 
-          <div className={cn("flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]", actualizando ? "self-stretch" : "self-start")}>
+          <div className={cn("flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]", actualizando || creando ? "self-stretch" : "self-start")}>
             {creando && <EditorEvento ev={evento} />}
             {actualizando && <CambiosActualizacion a={actualizacion} />}
             {eliminando && <PanelEliminacion e={eliminacion} />}

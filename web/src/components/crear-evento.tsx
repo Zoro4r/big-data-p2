@@ -356,7 +356,7 @@ export function EditorEvento({ ev }: { ev: EventoNuevo }) {
       : { ok: true, texto: <>Cumple el validador de events</> }
 
   return (
-    <div className="flex h-[640px] flex-col overflow-hidden rounded-xl border bg-card shadow-xs">
+    <div className="flex h-[640px] flex-col overflow-hidden rounded-xl border bg-card shadow-xs lg:h-auto lg:min-h-[420px] lg:flex-1">
       <div className="flex items-center justify-between border-b px-3.5 py-2.5">
         <span className="flex items-center gap-2 text-[13px] font-medium">
           <span className="inline-flex size-[22px] items-center justify-center rounded-md bg-green-50 font-mono text-[11px] font-semibold text-green-700 dark:bg-green-950/50 dark:text-green-400" aria-hidden>{"{ }"}</span>
