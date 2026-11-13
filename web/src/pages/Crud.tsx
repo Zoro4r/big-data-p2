@@ -193,7 +193,7 @@ export default function CrudPage() {
     <>
       <Header ruta={["Administración", "Operaciones CRUD"]} />
       <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
-        <div className={cn("grid grid-cols-1 gap-4 lg:grid-cols-5", actualizando || creando ? "items-start lg:items-stretch" : "items-start")}>
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5 lg:items-stretch">
           <Tabs value={base} onValueChange={setBase} className="gap-4 lg:col-span-2">
             <TabsList className="w-full">
               <TabsTrigger value="mongo">MongoDB</TabsTrigger>
@@ -237,7 +237,10 @@ export default function CrudPage() {
             </TabsContent>
           </Tabs>
 
-          <div className={cn("flex flex-col gap-4 lg:col-span-3 lg:pt-[52px]", actualizando || creando ? "self-stretch" : "self-start")}>
+          {/* En pantallas anchas la columna derecha mide lo mismo que la izquierda: su contenido se ubica encima de esa
+              altura (absolute) y, si es más largo, se desplaza por dentro. La primera tarjeta crece hasta llenar el alto. */}
+          <div className="relative lg:col-span-3">
+          <div className="flex flex-col gap-4 lg:absolute lg:inset-x-0 lg:top-[52px] lg:bottom-0 lg:overflow-y-auto [&>*:first-child]:grow">
             {creando && <EditorEvento ev={evento} />}
             {actualizando && <CambiosActualizacion a={actualizacion} />}
             {eliminando && <PanelEliminacion e={eliminacion} />}
@@ -280,6 +283,7 @@ export default function CrudPage() {
               <Vacio titulo="Sin operaciones todavía" texto="Elige una base y una operación; el resultado aparece aquí." />
             )}
             {!actualizando && historial}
+          </div>
           </div>
           {actualizando && <div className="lg:col-span-3 lg:col-start-3">{historial}</div>}
         </div>
