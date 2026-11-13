@@ -1078,6 +1078,9 @@ Cambios hechos a partir de las observaciones del usuario:
   - Secciones 1 y 2: el promedio por hora pasó a 16,354 (31 oct–12 nov), el mismo de «Características».
   - Sección 1: el total pasó a 4.79 millones de cambios.
 - **Portada:** se quitó la mención a la cuenta que creó el documento; queda solo la fecha.
+- **Sección 6 y diagrama de arquitectura:** cifras del 12 nov 20:03 UTC−5, leídas de `/api/arquitectura`.
+  - MongoDB: 4.82 millones de documentos, 7.1 GB sin comprimir y 1.7 GB en disco.
+  - Neo4j: 1.66 millones de nodos.
 
 ---
 
