@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorWiki, entero, horaLocal } from "@/lib/format"
+import { colorWiki, entero, horaLocal } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
-interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null }
+interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null; fuente: string | null }
+
+/** De dónde leyó la hora el proceso horario; las corridas anteriores a guardar la fuente salieron de EventStreams. */
+const FUENTE: Record<string, string> = { mongodb: "MongoDB", eventstreams: "EventStreams" }
 
 interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number; desde: string | null }
 
@@ -61,16 +64,17 @@ export default function ResumenPage() {
   const ultima = data?.kpis.eventos_procesados[0]?.ventana
   const porHora = useMemo(() => {
     if (!data) return []
-    const m = new Map<string, { hora: string; eventos: number; bots: number; rev: number }>()
+    const m = new Map<string, { hora: string; eventos: number }>()
     for (const h of data.horas.filter((x) => wikis.includes(x.wiki))) {
-      const f = m.get(h.hora_utc) ?? { hora: h.hora_utc, eventos: 0, bots: 0, rev: 0 }
-      f.eventos += h.eventos; f.bots += h.eventos_bot; f.rev += h.reversiones
+      const f = m.get(h.hora_utc) ?? { hora: h.hora_utc, eventos: 0 }
+      f.eventos += h.eventos
       m.set(h.hora_utc, f)
     }
     // La calidad sale de la serie del KPI, que ya viene calculada para la wiki elegida
     const calidad = new Map(data.kpis.calidad_datos_pct.map((p) => [p.ventana.slice(0, 13), p.valor]))
+    const fuente = new Map(data.ejecuciones.map((e) => [e.ventana.slice(0, 13), e.fuente]))
     return [...m.values()].sort((a, b) => b.hora.localeCompare(a.hora)).slice(0, 8)
-      .map((f) => ({ ...f, calidad: calidad.get(f.hora.slice(0, 13)) ?? null }))
+      .map((f) => ({ ...f, calidad: calidad.get(f.hora.slice(0, 13)) ?? null, fuente: FUENTE[fuente.get(f.hora.slice(0, 13)) ?? ""] ?? "EventStreams" }))
   }, [data, wikis])
 
   // Últimas horas del KPI elegido, de la más antigua a la más reciente.
@@ -155,32 +159,24 @@ export default function ResumenPage() {
             )}
           </Seccion>
 
-          <Seccion className="lg:col-span-3" titulo="Ejecuciones del pipeline" descripcion={`Una fila por hora procesada por el DAG · ${etiqueta} · Cassandra resumen_por_hora y ejecuciones`}>
+          <Seccion className="lg:col-span-3" titulo="Ejecuciones del pipeline" descripcion={`Una fila por hora procesada por el DAG: sus eventos, de dónde leyó la hora y su calidad · ${etiqueta} · Cassandra resumen_por_hora y ejecuciones`}>
             {!data ? <Cargando alto={200} /> : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Hora (UTC−5)</TableHead>
                     <TableHead className="text-right">Eventos</TableHead>
-                    <TableHead>Bots</TableHead>
-                    <TableHead className="text-right">Reversiones</TableHead>
+                    <TableHead>Leída de</TableHead>
                     <TableHead className="text-right">Calidad</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {porHora.map((f) => {
-                    const pct = (f.bots / Math.max(f.eventos, 1)) * 100
                     return (
                       <TableRow key={f.hora}>
                         <TableCell className="font-medium">{horaLocal(f.hora)}</TableCell>
                         <TableCell className="text-right tabular-nums">{entero(f.eventos)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: COLOR.bot }} /></div>
-                            <span className="w-12 text-muted-foreground tabular-nums">{pct.toFixed(1)} %</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{f.rev}</TableCell>
+                        <TableCell className="text-muted-foreground">{f.fuente}</TableCell>
                         <TableCell className="text-right">
                           <Badge variant="outline" className="border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400">{f.calidad != null ? `${f.calidad.toFixed(0)} %` : "—"}</Badge>
                         </TableCell>
