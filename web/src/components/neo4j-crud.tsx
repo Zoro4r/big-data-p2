@@ -16,7 +16,7 @@ import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** CRUD del grafo de editores en Neo4j: nodos :Editor y relaciones entre editores.
- *  Consultar sirve para cualquier editor; crear, actualizar y eliminar, solo para editores «Demo_…». */
+ *  Consultar sirve para cualquier editor; crear, actualizar y eliminar, solo para editores «demo_…». */
 
 interface Rel { tipo: string; con: string; etiqueta: string; props: Record<string, unknown> }
 interface Detalle { editor: Record<string, unknown>; n_salientes: number; n_entrantes: number; salientes: Rel[]; entrantes: Rel[] }
@@ -165,19 +165,19 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     setDialogo(false); setConfirmacion(""); setRelElegida(null)
   }
 
-  /** «Completar con datos de prueba»: los formularios empiezan vacíos y esto los llena con editores «Demo_». */
+  /** «Completar con datos de prueba»: los formularios empiezan vacíos y esto los llena con editores «demo_». */
   async function completarPrueba() {
     if (op === "Crear") {
-      if (modoCrear === "nodo") setNodo({ user: "Demo_Patrullero", tipo: "registrado" })
-      else setRel({ origen: "Demo_Patrullero", destino: "Demo_Vandalo", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera })
+      if (modoCrear === "nodo") setNodo({ user: "demo_editor", tipo: "registrado" })
+      else setRel({ origen: "demo_editor", destino: "demo_editor_2", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera })
       return
     }
-    if (op === "Consultar") { setFiltro({ prefijo: "Demo_", tipo: "todos" }); return }
+    if (op === "Consultar") { setFiltro({ prefijo: "demo_", tipo: "todos" }); return }
     // Actualizar y eliminar necesitan un editor que exista.
-    const d = await pedirDetalle("Demo_Patrullero")
-    if (!d) { toast.info("No existe Demo_Patrullero: créalo en «Crear» y vuelve aquí"); return }
-    setUser("Demo_Patrullero"); setModoBorrar("nodo")
-    cargar("Demo_Patrullero")
+    const d = await pedirDetalle("demo_editor")
+    if (!d) { toast.info("No existe demo_editor: créalo en «Crear» y vuelve aquí"); return }
+    setUser("demo_editor"); setModoBorrar("nodo")
+    cargar("demo_editor")
   }
 
   /** Desde la ficha de Consultar: lleva el editor a Actualizar o Eliminar. */

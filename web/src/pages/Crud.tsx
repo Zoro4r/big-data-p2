@@ -164,7 +164,7 @@ export default function CrudPage() {
   return (
     <>
       <Header ruta={["Administración", "Operaciones CRUD"]} />
-      <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «Demo_» y bórralos al terminar.">
+      <Pagina titulo="Operaciones CRUD" descripcion="Crear, consultar, actualizar y eliminar en las tres bases. Para la demostración, usa nombres que empiecen con «demo_» y bórralos al terminar.">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5 lg:items-stretch">
           <Tabs value={base} onValueChange={setBase} className="gap-4 lg:col-span-2">
             <TabsList className="w-full">

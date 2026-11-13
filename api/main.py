@@ -276,8 +276,8 @@ def mongo_eliminar(event_id: str):
 
 
 # Cassandra y Neo4j guardan datos que calcula el pipeline: las escrituras del CRUD se limitan a nombres
-# de demostración («Demo_…») para no alterar los datos reales que alimentan los KPIs. Consultar no tiene límite.
-PREFIJO_DEMO = "Demo_"
+# de demostración («demo_…») para no alterar los datos reales que alimentan los KPIs. Consultar no tiene límite.
+PREFIJO_DEMO = "demo_"
 
 
 def solo_demo(nombre: str) -> None:

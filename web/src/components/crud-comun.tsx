@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils"
 
 export type Operacion = "Crear" | "Consultar" | "Actualizar" | "Eliminar"
 
-/** Cassandra y Neo4j guardan datos que calcula el pipeline: solo se escribe sobre nombres «Demo_…». */
-export const PREFIJO_DEMO = "Demo_"
+/** Cassandra y Neo4j guardan datos que calcula el pipeline: solo se escribe sobre nombres «demo_…». */
+export const PREFIJO_DEMO = "demo_"
 export const esDemo = (s: string) => s.startsWith(PREFIJO_DEMO)
 
 export function Operaciones({ valor, onChange }: { valor: Operacion; onChange: (v: Operacion) => void }) {
@@ -206,7 +206,7 @@ export function QuePasa({ filas }: { filas: [string, ReactNode][] }) {
   )
 }
 
-/** Completa la operación con datos de demostración («Demo_…»): los formularios empiezan vacíos. */
+/** Completa la operación con datos de demostración («demo_…»): los formularios empiezan vacíos. */
 export function BotonPrueba({ onClick, ultimos }: { onClick: () => void; ultimos?: boolean }) {
   return (
     <Button type="button" variant="outline" size="sm" className="w-full" onClick={onClick}>
