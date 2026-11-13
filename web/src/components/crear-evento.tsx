@@ -389,9 +389,10 @@ export function EditorEvento({ ev }: { ev: EventoNuevo }) {
 
       {previa?.derived && (
         <div className="max-h-[132px] shrink-0 overflow-auto border-t bg-muted/50 px-4 py-2.5">
-          <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono">derived</span>
-            <span className="rounded border bg-background px-1.5 text-[11px]">calculado al insertar</span>
+          <div className="mb-1 flex items-baseline gap-1.5 text-xs text-muted-foreground">
+            <span className="font-mono font-medium text-foreground/80">derived</span>
+            <span aria-hidden>·</span>
+            <span>lo calcula el servidor al insertar</span>
           </div>
           <pre className="m-0 font-mono text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
             {Object.entries(previa.derived).filter(([k]) => k !== "event_dt").map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n")}
