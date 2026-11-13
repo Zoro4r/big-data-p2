@@ -1160,6 +1160,9 @@ En la misma sección se reescribió «Por qué dos caminos»:
   - hace el trabajo pesado una sola vez: red, resúmenes y KPIs;
   - garantiza que los datos estén completos (N7).
 - La lista de lo que falta con cada camino por separado se amplió, y se quitó el párrafo «El camino por lotes corrige al rápido», que ya quedaba cubierto.
+- A pedido del usuario, esa lista ya no menciona las fallas de la sección 12. Ahora explica qué se pierde en utilidad sin cada camino:
+  - **sin el rápido:** hasta 60 minutos de atraso y la carga concentrada al cierre de la hora;
+  - **sin el de lotes:** no hay horas cerradas, todo se recalcula con cada cambio y los cortes pasan sin que nadie los note.
 
 ---
 
