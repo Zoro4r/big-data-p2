@@ -192,7 +192,7 @@ def tipos_por_wiki(horas: int = 24) -> list[dict]:
 
 
 @cacheado
-def buscar_eventos(wiki: str, tipo: str, editor: str, titulo: str, solo_reversiones: bool, limite: int) -> list[dict]:
+def buscar_eventos(wiki: str, tipo: str, editor: str, titulo: str, limite: int) -> list[dict]:
     filtro: dict = {}
     if wiki != "todas":
         filtro["wiki"] = wiki
@@ -202,8 +202,6 @@ def buscar_eventos(wiki: str, tipo: str, editor: str, titulo: str, solo_reversio
         filtro["user"] = editor
     if titulo:
         filtro["title"] = {"$regex": titulo, "$options": "i"}
-    if solo_reversiones:
-        filtro["derived.revert_target"] = {"$exists": True}
     proy = {"_id": 1, "derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}
     docs = mongo_db().events.find(filtro, proy).sort("derived.event_dt", -1).limit(limite)
     return [{

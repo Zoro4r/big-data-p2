@@ -49,11 +49,11 @@ function metricaTipo(t: FilaTipo, total24: number, wikis: string[], etiqueta: st
 
 export default function ExploradorPage() {
   const { wiki, wikis, etiqueta } = useWiki()
-  const [form, setForm] = useState({ tipo: "todos", editor: "", titulo: "", solo: false })
+  const [form, setForm] = useState({ tipo: "todos", editor: "", titulo: "" })
   const [filtro, setFiltro] = useState(form)
   const [elegido, setElegido] = useState<string | null>(null)
   const [tipoAbierto, setTipoAbierto] = useState<string | null>(null)
-  const qs = new URLSearchParams({ wiki, tipo: filtro.tipo, editor: filtro.editor, titulo: filtro.titulo, solo_reversiones: String(filtro.solo), limite: "60" })
+  const qs = new URLSearchParams({ wiki, tipo: filtro.tipo, editor: filtro.editor, titulo: filtro.titulo, limite: "60" })
   const { data, cargando } = useApi<Respuesta>(`/api/eventos?${qs}`)
   useEffect(() => setElegido(null), [wiki])
   const doc = useApi<Record<string, unknown>>(elegido ? `/api/eventos/${encodeURIComponent(elegido)}` : null)
@@ -106,10 +106,6 @@ export default function ExploradorPage() {
               <Input id="f-titulo" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} />
             </div>
             <Button type="submit">Buscar</Button>
-            <label className="flex items-center gap-2 text-sm sm:col-span-2">
-              <input type="checkbox" className="size-4 accent-zinc-900" checked={form.solo} onChange={(e) => setForm({ ...form, solo: e.target.checked })} />
-              Solo ediciones que revierten a otro editor
-            </label>
           </form>
         </Seccion>
 

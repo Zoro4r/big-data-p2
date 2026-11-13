@@ -151,9 +151,9 @@ def editor(nombre: str):
 
 @app.get("/api/eventos")
 def eventos(wiki: str = "ambas", tipo: str = "todos", editor: str = "", titulo: str = "",
-            solo_reversiones: bool = False, limite: int = 50):
+            limite: int = 50):
     return {"total": q.total_eventos(), "tipos": q.tipos_por_wiki(24),
-            "eventos": q.buscar_eventos("todas" if wiki == "ambas" else wikis_de(wiki)[0], tipo, editor.strip(), titulo.strip(), solo_reversiones, min(limite, 500))}
+            "eventos": q.buscar_eventos("todas" if wiki == "ambas" else wikis_de(wiki)[0], tipo, editor.strip(), titulo.strip(), min(limite, 500))}
 
 
 @app.get("/api/eventos/{event_id}")
