@@ -78,7 +78,6 @@ export default function CrudPage() {
         toast.info("El validador de MongoDB rechazó el documento")
       } else {
         setResultado({ titulo: `CREATE · ${destino}`, ok: true, json: r.documento })
-        setM((x) => ({ ...x, id }))  // así Consultar, Actualizar y Eliminar apuntan al documento recién creado
         evento.renovarId()
         toast.success(`Documento ${id} insertado`)
       }
@@ -126,6 +125,10 @@ export default function CrudPage() {
   const confirmarEliminacion = () => correr(eliminacion.eliminar, (d) => `«${String(d.title ?? d._id)}» eliminado`)
 
   const actualizacion = useActualizacion()
+  /** Cambiar de operación con las pestañas deja el formulario vacío (no arrastra lo cargado en otra operación). */
+  function cambiarMOp(op: string) {
+    setMOp(op); setM({ id: "" }); actualizacion.limpiar(); eliminacion.limpiar()
+  }
   async function guardarActualizacion() {
     if (!actualizacion.nCambios) return
     setOcupado(true)
@@ -175,7 +178,7 @@ export default function CrudPage() {
             <TabsContent value="mongo">
               <Seccion titulo="Colección events" className="h-full" contenidoClassName="flex flex-1 flex-col">
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
-                  <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
+                  <Operaciones valor={mOp} onChange={cambiarMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   <BotonPrueba onClick={pruebaMongo} ultimos={mOp !== "Crear" && "los últimos eventos"} />
                   <ModalUltimos abierto={ultimos.abierto} docs={ultimos.docs} onCerrar={() => setUltimos({ abierto: false, docs: null })} onElegir={elegirUltimo}
                     operacion={mOp} />

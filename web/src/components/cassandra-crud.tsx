@@ -194,6 +194,13 @@ export function useCassandraCrud() {
     cargar(k)
   }
 
+  /** Cambiar de operación con las pestañas deja Actualizar y Eliminar vacíos (no arrastran la fila de la otra). */
+  function cambiarOp(o: Operacion) {
+    setOp(o)
+    setClave({ kpi: "", fecha: hoy(), hora: horaUtc() }); setOriginal(null); setCambios({})
+    setModo("fila"); setParticion(null); setConfirmacion(""); setBorrado(null)
+  }
+
   /** Desde la ficha de Consultar: lleva la fila a Actualizar o Eliminar. */
   function irA(destino: Operacion, f: Fila) {
     const k = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: String(Number(f.ventana.slice(11, 13))) }
@@ -202,7 +209,7 @@ export function useCassandraCrud() {
   }
 
   return {
-    op, setOp, ocupado, nombres,
+    op, setOp: cambiarOp, ocupado, nombres,
     nueva, setNueva, filaNueva, existente, insertada, insertar,
     consulta, setConsulta, resultados, elegido, setElegido, buscar,
     clave, setClave, original, cambios, valor, poner, deshacer, descartar, cargar, guardar,

@@ -185,6 +185,13 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     cargar(u)
   }
 
+  /** Cambiar de operación con las pestañas deja Actualizar y Eliminar vacíos (no arrastran el editor de la otra). */
+  function cambiarOp(o: Operacion) {
+    setOp(o)
+    setUser(""); setCargado(null); setCambios({}); setNuevaProp({ clave: "", valor: "" })
+    setModoBorrar("nodo"); setRelElegida(null); setConfirmacion(""); setBorrado(null)
+  }
+
   /** Desde la ficha de Consultar: lleva el editor a Actualizar o Eliminar. */
   function irA(destino: Operacion, u: string) {
     setUser(u); setModoBorrar("nodo"); setOp(destino)
@@ -192,7 +199,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   }
 
   return {
-    op, setOp, ocupado,
+    op, setOp: cambiarOp, ocupado,
     modoCrear, setModoCrear, nodo, setNodo, rel, setRel, existe, crear,
     filtro, setFiltro, encontrados, elegido, elegir, detalle, buscar,
     user, setUser, cargado, cargar, cambios, valor, original, poner, deshacer, descartar, nuevaProp, setNuevaProp, agregarProp, guardar,

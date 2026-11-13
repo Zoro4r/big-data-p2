@@ -52,8 +52,11 @@ export function useEliminacion() {
     return doc
   }
 
+  /** Al cambiar de operación, el formulario vuelve a empezar vacío. */
+  const limpiar = () => { setDoc(null); setEliminado(null); setConfirmacion("") }
+
   const confirmado = Boolean(doc) && confirmacion.trim() === String(doc?._id)
-  return { doc, eliminado, cargando, cargar, eliminar, confirmacion, setConfirmacion, confirmado }
+  return { doc, eliminado, cargando, cargar, eliminar, limpiar, confirmacion, setConfirmacion, confirmado }
 }
 export type Eliminacion = ReturnType<typeof useEliminacion>
 
