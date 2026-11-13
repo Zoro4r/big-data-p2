@@ -141,6 +141,7 @@ class Streaming:
         self.ultimo_id: str | None = None
         self.ultimo_dt: str | None = None
         self.activo = True
+        self.espera = 1  # segundos antes de reconectar; se duplica con cada falla seguida
         self.stats = {"guardados": 0, "descartados": 0, "reconexiones": 0}
         self.ultimo_log = time.monotonic()
 
@@ -202,6 +203,9 @@ class Streaming:
         with requests.get(config.STREAM_URL, headers=headers, stream=True, timeout=(10, 60)) as resp:
             resp.raise_for_status()
             log.info("Conectado al stream")
+            # Wikimedia corta la conexión cada tanto; cada corte termina en excepción, así que la espera
+            # se reinicia al conectar (si no, tras unos cortes quedaría siempre en el máximo).
+            self.espera = 1
             ultimo_flush = time.monotonic()
             for event_id, data in iter_sse(resp):
                 if not self.activo:
@@ -229,18 +233,18 @@ class Streaming:
 
     def correr(self) -> None:
         signal.signal(signal.SIGTERM, lambda *_: setattr(self, "activo", False))
-        ultimo_id, espera = self.marcador_inicial(), 1
+        ultimo_id = self.marcador_inicial()
         if ultimo_id:
             self.tramo_id = self.tramo_anterior()
         while self.activo:
             try:
                 self.leer(ultimo_id or self.ultimo_id)
-                espera = 1
+                self.espera = 1
             except (requests.RequestException, OSError) as exc:
                 self.stats["reconexiones"] += 1
-                log.warning("Se cortó el stream (%s); reconecto en %ds", exc, espera)
-                time.sleep(espera)
-                espera = min(espera * 2, 60)
+                log.warning("Se cortó el stream (%s); reconecto en %ds", exc, self.espera)
+                time.sleep(self.espera)
+                self.espera = min(self.espera * 2, 60)
             finally:
                 self.guardar()
                 ultimo_id = None  # al reconectar se usa el último id leído
