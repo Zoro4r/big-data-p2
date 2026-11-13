@@ -1163,7 +1163,36 @@ Revisión de las 7 vistas contra N1 a N7, a pedido del usuario. Cambios aprobado
     - Neo4j: el nodo pasó a `tipo = bot`, y se borraron sus 1,397 relaciones COEDITA, porque COEDITA solo une humanos;
     - Cassandra: 225 filas de `actividad_editor` con `tipo_editor = bot`.
   - **No se recalcularon** los agregados por hora ya escritos (`resumen_por_hora`, KPIs de horas pasadas). La tasa de automatización de eswiki de esas horas queda apenas más baja: 1,320 eventos en 12 días. Las horas nuevas ya salen bien.
-  - El usuario decidió no reprocesar: la regla rige desde ahora. En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
+  - El usuario decidió no reprocesar: la regla rige desde ahora.
+
+### 46. Gráficos unificados, términos corregidos y nueva medida de «Página más disputada»
+
+Revisión pedida por el usuario: la correctitud de los términos y la variedad de gráficos.
+
+- **«Página más disputada» mide reversiones** (opción a, aprobada; commit `feat: measure disputed pages by reversions received`):
+  - **Antes** contaba editores distintos en toda la historia, así que ganaban «Sandbox» o «Teahouse», sin conflicto.
+  - **Ahora** es la página con más reversiones recibidas en la hora.
+  - **Dónde se calcula:**
+    - tabla nueva `paginas_disputadas_por_hora` en [schema.cql](../db/cassandra/schema.cql), que llena `cassandra_store.load_window` (top 20 por hora);
+    - KPI en `kpis._pagina_disputada`, que pasó de Neo4j a Cassandra;
+    - lista de la vista Red en `api/queries.paginas_disputadas` (últimas 24 h).
+  - **Relleno:** las últimas 24 horas, unos 2 s por hora. Ejemplos reales: «Voĺha Karač» con 25 reversiones en una hora y «The Atheist Experience» con 10.
+- **Gráficos y colores** (commit `refactor: use bar charts and separate color palettes across views`):
+  - **Gráficos:** todo lo temporal va en barras verticales, apiladas si hay desglose; los rankings, en barras horizontales. Cambiaron En vivo (áreas → barras por wiki), Actividad por minuto (líneas → barras humanos/bots) y la serie del detalle de cada tarjeta (línea → barras).
+  - **Paletas separadas:** las wikis van en azul y naranja; los tipos de editor, en gris (registrado), violeta (temporal o IP) y verde (bot).
+- **Términos:**
+  - «Pulso por minuto» → «Eventos por minuto»;
+  - «Pulso de…» → «Actividad de…»;
+  - «Últimas ediciones» → «Últimos eventos»;
+  - «Páginas más editadas» → «Páginas con más editores»;
+  - «Verás sus ediciones» → «sus eventos»;
+  - En vivo: «guarda cada edición» → «cada evento» (commit `fix: use event instead of edit in live view description`).
+- **Informe:**
+  - KPI de la sección 8;
+  - secciones 4 (Cassandra), 5 (tareas 4 y 6), 6 (tablas y la viñeta de Neo4j, que ahora es «¿A quién revierten más?») y 9 (tabla de vistas y textos de las capturas);
+  - un párrafo nuevo, «Cómo leer los gráficos»;
+  - capturas nuevas de Resumen, En vivo, Actividad y Red.
+- **Docs del repo:** [justificacion-dataset.md](justificacion-dataset.md) y [requerimientos.md](requerimientos.md) usan la nueva definición. En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
 
