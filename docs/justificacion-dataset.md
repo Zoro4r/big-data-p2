@@ -142,7 +142,7 @@ Este patrón (un nodo central con muchas reversiones salientes hacia cuentas tem
 
 Consultas que este modelo responde directamente:
 
-- **Página más disputada:** `MATCH (e:Editor)-[:EDITO]->(p:Pagina) RETURN p.titulo, count(DISTINCT e) AS editores ORDER BY editores DESC LIMIT 10`
+- **Páginas con más editores:** `MATCH (e:Editor)-[:EDITO]->(p:Pagina) RETURN p.titulo, count(DISTINCT e) AS editores ORDER BY editores DESC LIMIT 10`
 - **Editores más revertidos** (posible vandalismo): `MATCH (:Editor)-[r:REVIRTIO]->(b:Editor) RETURN b.user, b.tipo, sum(r.veces) AS reversiones ORDER BY reversiones DESC LIMIT 10`
 - **Patrulleros más activos:** la misma consulta, contando las reversiones que salen de cada editor.
 - **Guerras de ediciones** (dos editores que se revierten mutuamente): `MATCH (a:Editor)-[:REVIRTIO]->(b:Editor)-[:REVIRTIO]->(a) WHERE a.user < b.user RETURN a.user, b.user`
@@ -160,7 +160,7 @@ El dataset permite al menos 10 KPIs; el curso pide 5. Las fórmulas se calculan 
 | Crecimiento de actividad | (eventos *t* − eventos *t*−1) / eventos *t*−1 × 100 | Cassandra | Picos o caídas, por ejemplo ante una noticia |
 | Tasa de automatización | eventos con `bot = true` / eventos totales × 100 | Cassandra | Cuánto del trabajo hacen bots (51% en la muestra) |
 | Promedio de actividad por editor | eventos humanos / editores humanos distintos | Cassandra | Intensidad de la participación humana |
-| Página más disputada | página con más editores distintos (grado de entrada de `EDITO`) | Neo4j | Posibles guerras de ediciones o temas de actualidad |
+| Página más disputada | página con más reversiones recibidas en la hora (tabla `paginas_disputadas_por_hora`) | Cassandra | Posibles guerras de ediciones o ataques |
 | Editor más conectado | editor con más páginas distintas, o más coeditores | Neo4j | Editores centrales de la comunidad |
 | Tasa de creación de contenido | eventos `new` / (eventos `edit` + `new`) × 100 | MongoDB | Crecimiento frente a mantenimiento |
 | Volumen neto de contenido | Σ (`length.new` − `length.old`) | MongoDB / Cassandra | Bytes agregados o eliminados; un valor muy negativo puede ser vandalismo |

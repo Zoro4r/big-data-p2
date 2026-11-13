@@ -185,7 +185,7 @@ Las tres bases usan la misma interfaz: la columna izquierda tiene los campos y l
   - [En vivo](http://34.45.96.253:8501/vivo) ([Vivo.tsx](../web/src/pages/Vivo.tsx)): eventos por segundo y últimas ediciones al instante (capa rápida), con filtros por tipo de evento y de editor, y detalle de cada evento.
   - [Actividad en el tiempo](http://34.45.96.253:8501/actividad) ([Actividad.tsx](../web/src/pages/Actividad.tsx)): serie por minuto del día y el historial de un editor (Cassandra).
   - [Explorador de eventos](http://34.45.96.253:8501/explorador) ([Explorador.tsx](../web/src/pages/Explorador.tsx)): búsqueda y conteos por tipo sobre MongoDB.
-  - [Red de editores](http://34.45.96.253:8501/red) ([Red.tsx](../web/src/pages/Red.tsx)): totales del grafo, rankings de editores revertidos y patrulleros, páginas disputadas y la red alrededor de un editor (Neo4j).
+  - [Red de editores](http://34.45.96.253:8501/red) ([Red.tsx](../web/src/pages/Red.tsx)): tarjetas de conflicto y comunidad de las últimas 24 h, rankings de editores revertidos, patrulleros y editores más conectados, la red alrededor de un editor (Neo4j) y las páginas con más reversiones (Cassandra).
   - [Operaciones CRUD](http://34.45.96.253:8501/crud) ([Crud.tsx](../web/src/pages/Crud.tsx)): ver la [sección 4](#4-operaciones-crud).
   - [Arquitectura](http://34.45.96.253:8501/arquitectura) ([Arquitectura.tsx](../web/src/pages/Arquitectura.tsx)): diagrama clicable del flujo de datos ([`Diagrama`, línea 59](../web/src/pages/Arquitectura.tsx#L59)). Cada componente abre su detalle:
     - la fuente: origen, estructura, características y captura de prueba del dataset;
@@ -217,7 +217,7 @@ Calculamos **12 KPIs** cada hora, global y por wiki:
 | Volumen neto de contenido | Σ (bytes nuevos − bytes anteriores) | MongoDB |
 | Tasa de reversión | ediciones que revierten a otro editor / ediciones × 100 | MongoDB |
 | Eventos acumulados | documentos en `events` hasta el fin de la hora | MongoDB |
-| Página más disputada | página editada en la hora con más editores distintos | Neo4j |
+| Página más disputada | página con más reversiones recibidas en la hora | Cassandra |
 | Editor humano más conectado | editor activo con más relaciones `COEDITA` | Neo4j |
 | Editor más revertido | editor con más reversiones recibidas | Neo4j |
 | Calidad de datos | eventos válidos / eventos extraídos × 100 | Limpieza (DAG) |
