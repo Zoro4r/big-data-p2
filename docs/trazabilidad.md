@@ -1069,6 +1069,7 @@ Cambios hechos a partir de las observaciones del usuario:
 - **«Características» del dataset rehecha** con cifras de todo lo recolectado: 293 horas, del 31 oct 14:00 al 12 nov 18:59 UTC−5, agregadas en MongoDB de la VM.
   - **Agregado:** promedio por hora con mínimo y máximo; reparto enwiki/eswiki, bots/personas y por tipo.
   - **Quitado:** la velocidad de captura, que corresponde a la extracción; «87 veces el mínimo»; y «4 wikis concentraban el 70 %».
+- **Sección 2:** se quitó la tabla resumen de públicos. La introducción ahora nombra a los tres públicos y qué busca cada uno.
 
 ---
 
