@@ -161,7 +161,7 @@ export default function ActividadPage() {
           )}
         </div>
 
-        <Seccion titulo="Humanos y bots por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora · haz clic en una hora para verla minuto a minuto`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
+        <Seccion titulo="Eventos por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora · haz clic en una hora para verla minuto a minuto`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%" className="cursor-pointer"
