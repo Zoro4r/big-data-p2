@@ -169,7 +169,7 @@ export function FormularioActualizacion({ a, id, setId }: { a: Actualizacion; id
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="u-id">Documento a actualizar</Label>
         <div className="flex gap-2">
-          <Input id="u-id" className="font-mono text-xs" placeholder="_id" value={id} onChange={(e) => setId(e.target.value)}
+          <Input id="u-id" className="font-mono text-xs" placeholder="Ej. 67f5fdfc-f6ce-4eab-b6d3-d3509a6fe6a8" value={id} onChange={(e) => setId(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); a.cargar(id) } }} />
           <Button type="button" variant="outline" disabled={a.cargando} onClick={() => a.cargar(id)}>Cargar</Button>
         </div>

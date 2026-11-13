@@ -147,13 +147,13 @@ export function FiltrosConsulta({ c }: { c: ConsultaEventos }) {
             opciones={[["hora", "Última hora"], ["dia", "Últimas 24 horas"], ["semana", "Últimos 7 días"], ["todo", "Todo"]]} />
         </Campo>
         <div className="grid grid-cols-2 gap-3">
-          <Campo id="q-editor" label="Editor"><Input id="q-editor" placeholder="cualquiera" value={f.editor} onChange={(e) => setF({ ...f, editor: e.target.value })} /></Campo>
-          <Campo id="q-titulo" label="Título contiene"><Input id="q-titulo" placeholder="cualquiera" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} /></Campo>
+          <Campo id="q-editor" label="Editor"><Input id="q-editor" placeholder="Ej. John Doe" value={f.editor} onChange={(e) => setF({ ...f, editor: e.target.value })} /></Campo>
+          <Campo id="q-titulo" label="Título contiene"><Input id="q-titulo" placeholder="Ej. Machu" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} /></Campo>
         </div>
       </fieldset>
 
       <Campo id="q-id" label="_id exacto" ayuda="Si lo llenas, se ignoran los demás filtros.">
-        <Input id="q-id" className="font-mono text-xs" placeholder="opcional" value={f.id} onChange={(e) => setF({ ...f, id: e.target.value })} />
+        <Input id="q-id" className="font-mono text-xs" placeholder="Ej. 67f5fdfc-f6ce-4eab-b6d3-d3509a6fe6a8" value={f.id} onChange={(e) => setF({ ...f, id: e.target.value })} />
       </Campo>
     </div>
   )

@@ -78,7 +78,7 @@ export function FormularioEliminacion({ e, id, setId }: { e: Eliminacion; id: st
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="e-id">Documento a eliminar</Label>
         <div className="flex gap-2">
-          <Input id="e-id" className="font-mono text-xs" placeholder="_id" value={id} onChange={(ev) => setId(ev.target.value)}
+          <Input id="e-id" className="font-mono text-xs" placeholder="Ej. 67f5fdfc-f6ce-4eab-b6d3-d3509a6fe6a8" value={id} onChange={(ev) => setId(ev.target.value)}
             onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); e.cargar(id) } }} />
           <Button type="button" variant="outline" disabled={e.cargando} onClick={() => e.cargar(id)}>Cargar</Button>
         </div>
