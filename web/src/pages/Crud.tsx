@@ -169,7 +169,7 @@ export default function CrudPage() {
   // ---------------------------------------------------------------- Cassandra y Neo4j
   const registrar: Registrar = (op, base, detalle, ok) =>
     setLog((l) => [{ op, base, detalle, hora: horaActual(), ok }, ...l].slice(0, 8))
-  const cassandra = useCassandraCrud(wikiForm, registrar)
+  const cassandra = useCassandraCrud(registrar)
   const neo = useNeo4jCrud(wikiForm, registrar)
 
   const boton = (texto: string, peligro = false) => (
@@ -225,13 +225,13 @@ export default function CrudPage() {
             </TabsContent>
 
             <TabsContent value="cassandra">
-              <Seccion titulo="Tabla actividad_editor" descripcion={<>Clave primaria ((editor), fecha, hora, wiki) · la partición es el editor. Es un resumen que calcula el pipeline: se puede consultar cualquier editor, pero solo se escribe sobre «Demo_…».</>}>
+              <Seccion titulo="Tabla kpis">
                 <CassandraIzquierda c={cassandra} />
               </Seccion>
             </TabsContent>
 
             <TabsContent value="neo4j">
-              <Seccion titulo="Grafo de editores" descripcion="Se puede consultar cualquier editor, pero solo se escribe sobre «Demo_…».">
+              <Seccion titulo="Grafo de editores">
                 <Neo4jIzquierda n={neo} />
               </Seccion>
             </TabsContent>

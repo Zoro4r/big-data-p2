@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -285,88 +285,95 @@ def solo_demo(nombre: str) -> None:
         raise HTTPException(403, f"Para no alterar los datos reales, solo se puede escribir sobre nombres que empiezan con «{PREFIJO_DEMO}»")
 
 
-def _fila_cass(r) -> dict:
-    d = q._fila(r)
-    d["fecha"] = str(r.fecha)
-    return d
+def _fila_kpi(r) -> dict:
+    return {"kpi": r.kpi, "ventana": r.ventana.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+            "valor": r.valor, "detalle": r.detalle}
 
 
-class FilaCassandra(BaseModel):
-    editor: str
-    fecha: date
-    hora: int = Field(ge=0, le=23)
-    wiki: str
-    tipo_editor: str = "registrado"
-    eventos: int = Field(0, ge=0)
-    ediciones: int = Field(0, ge=0)
-    paginas: int = Field(0, ge=0)
-    delta_bytes: int = 0
-    reversiones_hechas: int = Field(0, ge=0)
-    reversiones_recibidas: int = Field(0, ge=0)
+def solo_kpi_demo(kpi: str) -> None:
+    if not crud.es_kpi_demo(kpi):
+        raise HTTPException(403, f"Para no alterar los KPIs reales, solo se puede escribir sobre KPIs que empiezan con «{crud.PREFIJO_KPI_DEMO}»")
 
 
-class CambiosCassandra(BaseModel):
-    editor: str
-    fecha: date
-    hora: int = Field(ge=0, le=23)
-    wiki: str
-    cambios: dict[str, str | int]
+def _hora(ventana: datetime) -> datetime:
+    """La ventana de un KPI es el inicio de una hora en UTC."""
+    v = ventana.astimezone(timezone.utc) if ventana.tzinfo else ventana.replace(tzinfo=timezone.utc)
+    return v.replace(minute=0, second=0, microsecond=0)
+
+
+class FilaKpi(BaseModel):
+    kpi: str = Field(min_length=1)
+    ventana: datetime
+    valor: float | None = None
+    detalle: str | None = None
+
+
+class CambiosKpi(BaseModel):
+    kpi: str
+    ventana: datetime
+    cambios: dict[str, float | str | None]
+
+
+@app.get("/api/crud/cassandra/kpis")
+def cassandra_kpis():
+    """Los KPIs que se pueden consultar: los 12 reales y los de demostración que existan."""
+    nombres = crud.kpi_nombres(q.cassandra())
+    return {"reales": q.KPIS, "demo": [n for n in nombres if crud.es_kpi_demo(n)]}
 
 
 @app.post("/api/crud/cassandra")
-def cassandra_insertar(f: FilaCassandra):
+def cassandra_insertar(f: FilaKpi):
     """INSERT de una fila completa. En Cassandra, si la clave ya existe la fila se reemplaza (upsert)."""
-    solo_demo(f.editor)
-    s = q.cassandra()
-    existia = crud.cassandra_fila(s, f.editor, f.fecha, f.hora, f.wiki) is not None
-    crud.cassandra_insertar(s, f.model_dump())
+    solo_kpi_demo(f.kpi)
+    s, v = q.cassandra(), _hora(f.ventana)
+    existia = crud.kpi_fila(s, f.kpi, v) is not None
+    crud.kpi_insertar(s, f.kpi, v, f.valor, f.detalle)
     q.limpiar_cache()
-    return {"reemplazo": existia, "fila": _fila_cass(crud.cassandra_fila(s, f.editor, f.fecha, f.hora, f.wiki))}
+    return {"reemplazo": existia, "fila": _fila_kpi(crud.kpi_fila(s, f.kpi, v))}
 
 
 @app.get("/api/crud/cassandra/fila")
-def cassandra_una_fila(editor: str, fecha: date, hora: int, wiki: str):
-    r = crud.cassandra_fila(q.cassandra(), editor, fecha, hora, wiki)
+def cassandra_una_fila(kpi: str, ventana: datetime):
+    r = crud.kpi_fila(q.cassandra(), kpi, _hora(ventana))
     if r is None:
         raise HTTPException(404, "No hay una fila con esa clave")
-    return _fila_cass(r)
+    return _fila_kpi(r)
 
 
 @app.get("/api/crud/cassandra")
-def cassandra_leer(editor: str, fecha: date | None = None, hora: int | None = None, wiki: str | None = None, limite: int = 50):
-    """SELECT por partición (el editor), opcionalmente de un día; la hora y la wiki se filtran sobre esa partición."""
-    filas = crud.cassandra_consultar(q.cassandra(), editor, fecha, limite=min(limite, 200) if hora is None and wiki is None else 500)
-    out = [_fila_cass(r) for r in filas if (hora is None or r.hora == hora) and (wiki is None or r.wiki == wiki)]
-    return out[:limite]
+def cassandra_leer(kpi: str, fecha: date | None = None, limite: int = 48):
+    """SELECT por partición (el KPI), opcionalmente de un día (UTC)."""
+    desde = datetime.combine(fecha, datetime.min.time(), timezone.utc) if fecha else None
+    hasta = desde + timedelta(days=1) if desde else None
+    return [_fila_kpi(r) for r in crud.kpi_consultar(q.cassandra(), kpi, desde, hasta, min(max(limite, 1), 500))]
 
 
 @app.patch("/api/crud/cassandra")
-def cassandra_actualizar(body: CambiosCassandra):
-    solo_demo(body.editor)
-    s = q.cassandra()
-    if crud.cassandra_fila(s, body.editor, body.fecha, body.hora, body.wiki) is None:
+def cassandra_actualizar(body: CambiosKpi):
+    solo_kpi_demo(body.kpi)
+    s, v = q.cassandra(), _hora(body.ventana)
+    if crud.kpi_fila(s, body.kpi, v) is None:
         raise HTTPException(404, "No hay una fila con esa clave (en Cassandra, UPDATE la crearía)")
     try:
-        crud.cassandra_actualizar_columnas(s, body.editor, body.fecha, body.hora, body.wiki, body.cambios)
+        crud.kpi_actualizar(s, body.kpi, v, body.cambios)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     q.limpiar_cache()
-    return _fila_cass(crud.cassandra_fila(s, body.editor, body.fecha, body.hora, body.wiki))
+    return _fila_kpi(crud.kpi_fila(s, body.kpi, v))
 
 
 @app.delete("/api/crud/cassandra")
-def cassandra_eliminar(editor: str, fecha: date | None = None, hora: int | None = None, wiki: str | None = None):
-    """Sin fecha, hora ni wiki borra la partición entera del editor; con las tres, una sola fila."""
-    solo_demo(editor)
+def cassandra_eliminar(kpi: str, ventana: datetime | None = None):
+    """Sin ventana borra la partición entera del KPI; con ventana, una sola fila."""
+    solo_kpi_demo(kpi)
     s = q.cassandra()
-    if fecha is None:
-        n = len(crud.cassandra_consultar(s, editor, limite=10000))
-        crud.cassandra_eliminar(s, editor)
+    if ventana is None:
+        n = len(crud.kpi_consultar(s, kpi, limite=100000))
+        crud.kpi_eliminar(s, kpi)
     else:
-        if hora is None or wiki is None:
-            raise HTTPException(400, "Para borrar una fila hacen falta fecha, hora y wiki")
-        n = 1 if crud.cassandra_fila(s, editor, fecha, hora, wiki) is not None else 0
-        crud.cassandra_eliminar(s, editor, fecha, hora, wiki)
+        v = _hora(ventana)
+        n = 1 if crud.kpi_fila(s, kpi, v) is not None else 0
+        crud.kpi_eliminar(s, kpi, v)
     q.limpiar_cache()
     return {"filas_eliminadas": n}
 

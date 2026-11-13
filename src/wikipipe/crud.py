@@ -144,67 +144,55 @@ def evento_demo(event_id: str) -> dict:
 
 
 # ============================== Cassandra ==============================
+# El CRUD trabaja sobre la tabla `kpis`, clave ((kpi), ventana): cada fila es el valor ya calculado de un KPI en
+# una hora. Para no alterar los KPIs reales, solo se escribe sobre KPIs de demostración («demo_…»), que el
+# dashboard no muestra porque no tienen tarjeta.
 
-CQL_INSERT = (
-    "INSERT INTO actividad_editor (editor, fecha, hora, wiki, tipo_editor, eventos, ediciones, paginas, "
-    "delta_bytes, reversiones_hechas, reversiones_recibidas) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-)
-
-
-def cassandra_insertar(session, fila: dict) -> None:
-    session.execute(CQL_INSERT, (
-        fila["editor"], fila["fecha"], fila["hora"], fila["wiki"], fila["tipo_editor"], fila["eventos"],
-        fila["ediciones"], fila["paginas"], fila["delta_bytes"], fila["reversiones_hechas"],
-        fila["reversiones_recibidas"]))
+PREFIJO_KPI_DEMO = "demo_"
 
 
-def cassandra_consultar(session, editor: str, fecha: date | None = None, limite: int = 24) -> list:
-    """Historial de un editor (una partición). Opcionalmente, solo un día."""
-    if fecha:
-        rows = session.execute(
-            "SELECT * FROM actividad_editor WHERE editor = %s AND fecha = %s LIMIT %s", (editor, fecha, limite))
-    else:
-        rows = session.execute("SELECT * FROM actividad_editor WHERE editor = %s LIMIT %s", (editor, limite))
-    return list(rows)
+def es_kpi_demo(kpi: str) -> bool:
+    return kpi.startswith(PREFIJO_KPI_DEMO)
 
 
-def cassandra_actualizar(session, editor: str, fecha: date, hora: int, wiki: str, eventos: int, ediciones: int) -> None:
-    """UPDATE por clave primaria completa (en Cassandra un UPDATE también inserta si no existe)."""
-    session.execute(
-        "UPDATE actividad_editor SET eventos = %s, ediciones = %s "
-        "WHERE editor = %s AND fecha = %s AND hora = %s AND wiki = %s",
-        (eventos, ediciones, editor, fecha, hora, wiki))
+def kpi_insertar(session, kpi: str, ventana: datetime, valor: float | None, detalle: str | None) -> None:
+    """INSERT de una fila completa. Si la clave ya existe, Cassandra la reemplaza (no hay error de duplicado)."""
+    session.execute("INSERT INTO kpis (kpi, ventana, valor, detalle) VALUES (%s, %s, %s, %s)", (kpi, ventana, valor, detalle))
 
 
-def cassandra_eliminar(session, editor: str, fecha: date | None = None, hora: int | None = None,
-                       wiki: str | None = None) -> None:
-    """Borra una fila (clave completa) o la partición entera de un editor (solo `editor`)."""
-    if fecha is None:
-        session.execute("DELETE FROM actividad_editor WHERE editor = %s", (editor,))
-    else:
-        session.execute(
-            "DELETE FROM actividad_editor WHERE editor = %s AND fecha = %s AND hora = %s AND wiki = %s",
-            (editor, fecha, hora, wiki))
-
-
-COLUMNAS_METRICAS = ("tipo_editor", "eventos", "ediciones", "paginas", "delta_bytes", "reversiones_hechas", "reversiones_recibidas")
-
-
-def cassandra_fila(session, editor: str, fecha: date, hora: int, wiki: str):
+def kpi_fila(session, kpi: str, ventana: datetime):
     """Una fila por su clave primaria completa, o None."""
-    return session.execute(
-        "SELECT * FROM actividad_editor WHERE editor = %s AND fecha = %s AND hora = %s AND wiki = %s",
-        (editor, fecha, hora, wiki)).one()
+    return session.execute("SELECT * FROM kpis WHERE kpi = %s AND ventana = %s", (kpi, ventana)).one()
 
 
-def cassandra_actualizar_columnas(session, editor: str, fecha: date, hora: int, wiki: str, cambios: dict) -> None:
+def kpi_consultar(session, kpi: str, desde: datetime | None = None, hasta: datetime | None = None, limite: int = 24) -> list:
+    """Serie de un KPI (una partición), de la hora más reciente a la más antigua; opcionalmente, un rango."""
+    if desde and hasta:
+        return list(session.execute("SELECT * FROM kpis WHERE kpi = %s AND ventana >= %s AND ventana < %s LIMIT %s",
+                                    (kpi, desde, hasta, limite)))
+    return list(session.execute("SELECT * FROM kpis WHERE kpi = %s LIMIT %s", (kpi, limite)))
+
+
+def kpi_nombres(session) -> list[str]:
+    """Los KPIs que tienen filas: SELECT DISTINCT sobre la clave de partición."""
+    return sorted(r.kpi for r in session.execute("SELECT DISTINCT kpi FROM kpis"))
+
+
+def kpi_actualizar(session, kpi: str, ventana: datetime, cambios: dict) -> None:
     """UPDATE solo de las columnas que cambian (la clave no se puede cambiar: sería otra fila)."""
-    if not cambios or any(c not in COLUMNAS_METRICAS for c in cambios):
-        raise ValueError("Solo se pueden cambiar las métricas y el tipo de editor")
+    if not cambios or any(c not in ("valor", "detalle") for c in cambios):
+        raise ValueError("Solo se pueden cambiar el valor y el detalle")
     # Los nombres de columna se validan contra una lista fija antes de entrar a la consulta.
     sets = ", ".join(f"{c} = %s" for c in cambios)
-    session.execute(f"UPDATE actividad_editor SET {sets} WHERE editor = %s AND fecha = %s AND hora = %s AND wiki = %s",
-                    (*cambios.values(), editor, fecha, hora, wiki))
+    session.execute(f"UPDATE kpis SET {sets} WHERE kpi = %s AND ventana = %s", (*cambios.values(), kpi, ventana))
+
+
+def kpi_eliminar(session, kpi: str, ventana: datetime | None = None) -> None:
+    """Borra una fila (clave completa) o la partición entera del KPI (solo `kpi`)."""
+    if ventana is None:
+        session.execute("DELETE FROM kpis WHERE kpi = %s", (kpi,))
+    else:
+        session.execute("DELETE FROM kpis WHERE kpi = %s AND ventana = %s", (kpi, ventana))
 
 
 # ============================== Neo4j ==============================
@@ -367,28 +355,17 @@ def demo_cassandra() -> None:
     cluster, session = cassandra_store.connect()
     session.set_keyspace("wikipipe")
     try:
-        _titulo("CRUD en Cassandra · tabla actividad_editor (partición = editor)")
-        top = list(session.execute("SELECT * FROM kpis WHERE kpi = 'editor_mas_revertido' LIMIT 1"))
-        if top and top[0].detalle:
-            editor_real = top[0].detalle.split(" (")[0]
-            _paso(f"Consulta real · historial del editor más revertido ({editor_real}):",
-                  [r._asdict() for r in cassandra_consultar(session, editor_real, limite=5)])
-
-        hoy, hora = datetime.now(timezone.utc).date(), datetime.now(timezone.utc).hour
-        fila = {"editor": "Demo_Editor", "fecha": hoy, "hora": hora, "wiki": "enwiki", "tipo_editor": "registrado",
-                "eventos": 10, "ediciones": 8, "paginas": 3, "delta_bytes": 1500, "reversiones_hechas": 0,
-                "reversiones_recibidas": 1}
-        cassandra_insertar(session, fila)
-        _paso("INSERT · nueva fila para Demo_Editor:", fila)
-        _paso("SELECT · consultar la partición de Demo_Editor:",
-              [r._asdict() for r in cassandra_consultar(session, "Demo_Editor")])
-        cassandra_actualizar(session, "Demo_Editor", hoy, hora, "enwiki", eventos=25, ediciones=20)
-        _paso("UPDATE · eventos 10 → 25 y ediciones 8 → 20:",
-              [{k: v for k, v in r._asdict().items() if k in ("editor", "hora", "eventos", "ediciones")}
-               for r in cassandra_consultar(session, "Demo_Editor")])
-        cassandra_eliminar(session, "Demo_Editor", hoy, hora, "enwiki")
-        _paso("DELETE · borrar la fila (clave primaria completa). Filas restantes:",
-              len(cassandra_consultar(session, "Demo_Editor")))
+        _titulo("CRUD en Cassandra · tabla kpis (partición = kpi)")
+        _paso("Consulta real · últimas 3 horas de eventos_procesados:",
+              [r._asdict() for r in kpi_consultar(session, "eventos_procesados", limite=3)])
+        kpi = "demo_kpi"
+        ventana = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        kpi_insertar(session, kpi, ventana, 42.0, "valor de demostración")
+        _paso(f"INSERT · nueva fila de {kpi}:", [r._asdict() for r in kpi_consultar(session, kpi)])
+        kpi_actualizar(session, kpi, ventana, {"valor": 84.0})
+        _paso("UPDATE · valor 42 → 84:", [r._asdict() for r in kpi_consultar(session, kpi)])
+        kpi_eliminar(session, kpi, ventana)
+        _paso("DELETE · borrar la fila (clave primaria completa). Filas restantes:", len(kpi_consultar(session, kpi)))
     finally:
         cluster.shutdown()
 
