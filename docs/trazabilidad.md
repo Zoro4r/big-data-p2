@@ -1142,6 +1142,14 @@ Cambios hechos a partir de las observaciones del usuario:
 - **Primera ejecución con el cambio** (hora 20:00–21:00 UTC−5): usó el respaldo EventStreams, con 19,017 eventos en 122 s, porque el registro de cobertura empezó a las 20:28. Desde la hora 21:00–22:00 la cobertura es completa.
 - **Despliegues** a las 21:05 y 21:12 (UTC−5), entre ejecuciones horarias.
 
+### 44. Informe: componentes explicados uno por uno
+
+A pedido del usuario, en la sección 4 la tabla «Por qué está cada componente» se reemplazó por la subsección «Los componentes»:
+
+- una subsección por componente: EventStreams, servicio stream, Airflow, MongoDB, Cassandra, Neo4j, API, dashboard, y Google Cloud con Docker y Terraform;
+- cada una explica «Qué es» y «Para qué sirve», con las necesidades que atiende, igual que se hizo con los públicos;
+- se quitó la columna «Alternativa descartada».
+
 ---
 
 ## Pendientes
