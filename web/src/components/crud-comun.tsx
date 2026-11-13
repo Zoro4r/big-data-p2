@@ -148,6 +148,8 @@ export function Coincidencias<T>({ items, elegido, onElegir, clave, titulo, sub,
         <span className="text-sm font-medium">{items.length} coincidencias</span>
         <span className="text-xs text-muted-foreground">elige una para verla</span>
       </div>
+      {/* La lista se desplaza por dentro: así no estira la columna y la derecha conserva su altura. */}
+      <div className="-mx-1 flex max-h-[300px] flex-col gap-2 overflow-y-auto px-1 py-1">
       {items.map((t, i) => (
         <button key={clave(t)} type="button" onClick={() => onElegir(i)} aria-pressed={i === elegido}
           className={cn("flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-left transition-colors outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50",
@@ -159,6 +161,7 @@ export function Coincidencias<T>({ items, elegido, onElegir, clave, titulo, sub,
           <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">{derecha(t)}</span>
         </button>
       ))}
+      </div>
     </div>
   )
 }

@@ -160,6 +160,7 @@ export function Coincidencias({ c }: { c: ConsultaEventos }) {
         <span className="text-sm font-medium">{docs.length}{c.res.hay_mas ? "+" : ""} coincidencias</span>
         <span className="text-xs text-muted-foreground">elige una para verla</span>
       </div>
+      <div className="-mx-1 flex max-h-[300px] flex-col gap-2 overflow-y-auto px-1 py-1">
       {docs.map((d) => (
         <button key={d._id} type="button" onClick={() => c.elegir(d._id)} aria-pressed={c.elegido === d._id}
           className={cn("flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-left transition-colors outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50",
@@ -171,6 +172,7 @@ export function Coincidencias({ c }: { c: ConsultaEventos }) {
           <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">{nombreTipo(d)} · {hace(d.fecha)}</span>
         </button>
       ))}
+      </div>
       {c.res.hay_mas && (
         <Button type="button" variant="ghost" size="sm" onClick={c.verMas} className="self-center text-[13px]">Ver {LIMITE} más</Button>
       )}
