@@ -1048,6 +1048,25 @@ A pedido del usuario, el informe se reescribió para entenderse solo, sin conoce
 - **Conclusiones** que verifican cada necesidad.
 - **Glosario.**
 
+### 42. Informe técnico: portada, necesidades por público y dataset detallado
+
+Cambios hechos a partir de las observaciones del usuario:
+
+- **Portada:** lista de los cuatro integrantes.
+- **Necesidades reordenadas por público.** El conflicto pasó de N5 a N2. Volumen, bots y crecimiento corrieron un número (N3, N4 y N5). Se actualizaron todas las referencias del informe.
+- **Sección 2 reescrita.** Cada público tiene:
+  - quiénes son;
+  - el problema que tienen, con casos reales: Seigenthaler (2005), Colbert (2006), ClueBot NG (2011), la caída de editores (Halfaker 2013), Lsjbot y Orangemoody (2015);
+  - su tabla de necesidades, con una columna «Para qué la necesitan».
+- **El público «Investigadores» pasa a ser «Comunidad y Fundación Wikimedia»:** quienes miden la salud del proyecto.
+- **Sección 3:**
+  - qué trae el stream: uno solo para todas las wikis, filtrado por el campo `wiki`;
+  - cuánta historia guarda: unos 9 días y medio, comprobado el 12 nov 2026 pidiendo eventos desde 10, 15 y 31 días antes;
+  - por qué el dataset es semiestructurado;
+  - los 4 requisitos del curso;
+  - los 16 campos comunes en viñetas;
+  - una subsección por tipo de evento con sus campos extra y conteos de 24 h actualizados.
+
 ---
 
 ## Pendientes
