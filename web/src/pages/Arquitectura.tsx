@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react"
 import { ArrowUpRight, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 
-import { Cargando, TarjetaKpi } from "@/components/common"
+import { Cargando } from "@/components/common"
 import { resaltar } from "@/components/crear-evento"
 import { LogoBase, type Base } from "@/components/fuente"
 import { Header, Pagina } from "@/components/layout"
@@ -41,11 +41,18 @@ const CAJAS: Caja[] = [
 ]
 const NOMBRE = Object.fromEntries(CAJAS.map((c) => [c.id, c.titulo])) as Record<Id, string>
 
-const FLECHAS = [
-  "M176 170 C 195 170, 195 80, 214 80", "M176 170 C 195 170, 195 260, 214 260",
-  "M414 70 C 440 70, 440 62, 470 62", "M414 92 C 445 92, 445 172, 470 172",
-  "M414 245 C 445 245, 445 70, 470 70", "M414 255 C 445 255, 445 182, 470 182", "M414 275 C 445 275, 445 295, 470 295",
-  "M660 65 C 690 65, 690 172, 720 172", "M660 180 L 720 180", "M660 295 C 690 295, 690 188, 720 188", "M870 180 L 930 180",
+/** Flechas del flujo. El lote lee cada hora de MongoDB (lo que guardó el stream); la punteada es el respaldo:
+ *  si el stream no cubrió la hora, el lote la pide a EventStreams. */
+const FLECHAS: { d: string; respaldo?: boolean }[] = [
+  { d: "M176 160 C 195 160, 195 75, 214 75" },                       // EventStreams → capa rápida
+  { d: "M176 185 C 195 185, 195 275, 214 275", respaldo: true },     // EventStreams → capa por lotes (respaldo)
+  { d: "M414 58 C 440 58, 440 55, 470 55" },                         // capa rápida → MongoDB
+  { d: "M414 100 C 442 100, 442 168, 470 168" },                     // capa rápida → Cassandra
+  { d: "M470 82 C 440 82, 444 222, 414 222" },                       // MongoDB → capa por lotes (lee la hora)
+  { d: "M414 252 C 442 252, 442 192, 470 192" },                     // capa por lotes → Cassandra
+  { d: "M414 292 C 442 292, 442 295, 470 295" },                     // capa por lotes → Neo4j
+  { d: "M660 65 C 690 65, 690 168, 720 168" }, { d: "M660 180 L 720 180" }, { d: "M660 295 C 690 295, 690 192, 720 192" },
+  { d: "M870 180 L 930 180" },
 ]
 
 const gb = (b?: number | null) => (b == null ? "—" : b >= 1e9 ? `${(b / 1e9).toFixed(2)} GB` : `${(b / 1e6).toFixed(0)} MB`)
@@ -64,7 +71,9 @@ function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
           <defs>
             <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" /></marker>
           </defs>
-          <g stroke="currentColor" strokeWidth={1.5} fill="none" markerEnd="url(#flecha)">{FLECHAS.map((d) => <path key={d} d={d} />)}</g>
+          <g stroke="currentColor" strokeWidth={1.5} fill="none" markerEnd="url(#flecha)">
+            {FLECHAS.map((f) => <path key={f.d} d={f.d} strokeDasharray={f.respaldo ? "5 4" : undefined} />)}
+          </g>
         </svg>
         {CAJAS.map((c) => (
           <button key={c.id} type="button" onClick={() => onAbrir(c.id)} aria-label={`${c.titulo}: ver detalle`}
@@ -77,7 +86,7 @@ function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
           </button>
         ))}
         <p className="absolute bottom-3 left-4 text-xs text-muted-foreground">
-          Haz clic en cualquier componente para ver su detalle. Las dos capas guardan cada evento con el mismo _id: no hay duplicados.
+          El lote lee cada hora de MongoDB, donde ya la guardó el stream. La línea punteada es el respaldo: si el stream no cubrió la hora, el lote la pide a EventStreams.
         </p>
       </div>
     </div>
@@ -520,22 +529,11 @@ function Detalle({ id, d, onCambiar }: { id: Id | null; d: Datos | null; onCambi
 export default function ArquitecturaPage() {
   const { data } = useApi<Datos>("/api/arquitectura")
   const [abierto, setAbierto] = useState<Id | null>(null)
-  const porSeg = data?.ritmo.promedio_hora != null ? data.ritmo.promedio_hora / 3600 : null
   return (
     <>
       <Header ruta={["Proyecto", "Arquitectura"]} />
       <Pagina titulo="Arquitectura" descripcion="Cómo llegan los datos de Wikipedia, cómo se procesan y en qué base se guarda cada parte. Haz clic en un componente para ver su detalle.">
         <Diagrama onAbrir={setAbierto} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
-            <>
-              <TarjetaKpi etiqueta="Eventos guardados" valor={millones(data.mongo.eventos)} pie={`en MongoDB desde el ${data.mongo.desde ? horaLocal(data.mongo.desde).split(" · ")[0] : "—"}`} onAbrir={() => setAbierto("mongo")} />
-              <TarjetaKpi etiqueta="Ritmo de llegada" valor={porSeg != null ? `~${porSeg.toFixed(1)} / s` : "—"} pie={`~${entero(data.ritmo.promedio_hora)} eventos por hora`} onAbrir={() => setAbierto("fuente")} />
-              <TarjetaKpi etiqueta="Corridas del DAG" valor={entero(data.dag.corridas)} pie="una por hora, en Airflow" onAbrir={() => setAbierto("lotes")} />
-              <TarjetaKpi etiqueta="Calidad de la última hora" valor={data.calidad_pct != null ? `${data.calidad_pct.toFixed(1)} %` : "—"} pie="eventos que pasaron la validación" onAbrir={() => setAbierto("lotes")} />
-            </>
-          )}
-        </div>
       </Pagina>
       <Detalle id={abierto} d={data} onCambiar={setAbierto} />
     </>
