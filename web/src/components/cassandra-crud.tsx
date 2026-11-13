@@ -224,7 +224,7 @@ function ClaveFila({ c }: { c: CassandraCrud }) {
   const k = c.clave
   return (
     <div className="flex flex-col gap-3">
-      <Campo id="ck-kpi" label="KPI" clave="partición"><Input id="ck-kpi" placeholder="Ej. demo_kpi" className="font-mono" value={k.kpi} onChange={(e) => c.setClave({ ...k, kpi: e.target.value })} /></Campo>
+      <Campo id="ck-kpi" label="KPI" clave="partición"><Input id="ck-kpi" placeholder="Ej. tasa_reversion_pct" className="font-mono" value={k.kpi} onChange={(e) => c.setClave({ ...k, kpi: e.target.value })} /></Campo>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3">
         <Campo id="ck-fecha" label="Fecha" clave="agrupación"><Input id="ck-fecha" type="date" value={k.fecha} onChange={(e) => c.setClave({ ...k, fecha: e.target.value })} /></Campo>
         <Campo id="ck-hora" label="Hora" clave="agrupación"><Selector id="ck-hora" valor={k.hora} opciones={HORAS} onChange={(v) => c.setClave({ ...k, hora: v })} /></Campo>
@@ -259,7 +259,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
         <>
           <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">Clave de la fila</span>
           <Campo id="cn-kpi" label="KPI" clave="partición" ayuda={<AvisoKpi kpi={n.kpi} />}>
-            <Input id="cn-kpi" className="font-mono" placeholder="Ej. demo_kpi" value={n.kpi} onChange={(e) => c.setNueva({ ...n, kpi: e.target.value })} />
+            <Input id="cn-kpi" className="font-mono" placeholder="Ej. tasa_reversion_pct" value={n.kpi} onChange={(e) => c.setNueva({ ...n, kpi: e.target.value })} />
           </Campo>
           <div className="grid grid-cols-2 gap-3">
             <Campo id="cn-fecha" label="Fecha (UTC)" clave="agrupación"><Input id="cn-fecha" type="date" value={n.fecha} onChange={(e) => c.setNueva({ ...n, fecha: e.target.value })} /></Campo>
@@ -267,8 +267,8 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
           </div>
           <span className="border-t pt-3 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">Resultado de esa hora</span>
           <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
-            <Campo id="cn-valor" label="Valor"><Input id="cn-valor" placeholder="Ej. 42" type="number" step="any" className="font-mono" value={n.valor} onChange={(e) => c.setNueva({ ...n, valor: e.target.value })} /></Campo>
-            <Campo id="cn-detalle" label="Detalle"><Input id="cn-detalle" placeholder="Ej. Valor de prueba (opcional)" value={n.detalle} onChange={(e) => c.setNueva({ ...n, detalle: e.target.value })} /></Campo>
+            <Campo id="cn-valor" label="Valor"><Input id="cn-valor" placeholder="Ej. 4.2" type="number" step="any" className="font-mono" value={n.valor} onChange={(e) => c.setNueva({ ...n, valor: e.target.value })} /></Campo>
+            <Campo id="cn-detalle" label="Detalle"><Input id="cn-detalle" placeholder="Ej. 38 reversiones" value={n.detalle} onChange={(e) => c.setNueva({ ...n, detalle: e.target.value })} /></Campo>
           </div>
           <Button type="submit" disabled={c.ocupado || !esKpiDemo(n.kpi)} className="h-10 w-full text-sm">Insertar fila</Button>
         </>
@@ -321,7 +321,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
             opciones={[["fila", "Una fila"], ["particion", "Toda la partición del KPI"]]} />
           {c.modo === "fila" ? <ClaveFila c={c} /> : (
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-              <Campo id="cd-kpi" label="KPI" clave="partición"><Input id="cd-kpi" placeholder="Ej. demo_kpi" className="font-mono" value={c.clave.kpi} onChange={(e) => c.setClave({ ...c.clave, kpi: e.target.value })} /></Campo>
+              <Campo id="cd-kpi" label="KPI" clave="partición"><Input id="cd-kpi" placeholder="Ej. tasa_reversion_pct" className="font-mono" value={c.clave.kpi} onChange={(e) => c.setClave({ ...c.clave, kpi: e.target.value })} /></Campo>
               <Button type="button" variant="outline" disabled={c.ocupado || !c.clave.kpi} onClick={c.cargarParticion}>Cargar</Button>
             </div>
           )}
