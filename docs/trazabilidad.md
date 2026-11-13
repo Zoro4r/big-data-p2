@@ -1166,6 +1166,7 @@ En la misma sección se reescribió «Por qué dos caminos»:
 - Luego, a pedido del usuario, ese cierre dejó de plantearse como «qué falta» y presenta la importancia de cada camino:
   - **rápido:** la inmediatez;
   - **por lotes:** la confiabilidad.
+  - Cada una con sus razones en sub-viñetas.
 
 ---
 
