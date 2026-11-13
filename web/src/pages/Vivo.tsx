@@ -217,7 +217,7 @@ export default function VivoPage() {
   return (
     <>
       <Header ruta={["Panel", "En vivo"]} />
-      <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada edición de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
+      <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada evento de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
         {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
