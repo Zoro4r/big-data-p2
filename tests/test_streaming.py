@@ -1,6 +1,8 @@
 """Pruebas de la capa rápida: filtro de eventos y contadores por minuto."""
 
-from wikipipe.streaming import Contadores, preparar
+from datetime import datetime, timedelta, timezone
+
+from wikipipe.streaming import Contadores, preparar, rango_en_vivo, rechazo
 
 
 def evento(**kw):
@@ -33,3 +35,19 @@ def test_contadores_por_minuto():
     assert (wiki, minuto.minute, eventos, ediciones, bots, reversiones) == ("enwiki", 30, 2, 2, 1, 1)
     assert filas[1][3:] == (1, 0, 0, 0)  # el evento log cuenta como evento, no como edición
     assert c.filas_para_escribir() == []  # solo se reescriben los minutos que cambiaron
+
+
+def test_rechazo_guarda_solo_invalidos_de_nuestras_wikis():
+    fila = rechazo(evento(user=""))
+    assert fila["_id"] == "id-1" and fila["reason"] == "falta_user"
+    assert fila["ventana_dt"] == datetime(2026, 11, 4, 1, 30, 15, tzinfo=timezone.utc)
+    assert rechazo(evento()) is None                   # válido: va a events, no a rechazados
+    assert rechazo(evento(wiki="frwiki", user="")) is None  # otra wiki: no nos interesa
+    assert rechazo(evento(user="", meta={"id": "x", "dt": "no-es-fecha"})) is None
+
+
+def test_cobertura_avanza_solo_con_eventos_en_vivo():
+    ahora = datetime(2026, 11, 13, 10, 0, 30, tzinfo=timezone.utc)
+    docs = [{"derived": {"event_dt": ahora - timedelta(seconds=s)}} for s in (2, 10, 3600)]
+    assert rango_en_vivo(docs, ahora) == (ahora - timedelta(seconds=10), ahora - timedelta(seconds=2))
+    assert rango_en_vivo(docs[2:], ahora) is None      # poniéndose al día tras un corte

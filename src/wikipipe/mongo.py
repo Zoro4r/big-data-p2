@@ -81,9 +81,15 @@ def load_events(db: Database, clean_path: Path, rejected_path: Path | None = Non
         rejected_ops = []
         for row in read_events(rejected_path):
             # Mismo criterio de idempotencia: el id del evento, o un hash si el evento no lo tiene.
-            meta_id = (row.get("event") or {}).get("meta", {}).get("id")
-            row_id = meta_id or hashlib.sha1(json.dumps(row, sort_keys=True).encode()).hexdigest()
-            rejected_ops.append(ReplaceOne({"_id": row_id}, {"_id": row_id, **sanitize(row)}, upsert=True))
+            meta = (row.get("event") or {}).get("meta") or {}
+            row_id = meta.get("id") or hashlib.sha1(json.dumps(row, sort_keys=True).encode()).hexdigest()
+            doc = {"_id": row_id, **sanitize(row)}
+            # Fecha del evento, para leer los rechazados de una hora (la usa fuente.volcar_desde_mongo).
+            try:
+                doc["ventana_dt"] = datetime.fromisoformat(str(meta.get("dt")).replace("Z", "+00:00"))
+            except ValueError:
+                pass
+            rejected_ops.append(ReplaceOne({"_id": row_id}, doc, upsert=True))
         if rejected_ops:
             db.events_rejected.bulk_write(rejected_ops, ordered=False)
             stats["rejected_stored"] = len(rejected_ops)

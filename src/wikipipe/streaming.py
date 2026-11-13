@@ -3,19 +3,29 @@
 Arquitectura Lambda del proyecto:
 - Capa rápida (este módulo, servicio `stream`): cada ~2 s guarda los eventos nuevos en MongoDB y
   actualiza los contadores por minuto de Cassandra. Así el dashboard ve la actividad casi en vivo.
-- Capa por lotes (DAG de Airflow, cada hora): vuelve a extraer la hora completa, la valida, construye
-  el grafo, los agregados por hora y los KPIs, y reescribe los contadores por minuto. Si la capa
-  rápida perdió algo (por ejemplo, por un reinicio), la hora queda exacta igual.
+- Capa por lotes (DAG de Airflow, cada hora): toma la hora completa, la valida, construye el grafo,
+  los agregados por hora y los KPIs, y reescribe los contadores por minuto. Lee la hora de MongoDB si
+  este servicio la cubrió sin interrupciones; si no, la vuelve a pedir a EventStreams (ver fuente.py).
 
 No hay duplicados: las dos capas guardan cada evento con el mismo `_id` (meta.id).
 El último evento leído se guarda como marcador en MongoDB (`stream_state`): al reiniciar, el
 servicio retoma desde ahí con el encabezado Last-Event-ID.
+
+Cobertura (`stream_cobertura`): cada tramo es un periodo leído sin huecos, de `inicio` a `fin`
+(fechas de los eventos). Un reinicio que retoma con Last-Event-ID sigue el mismo tramo; uno que
+arranca en vivo abre un tramo nuevo. `fin` solo avanza con eventos que llegan en vivo (menos de
+EN_VIVO de retraso): mientras el servicio se pone al día tras un corte, los dos centros de datos de
+Wikimedia llegan a distinto ritmo y la hora todavía podría estar incompleta.
+
+Además, cada evento guarda `received_at` (cuándo llegó) y los eventos de enwiki/eswiki que no pasan
+la validación se guardan en `events_rejected`, para que la capa por lotes mida la calidad igual.
 
 Uso: python -m wikipipe.streaming
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import signal
@@ -37,6 +47,7 @@ FLUSH_EVENTOS = 200       # o antes, si se juntan tantos eventos
 MINUTOS_EN_MEMORIA = 15   # contadores por minuto que se conservan para reescribirlos
 MARCADOR_ID = "recentchange"
 MARCADOR_MAX_EDAD = timedelta(hours=24)  # un marcador más viejo se ignora y se empieza en vivo
+EN_VIVO = timedelta(seconds=60)          # retraso máximo para que un evento avance la cobertura
 
 
 class Contadores:
@@ -86,6 +97,34 @@ def preparar(evento: dict) -> dict | None:
     return evento
 
 
+def rechazo(evento: dict) -> dict | None:
+    """Fila para `events_rejected` si el evento es de nuestras wikis pero no pasa la validación.
+
+    Mismo formato que guarda la capa por lotes ({_id, reason, event}), más `ventana_dt`, la fecha del
+    evento, para encontrarlo por hora. Sin una fecha legible no se guarda: el extractor del stream
+    tampoco lo habría considerado.
+    """
+    meta = evento.get("meta") or {}
+    if meta.get("domain") == "canary" or evento.get("wiki") not in config.WIKIS:
+        return None
+    motivo = validate(evento)
+    if motivo is None:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(meta.get("dt")).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+    fila = {"reason": motivo, "event": evento}
+    fila_id = meta.get("id") or hashlib.sha1(json.dumps(fila, sort_keys=True).encode()).hexdigest()
+    return {"_id": fila_id, **mongo.sanitize(fila), "ventana_dt": dt}
+
+
+def rango_en_vivo(eventos: list[dict], ahora: datetime) -> tuple[datetime, datetime] | None:
+    """Fechas mínima y máxima de los eventos que llegaron en vivo (retraso < EN_VIVO)."""
+    fechas = [e["derived"]["event_dt"] for e in eventos if ahora - e["derived"]["event_dt"] < EN_VIVO]
+    return (min(fechas), max(fechas)) if fechas else None
+
+
 class Streaming:
     def __init__(self):
         self.db = mongo.get_db()
@@ -97,6 +136,8 @@ class Streaming:
             "VALUES (?, ?, ?, ?, ?, ?, ?)")
         self.contadores = Contadores()
         self.buffer: list[dict] = []
+        self.rechazados: list[dict] = []
+        self.tramo_id: str | None = None
         self.ultimo_id: str | None = None
         self.ultimo_dt: str | None = None
         self.activo = True
@@ -113,13 +154,34 @@ class Streaming:
         log.info("Retomando desde el marcador del %s", doc.get("last_dt"))
         return doc["last_event_id"]
 
+    def tramo_anterior(self) -> str | None:
+        """Al retomar con el marcador no hay hueco: se continúa el último tramo de cobertura."""
+        doc = self.db.stream_cobertura.find_one({}, sort=[("fin", -1)])
+        return doc["_id"] if doc else None
+
     def guardar(self) -> None:
-        """Escribe el buffer en MongoDB, los contadores en Cassandra y el marcador."""
+        """Escribe el buffer en MongoDB, los contadores en Cassandra, la cobertura y el marcador."""
+        ahora = datetime.now(timezone.utc)
         if self.buffer:
-            ops = [ReplaceOne({"_id": e["_id"]}, mongo.to_document(e), upsert=True) for e in self.buffer]
-            self.db.events.bulk_write(ops, ordered=False)
-            self.stats["guardados"] += len(self.buffer)
+            docs = [mongo.to_document(e) for e in self.buffer]
+            self.db.events.bulk_write([ReplaceOne({"_id": d["_id"]}, d, upsert=True) for d in docs], ordered=False)
+            self.stats["guardados"] += len(docs)
             self.buffer.clear()
+            # La cobertura avanza solo después de guardar: si la escritura falla, no se anuncia la hora.
+            rango = rango_en_vivo(docs, ahora)
+            if rango:
+                if self.tramo_id is None:
+                    self.tramo_id = rango[0].isoformat()
+                    log.info("Nuevo tramo de cobertura desde %s", self.tramo_id)
+                self.db.stream_cobertura.update_one(
+                    {"_id": self.tramo_id},
+                    {"$min": {"inicio": rango[0]}, "$max": {"fin": rango[1]}, "$set": {"actualizado": ahora}},
+                    upsert=True)
+        if self.rechazados:
+            self.db.events_rejected.bulk_write(
+                [ReplaceOne({"_id": r["_id"]}, r, upsert=True) for r in self.rechazados], ordered=False)
+            self.stats["rechazados"] = self.stats.get("rechazados", 0) + len(self.rechazados)
+            self.rechazados.clear()
         for fila in self.contadores.filas_para_escribir():
             self.cass.execute(self.stmt_minuto, fila)
         if self.ultimo_id:
@@ -145,13 +207,19 @@ class Streaming:
                 if not self.activo:
                     break
                 self.ultimo_id = event_id or self.ultimo_id
+                crudo = None
                 try:
-                    evento = preparar(json.loads(data))
+                    crudo = json.loads(data)
+                    fila = rechazo(crudo) if isinstance(crudo, dict) else None
+                    evento = preparar(crudo) if fila is None and isinstance(crudo, dict) else None
                 except (ValueError, KeyError, TypeError):
-                    evento = None
+                    evento, fila = None, None
+                if fila is not None:
+                    self.rechazados.append(fila)
                 if evento is None:
                     self.stats["descartados"] += 1
                 else:
+                    evento["received_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     self.buffer.append(evento)
                     self.contadores.sumar(evento)
                     self.ultimo_dt = evento["derived"]["event_time"]
@@ -162,6 +230,8 @@ class Streaming:
     def correr(self) -> None:
         signal.signal(signal.SIGTERM, lambda *_: setattr(self, "activo", False))
         ultimo_id, espera = self.marcador_inicial(), 1
+        if ultimo_id:
+            self.tramo_id = self.tramo_anterior()
         while self.activo:
             try:
                 self.leer(ultimo_id or self.ultimo_id)

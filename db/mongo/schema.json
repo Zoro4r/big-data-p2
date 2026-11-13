@@ -134,6 +134,16 @@
             ]
           ],
           "name": "por_motivo"
+        },
+        {
+          "keys": [
+            [
+              "ventana_dt",
+              1
+            ]
+          ],
+          "name": "por_fecha",
+          "sparse": true
         }
       ]
     },
@@ -154,6 +164,24 @@
     "stream_state": {
       "_comment": "Marcador de la capa rápida (servicio stream): último evento leído, para retomar sin huecos al reiniciar.",
       "indexes": []
+    },
+    "stream_cobertura": {
+      "_comment": "Tramos que la capa rápida leyó sin huecos (inicio y fin = fechas de eventos, en UTC). La capa por lotes lee una hora de MongoDB solo si un tramo la cubre.",
+      "indexes": [
+        {
+          "keys": [
+            [
+              "inicio",
+              1
+            ],
+            [
+              "fin",
+              -1
+            ]
+          ],
+          "name": "por_inicio"
+        }
+      ]
     }
   }
 }

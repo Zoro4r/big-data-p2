@@ -1,7 +1,8 @@
 """DAG del proyecto: procesa cada hora una ventana del stream Wikipedia Recent Changes.
 
 Etapas (las pedidas en la sección 3 de las instrucciones):
-1. extraer            → data/raw/AAAA-MM-DD/HHMM.jsonl.gz
+1. extraer            → data/raw/AAAA-MM-DD/HHMM.jsonl.gz, desde MongoDB si el servicio stream
+                        cubrió la hora sin huecos; si no, desde EventStreams (ver wikipipe/fuente.py)
 2. validar_y_limpiar  → data/clean/... y data/rejected/...
 3. cargar_mongo       → colección events (fuente de verdad)
 4. cargar_cassandra   → lee la ventana de Mongo y escribe agregados (en paralelo con 5)
@@ -45,9 +46,10 @@ PROJECTION = {"wiki": 1, "type": 1, "user": 1, "title": 1, "namespace": 1, "leng
 def wikipedia_pipeline():
     @task(execution_timeout=timedelta(minutes=30))
     def extraer(data_interval_start=None, data_interval_end=None) -> dict:
-        from wikipipe.extract import extract_window, raw_path_for
+        from wikipipe.extract import raw_path_for
+        from wikipipe.fuente import extraer_hora
 
-        return extract_window(data_interval_start, data_interval_end, raw_path_for(data_interval_start))
+        return extraer_hora(data_interval_start, data_interval_end, raw_path_for(data_interval_start))
 
     @task
     def validar_y_limpiar(extraccion: dict) -> dict:
