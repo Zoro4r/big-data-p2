@@ -208,7 +208,7 @@ export default function CrudPage() {
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   <BotonPrueba onClick={pruebaMongo} />
                   <ModalUltimos abierto={ultimos.abierto} docs={ultimos.docs} onCerrar={() => setUltimos({ abierto: false, docs: null })} onElegir={elegirUltimo}
-                    accion={mOp === "Consultar" ? "consultarlo" : mOp === "Actualizar" ? "actualizarlo" : "eliminarlo"} />
+                    operacion={mOp} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
                     : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />
                     : mOp === "Actualizar" ? <FormularioActualizacion a={actualizacion} id={m.id} setId={(id) => setM({ ...m, id })} />
