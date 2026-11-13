@@ -40,9 +40,20 @@ def split_cql(text: str) -> list[str]:
     return [stmt.strip() for stmt in "\n".join(lines).split(";") if stmt.strip()]
 
 
+# Columnas agregadas después de crear las tablas: CREATE TABLE IF NOT EXISTS no las agrega a una tabla
+# que ya existe, así que se agregan aquí si faltan.
+COLUMNAS_NUEVAS = [("ejecuciones", "fuente", "text")]
+
+
 def ensure_schema(session: Session) -> None:
     for statement in split_cql((config.DB_DIR / "cassandra" / "schema.cql").read_text()):
         session.execute(statement)
+    for tabla, columna, tipo in COLUMNAS_NUEVAS:
+        existe = session.execute(
+            "SELECT column_name FROM system_schema.columns WHERE keyspace_name = %s AND table_name = %s AND column_name = %s",
+            (config.CASSANDRA_KEYSPACE, tabla, columna)).one()
+        if not existe:
+            session.execute(f"ALTER TABLE {config.CASSANDRA_KEYSPACE}.{tabla} ADD {columna} {tipo}")
     session.set_keyspace(config.CASSANDRA_KEYSPACE)
 
 
@@ -185,7 +196,7 @@ def write_kpis(session: Session, window_start: datetime, kpis: dict, wiki: str |
 def write_run(session: Session, window_start: datetime, extract: dict, clean: dict) -> None:
     session.execute(
         "INSERT INTO ejecuciones (fecha, ventana, leidos_stream, extraidos, validos, rechazados, calidad_pct, "
-        "segundos_extraccion) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        "segundos_extraccion, fuente) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         (window_start.date(), window_start, extract.get("read"), extract.get("kept"), clean.get("valid"),
-         clean.get("rejected"), clean.get("quality_pct"), extract.get("seconds")),
+         clean.get("rejected"), clean.get("quality_pct"), extract.get("seconds"), extract.get("fuente")),
     )

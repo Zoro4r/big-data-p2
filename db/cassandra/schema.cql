@@ -93,5 +93,6 @@ CREATE TABLE IF NOT EXISTS wikipipe.ejecuciones (
   rechazados int,
   calidad_pct double,
   segundos_extraccion double,
+  fuente text,
   PRIMARY KEY ((fecha), ventana)
 ) WITH CLUSTERING ORDER BY (ventana DESC);

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 /** Arquitectura del proyecto: el diagrama del flujo es la página y cada componente abre un modal con su detalle
  *  (los datos que llegan, cómo se procesan y qué guarda cada base). Las cifras vienen de /api/arquitectura. */
 
-interface Ejecucion { ventana: string; extraidos: number; validos: number; rechazados: number; calidad_pct: number; segundos_extraccion: number }
+interface Ejecucion { ventana: string; extraidos: number; validos: number; rechazados: number; calidad_pct: number; segundos_extraccion: number; fuente: string | null }
 interface Datos {
   mongo: { eventos: number; desde: string | null; tamano_bytes: number; disco_bytes: number; indices: string[] }
   ritmo: { promedio_hora: number | null; min_hora: number | null; max_hora: number | null; horas: number }
@@ -226,7 +226,7 @@ function Fuente({ d }: { d: Datos }) {
           ["Protocolo", <>Server-Sent Events (SSE): una línea <Codigo>data: {"{json}"}</Codigo> por evento</>],
           ["Formato", <>JSON validado con el esquema público y versionado <Codigo>/mediawiki/recentchange/1.0.x</Codigo></>],
           ["Autenticación", <>Ninguna; solo se pide un <Codigo>User-Agent</Codigo> que identifique al cliente</>],
-          ["Datos pasados", <>El parámetro <Codigo>?since=fecha</Codigo> vuelve a emitir eventos de días anteriores; así el DAG extrae cada hora completa</>],
+          ["Datos pasados", <>El parámetro <Codigo>?since=fecha</Codigo> vuelve a emitir eventos de hasta unos 9 días atrás; el DAG lo usa como respaldo si el servicio stream tuvo un corte</>],
           ["Qué guardamos", "Solo enwiki y eswiki (el stream trae ~90 wikis)"],
           ["Licencia", "Contenido bajo CC BY-SA 4.0; los metadatos de los cambios son públicos"],
           ["Documentación", <a key="d" className="underline underline-offset-2" href="https://wikitech.wikimedia.org/wiki/Event_Platform/EventStreams_HTTP_Service" target="_blank" rel="noreferrer">EventStreams en Wikitech</a>],
@@ -295,8 +295,11 @@ function CapaRapida({ d }: { d: Datos }) {
   )
 }
 
+// De dónde leyó la hora la tarea extraer. Antes de registrar la fuente, siempre era EventStreams.
+const FUENTE: Record<string, string> = { mongodb: "MongoDB", eventstreams: "EventStreams" }
+
 const PASOS: [string, string, string][] = [
-  ["extraer", "Lee del stream la hora completa (con ?since=) y la guarda cruda en un archivo .jsonl.gz.", "Archivo crudo"],
+  ["extraer", "Toma la hora completa de MongoDB si el servicio stream la cubrió sin cortes; si no, la vuelve a pedir al stream (con ?since=). La guarda cruda en un archivo .jsonl.gz.", "Archivo crudo"],
   ["validar_y_limpiar", "Descarta eventos sin meta, sin campos obligatorios, de tipo desconocido o con fecha mal formada, y agrega el bloque derived. Los rechazados se guardan con su motivo.", "Archivo limpio + rechazados"],
   ["cargar_mongo", "Inserta o reemplaza los eventos limpios en la colección events.", "MongoDB"],
   ["cargar_cassandra", "Agrega la hora: totales, serie por minuto, actividad por editor y páginas más editadas.", "Cassandra"],
@@ -343,8 +346,8 @@ function CapaLotes({ d }: { d: Datos }) {
         una corrida manual (backfill) no ensucia nada. Los archivos crudos se respaldan en Cloud Storage.
       </Bloque>
       {d.dag.ultimas.length > 0 && (
-        <Tabla columnas={["Hora procesada", "Extraídos", "Válidos", "Rechazados", "Calidad", "Extracción"]} anchos="minmax(0,1.4fr) repeat(5,minmax(0,1fr))"
-          filas={d.dag.ultimas.map((e) => [`${horaLocal(e.ventana)} UTC−5`, entero(e.extraidos), entero(e.validos), entero(e.rechazados),
+        <Tabla columnas={["Hora procesada", "Fuente", "Extraídos", "Válidos", "Rechazados", "Calidad", "Extracción"]} anchos="minmax(0,1.4fr) minmax(0,1.2fr) repeat(5,minmax(0,1fr))"
+          filas={d.dag.ultimas.map((e) => [`${horaLocal(e.ventana)} UTC−5`, FUENTE[e.fuente ?? ""] ?? "EventStreams", entero(e.extraidos), entero(e.validos), entero(e.rechazados),
             e.calidad_pct != null ? `${e.calidad_pct.toFixed(1)} %` : "—", e.segundos_extraccion != null ? `${Math.round(e.segundos_extraccion)} s` : "—"])} />
       )}
     </>
