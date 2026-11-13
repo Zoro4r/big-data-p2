@@ -363,7 +363,7 @@ function Cifras({ f }: { f: Fila }) {
 export function CassandraDerecha({ c }: { c: CassandraCrud }) {
   if (c.op === "Crear") {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
         {c.insertada && (
           <div role="status" className="rounded-xl border bg-card px-4 py-3 text-[13px] shadow-xs">
             <b className="font-medium">{c.insertada.reemplazo ? "Fila reemplazada" : "Fila insertada"}</b>
@@ -390,7 +390,7 @@ export function CassandraDerecha({ c }: { c: CassandraCrud }) {
     if (!c.resultados.length) return <Vacio titulo="Sin filas" texto="Ese KPI no tiene filas con estos filtros. Prueba otra fecha." />
     const f = c.resultados[c.elegido]
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
         <Panel titulo={`${nombreKpi(f.kpi)} · ${etiquetaVentana(f.ventana)}`} derecha={c.resultados.length > 1 ? `Fila ${c.elegido + 1} de ${c.resultados.length}` : "Encontrada"}>
           <Cifras f={f} />
         </Panel>
@@ -418,7 +418,7 @@ export function CassandraDerecha({ c }: { c: CassandraCrud }) {
       ...("detalle" in c.cambios ? { detalle: c.cambios.detalle || null } : {}),
     }
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
         <Panel titulo="Cambios a guardar" derecha={filas.length ? `${filas.length} ${filas.length === 1 ? "columna" : "columnas"}` : "ninguno todavía"}>
           {filas.length ? <Tabla columnas={["Columna", "Antes", "Después"]} anchos="190px minmax(0,1fr) minmax(0,1fr)" filas={filas} alto={220} />
             : <p className="px-4 py-5 text-[13px] text-muted-foreground">Edita el valor o el detalle a la izquierda: aquí aparecerá el dato anterior y el nuevo.</p>}
@@ -442,7 +442,7 @@ export function CassandraDerecha({ c }: { c: CassandraCrud }) {
   const hay = c.modo === "fila" ? c.original : c.particion?.length ? c.particion : null
   if (!hay) return <Vacio titulo="Carga lo que quieres eliminar" texto={c.modo === "fila" ? "Escribe la clave de la fila y presiona Cargar." : "Escribe el KPI y presiona Cargar para ver su partición."} />
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
       <QuePasa filas={[
         ["Cassandra", c.modo === "fila" ? "DELETE de la fila con la clave completa. No se puede deshacer." : `DELETE solo por partición: se ${c.particion?.length === 1 ? "borra la única fila" : `borran las ${c.particion?.length} filas`} de ${c.clave.kpi} de una vez. No se puede deshacer.`],
         ["MongoDB y Neo4j", "No cambian: esta tabla guarda resultados ya calculados; los eventos siguen en MongoDB."],

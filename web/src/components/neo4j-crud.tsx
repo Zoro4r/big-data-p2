@@ -404,7 +404,7 @@ export function Neo4jDerecha({ n }: { n: Neo4jCrud }) {
     const estado = (u: string) => (!u ? "—" : n.existe[u] === undefined ? "…" : n.existe[u] ? "ya existe" : "nuevo")
     if (n.modoCrear === "nodo") {
       return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
           <Panel titulo="Así quedará en el grafo" derecha={estado(n.nodo.user) === "nuevo" ? "1 nodo nuevo" : estado(n.nodo.user) === "ya existe" ? "se actualiza su tipo" : undefined}>
             <div className="flex h-[200px] items-center justify-center"><NodoCaja nombre={n.nodo.user} estado={`${n.nodo.tipo} · ${estado(n.nodo.user)}`} oscuro /></div>
           </Panel>
@@ -415,7 +415,7 @@ export function Neo4jDerecha({ n }: { n: Neo4jCrud }) {
     const r = n.rel
     const nuevos = [r.origen, r.destino].filter((u) => n.existe[u] === null).length
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
         <Panel titulo="Así quedará en el grafo" derecha={`1 relación${nuevos ? ` · ${nuevos} ${nuevos === 1 ? "nodo nuevo" : "nodos nuevos"}` : ""}`}>
           <div className="flex h-[200px] items-center justify-center gap-3 px-4">
             <NodoCaja nombre={r.origen} estado={estado(r.origen)} />
@@ -444,7 +444,7 @@ export function Neo4jDerecha({ n }: { n: Neo4jCrud }) {
     if (!n.detalle) return <Vacio titulo="Cargando…" texto=" " />
     const d = n.detalle, u = String(d.editor.user)
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
         <Panel titulo={u} derecha={n.encontrados.length > 1 ? `Coincidencia ${n.elegido + 1} de ${n.encontrados.length}` : "Encontrado"}>
           <MiniGrafo d={d} />
         </Panel>
@@ -470,7 +470,7 @@ export function Neo4jDerecha({ n }: { n: Neo4jCrud }) {
     ])
     const despues = { ...n.cargado.editor, ...n.cambios }
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
         <Panel titulo="Cambios a guardar" derecha={filas.length ? `${filas.length} ${filas.length === 1 ? "propiedad" : "propiedades"}` : "ninguno todavía"}>
           {filas.length ? <Tabla columnas={["Propiedad", "Antes", "Después"]} anchos="190px minmax(0,1fr) minmax(0,1fr)" filas={filas} alto={220} />
             : <p className="px-4 py-5 text-[13px] text-muted-foreground">Cambia una propiedad o agrega una nueva: aquí aparecerá su valor anterior y el nuevo.</p>}
@@ -490,7 +490,7 @@ export function Neo4jDerecha({ n }: { n: Neo4jCrud }) {
   if (!n.cargado) return <Vacio titulo="Carga un editor" texto="Escribe su nombre a la izquierda y presiona Cargar; aquí verás qué se va a borrar." />
   const d = n.cargado
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:[&>*:last-child]:grow">
       {n.borrado && <div role="status" className="rounded-xl border bg-card px-4 py-3 text-[13px] shadow-xs"><b className="font-medium">Eliminado</b> <span className="text-muted-foreground">· {n.borrado}</span></div>}
       {n.modoBorrar === "nodo" ? (
         <>
