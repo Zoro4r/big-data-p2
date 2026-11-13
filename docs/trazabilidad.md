@@ -1264,6 +1264,16 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Neo4j:** `demo_editor` (nodo y origen) y `demo_editor_2` (destino). El prefijo protegido pasó de «Demo_» a «demo_» en la API ([main.py:280](../api/main.py#L280)) y en la interfaz ([crud-comun.tsx, `PREFIJO_DEMO`](../web/src/components/crud-comun.tsx)).
   - **Descripción de la página:** ahora dice «demo_».
   - **Sin cambios:** el script de línea de comandos `crud.py` mantiene sus nombres «Demo_», porque escribe directo en las bases sin pasar por la API.
+- **Botón «Cancelar» en Actualizar** (commit `feat: add cancel button to crud update forms`): va junto a «Guardar N cambios» en las tres bases. Descarta lo editado y deja los valores cargados ([crud-comun.tsx, `BotonesGuardar`](../web/src/components/crud-comun.tsx); `descartar` en cada hook).
+- **Misma altura en las dos columnas** (commit `fix: stretch right column panels to match form height`): en Cassandra y Neo4j, el último panel de la columna derecha se estira hasta la altura del formulario.
+- **Datos de prueba de Cassandra y Neo4j como los de MongoDB** (commits `refactor: share last records modal across crud views`, `feat: pick recent records as test data in cassandra and neo4j crud` y `fix: name last records button per database`):
+  - **Problema:** en Consultar, Actualizar y Eliminar, el botón no hacía nada útil. Consultar solo llenaba un filtro, y Actualizar y Eliminar mostraban un aviso si no existía el dato de demostración.
+  - **Solución:** el botón ahora abre el mismo modal del diseño B (`ModalElegir`, compartido con MongoDB) con 5 registros recientes:
+    - **Cassandra:** la fila más reciente de cada KPI, ordenadas por hora (`/api/crud/cassandra/ultimas`, [crud.py, `kpi_ultimas`](../src/wikipipe/crud.py)).
+    - **Neo4j:** los editores con actividad más reciente, usando el índice `editor_ultima_actividad` (`/api/crud/neo4j/ultimos`, [crud.py, `neo4j_ultimos_editores`](../src/wikipipe/crud.py)).
+  - **Datos reales o de demostración:** Consultar lista datos reales; Actualizar y Eliminar listan solo los «demo_», porque son los únicos que se pueden escribir. Si no hay, el modal invita a crearlos en «Crear».
+  - **Al elegir:** Consultar busca y abre ese registro; Actualizar y Eliminar lo cargan.
+  - **Texto del botón:** cambia según la base: «Elegir entre los últimos eventos», «… las últimas filas» o «… los últimos editores».
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
