@@ -1074,6 +1074,10 @@ Cambios hechos a partir de las observaciones del usuario:
   - **Fundación Wikimedia (N3, N4):** casos de la caída de editores y de la Wikipedia en cebuano.
   - **Comunidad (N5, N6):** los editores, incluidos quienes crean o siguen páginas (en Wikipedia nadie es dueño de una página) y quienes organizan editatones; caso Orangemoody.
   - **Renumeración:** la red de editores pasó de N6 a N5 y el crecimiento de N5 a N6. Se actualizaron las referencias y el orden de las secciones 8, 11 y 13.
+- **Cifras actualizadas:**
+  - Secciones 1 y 2: el promedio por hora pasó a 16,354 (31 oct–12 nov), el mismo de «Características».
+  - Sección 1: el total pasó a 4.79 millones de cambios.
+- **Portada:** se quitó la mención a la cuenta que creó el documento; queda solo la fecha.
 
 ---
 
