@@ -18,7 +18,6 @@ import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
 
-type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO" | "VALIDADOR"
 /** validacion: el validador $jsonSchema de MongoDB rechazó el documento (no es un fallo de la API) */
 interface Resultado { titulo: string; ok: boolean; validacion?: boolean; faltan?: string[]; json: unknown }
 
@@ -111,7 +110,7 @@ export default function CrudPage() {
 
   const eliminacion = useEliminacion()
   const [confirmar, setConfirmar] = useState(false)
-  async function correr(op: Op, accion: () => Promise<Record<string, unknown>>, texto: (d: Record<string, unknown>) => string) {
+  async function correr(accion: () => Promise<Record<string, unknown>>, texto: (d: Record<string, unknown>) => string) {
     setOcupado(true)
     try {
       const d = await accion()
@@ -124,7 +123,7 @@ export default function CrudPage() {
       setConfirmar(false)
     }
   }
-  const confirmarEliminacion = () => correr("DELETE", eliminacion.eliminar, (d) => `«${String(d.title ?? d._id)}» eliminado`)
+  const confirmarEliminacion = () => correr(eliminacion.eliminar, (d) => `«${String(d.title ?? d._id)}» eliminado`)
 
   const actualizacion = useActualizacion()
   async function guardarActualizacion() {

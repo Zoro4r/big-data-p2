@@ -62,7 +62,7 @@ export function useCassandraCrud() {
   const [ocupado, setOcupado] = useState(false)
 
   /** Corre una llamada con toast; devuelve el resultado o null si falló. */
-  async function correr<T>(_op: string, detalle: string, llamada: () => Promise<T>, exito?: (r: T) => string): Promise<T | null> {
+  async function correr<T>(llamada: () => Promise<T>, exito?: (r: T) => string): Promise<T | null> {
     setOcupado(true)
     try {
       const r = await llamada()
@@ -100,8 +100,7 @@ export function useCassandraCrud() {
   }, [op, nueva.kpi, nueva.fecha, nueva.hora])
   const [insertada, setInsertada] = useState<{ fila: Fila; reemplazo: boolean } | null>(null)
   async function insertar() {
-    const r = await correr("CREATE", `${filaNueva.kpi} · ${etiquetaVentana(filaNueva.ventana)}`,
-      () => api<{ reemplazo: boolean; fila: Fila }>("/api/crud/cassandra", { method: "POST", body: JSON.stringify(filaNueva) }),
+    const r = await correr(() => api<{ reemplazo: boolean; fila: Fila }>("/api/crud/cassandra", { method: "POST", body: JSON.stringify(filaNueva) }),
       (x) => (x.reemplazo ? "Fila reemplazada (la clave ya existía)" : "Fila insertada"))
     if (r) { setInsertada(r); setExistente(r.fila); recargarNombres() }
   }
@@ -113,7 +112,7 @@ export function useCassandraCrud() {
   async function buscar() {
     if (!consulta.kpi) { toast.error("Elige el KPI: Cassandra siempre consulta por partición"); return }
     const params = new URLSearchParams({ kpi: consulta.kpi, ...(consulta.fecha ? { fecha: consulta.fecha } : {}) })
-    const r = await correr("READ", `SELECT · ${consulta.kpi}`, () => api<Fila[]>(`/api/crud/cassandra?${params}`))
+    const r = await correr(() => api<Fila[]>(`/api/crud/cassandra?${params}`))
     if (r) { setResultados(r); setElegido(0) }
   }
 
@@ -146,8 +145,7 @@ export function useCassandraCrud() {
   async function guardar() {
     if (!original) return
     const body = { kpi: original.kpi, ventana: original.ventana, cambios: Object.fromEntries(Object.entries(cambios).map(([c, v]) => [c, convertir(c, v)])) }
-    const r = await correr("UPDATE", `${original.kpi} · ${Object.keys(cambios).join(", ")}`,
-      () => api<Fila>("/api/crud/cassandra", { method: "PATCH", body: JSON.stringify(body) }), () => "Fila actualizada")
+    const r = await correr(() => api<Fila>("/api/crud/cassandra", { method: "PATCH", body: JSON.stringify(body) }), () => "Fila actualizada")
     if (r) { setOriginal(r); setCambios({}) }
   }
 
@@ -174,7 +172,7 @@ export function useCassandraCrud() {
       ? new URLSearchParams({ kpi: original.kpi, ventana: original.ventana })
       : new URLSearchParams({ kpi: clave.kpi })
     const detalle = modo === "fila" && original ? `${original.kpi} · ${etiquetaVentana(original.ventana)}` : `partición ${clave.kpi}`
-    const r = await correr("DELETE", detalle, () => api<{ filas_eliminadas: number }>(`/api/crud/cassandra?${params}`, { method: "DELETE" }),
+    const r = await correr(() => api<{ filas_eliminadas: number }>(`/api/crud/cassandra?${params}`, { method: "DELETE" }),
       (x) => `${x.filas_eliminadas} ${x.filas_eliminadas === 1 ? "fila eliminada" : "filas eliminadas"}`)
     setDialogo(false)
     if (r) {

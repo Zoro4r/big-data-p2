@@ -46,7 +46,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   const [op, setOp] = useState<Operacion>("Crear")
   const [ocupado, setOcupado] = useState(false)
 
-  async function correr<T>(_op: string, detalle: string, llamada: () => Promise<T>, exito: (r: T) => string): Promise<T | null> {
+  async function correr<T>(llamada: () => Promise<T>, exito: (r: T) => string): Promise<T | null> {
     setOcupado(true)
     try {
       const r = await llamada()
@@ -79,13 +79,11 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   }, [op, modoCrear, nodo.user, rel.origen, rel.destino])
   async function crear() {
     if (modoCrear === "nodo") {
-      const r = await correr("CREATE", `(:Editor {user: "${nodo.user}"})`,
-        () => api<{ creado: boolean }>("/api/crud/neo4j/editor", { method: "POST", body: JSON.stringify(nodo) }),
+      const r = await correr(() => api<{ creado: boolean }>("/api/crud/neo4j/editor", { method: "POST", body: JSON.stringify(nodo) }),
         (x) => (x.creado ? "Nodo creado" : "El nodo ya existía: se actualizó su tipo"))
       if (r) setExiste({ [nodo.user]: await pedirDetalle(nodo.user) })
     } else {
-      const r = await correr("CREATE", `(${rel.origen})-[:${rel.tipo}]->(${rel.destino})`,
-        () => api<{ nodos_nuevos: string[] }>("/api/crud/neo4j/relacion", { method: "POST", body: JSON.stringify({ ...rel, veces: Number(rel.veces) || 1 }) }),
+      const r = await correr(() => api<{ nodos_nuevos: string[] }>("/api/crud/neo4j/relacion", { method: "POST", body: JSON.stringify({ ...rel, veces: Number(rel.veces) || 1 }) }),
         (x) => `Relación creada${x.nodos_nuevos.length ? ` · ${x.nodos_nuevos.length} ${x.nodos_nuevos.length === 1 ? "nodo nuevo" : "nodos nuevos"}` : ""}`)
       if (r) setExiste({ [rel.origen]: await pedirDetalle(rel.origen), [rel.destino]: await pedirDetalle(rel.destino) })
     }
@@ -99,7 +97,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   async function buscar() {
     if (!filtro.prefijo.trim()) { toast.error("Escribe el comienzo del nombre del editor"); return }
     const params = new URLSearchParams({ prefijo: filtro.prefijo.trim(), ...(filtro.tipo !== "todos" ? { tipo: filtro.tipo } : {}) })
-    const r = await correr("READ", `editores «${filtro.prefijo}…»`, () => api<Encontrado[]>(`/api/crud/neo4j/editores?${params}`),
+    const r = await correr(() => api<Encontrado[]>(`/api/crud/neo4j/editores?${params}`),
       (x) => `${x.length} ${x.length === 1 ? "editor" : "editores"}`)
     if (r) { setEncontrados(r); elegir(r, 0) }
   }
@@ -133,8 +131,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   async function guardar() {
     if (!cargado) return
     const u = String(cargado.editor.user)
-    const r = await correr("UPDATE", `${u} · ${Object.keys(cambios).join(", ")}`,
-      () => api<Record<string, unknown>>(`/api/crud/neo4j/editor/${encodeURIComponent(u)}`, { method: "PATCH", body: JSON.stringify({ cambios }) }),
+    const r = await correr(() => api<Record<string, unknown>>(`/api/crud/neo4j/editor/${encodeURIComponent(u)}`, { method: "PATCH", body: JSON.stringify({ cambios }) }),
       () => "Propiedades actualizadas")
     if (r) { setCargado({ ...cargado, editor: r }); setCambios({}) }
   }
@@ -151,14 +148,12 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     if (!cargado) return
     const u = String(cargado.editor.user)
     if (modoBorrar === "nodo") {
-      const r = await correr("DELETE", `DETACH DELETE ${u}`,
-        () => api<{ nodos_eliminados: number; relaciones_eliminadas: number }>(`/api/crud/neo4j/editor/${encodeURIComponent(u)}`, { method: "DELETE" }),
+      const r = await correr(() => api<{ nodos_eliminados: number; relaciones_eliminadas: number }>(`/api/crud/neo4j/editor/${encodeURIComponent(u)}`, { method: "DELETE" }),
         (x) => `Nodo eliminado con sus ${x.relaciones_eliminadas} relaciones`)
       if (r) { setBorrado(`DETACH DELETE · ${u} · ${nRel(r.relaciones_eliminadas)} borradas`); setCargado(null) }
     } else if (relElegida != null) {
       const x = relacionesBorrables[relElegida]
-      const r = await correr("DELETE", `(${u})-[:${x.tipo}]->(${x.con})`,
-        () => api<{ relaciones_eliminadas: number }>(`/api/crud/neo4j/relacion?${new URLSearchParams({ origen: u, destino: x.con, tipo: x.tipo })}`, { method: "DELETE" }),
+      const r = await correr(() => api<{ relaciones_eliminadas: number }>(`/api/crud/neo4j/relacion?${new URLSearchParams({ origen: u, destino: x.con, tipo: x.tipo })}`, { method: "DELETE" }),
         () => "Relación eliminada")
       if (r) { setBorrado(`DELETE · (${u})-[:${x.tipo}]->(${x.con})`); await cargar(u); setBorrado(`DELETE · (${u})-[:${x.tipo}]->(${x.con})`) }
     }
