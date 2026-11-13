@@ -1222,6 +1222,11 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - si su contenido es más largo, se desplaza por dentro;
   - las listas de coincidencias tienen un alto máximo y se desplazan por dentro, para no estirar la columna izquierda.
 - **Capturas del informe:** no se actualizan hasta que el usuario apruebe cómo se ve la interfaz.
+- **Ajustes posteriores** (commits `fix: show derived label as a centered dark pill` y `fix: simplify crud query filters and delete button labels`):
+  - la etiqueta de `derived` es una cápsula oscura con el texto centrado;
+  - en Consultar de MongoDB, el tipo de evento es un selector segmentado, como en Crear;
+  - se quitaron la ayuda «Empieza con…» y la casilla «Solo documentos de demostración»; el filtro ahora empieza desactivado;
+  - los botones de borrar ya no terminan en «…».
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
