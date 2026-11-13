@@ -35,8 +35,6 @@ function Enlace({ to, label, icon: Icon }: { to: string; label: string; icon: ty
 }
 
 export function Sidebar() {
-  const estado = useEstado()
-  const ultimaHora = estado?.ultima_hora ? horaLocal(estado.ultima_hora, false) : undefined
   return (
     <aside className="flex w-full flex-col gap-6 border-b bg-sidebar px-3.5 py-5 md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-r md:border-b-0">
       <div className="flex items-center gap-2.5 px-2">
@@ -56,18 +54,6 @@ export function Sidebar() {
         <span className="px-2.5 pt-4 pb-1.5 text-xs font-medium text-muted-foreground">Administración</span>
         <Enlace to="/crud" label="Operaciones CRUD" icon={Database} />
       </nav>
-      <div className="mt-auto hidden flex-col gap-1.5 rounded-xl border bg-card p-3.5 md:flex">
-        <div className="flex items-center gap-2 text-[13px] font-medium">
-          <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60" />
-            <span className="relative inline-flex size-2 rounded-full bg-green-600" />
-          </span>
-          Pipeline activo
-        </div>
-        <span className="text-xs text-muted-foreground">Streaming en vivo + DAG horario</span>
-        <span className="text-xs text-muted-foreground">Última hora consolidada: {ultimaHora ?? "—"} UTC−5</span>
-        <span className="text-xs text-muted-foreground">MongoDB · Cassandra · Neo4j</span>
-      </div>
     </aside>
   )
 }
