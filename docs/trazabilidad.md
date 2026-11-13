@@ -1167,7 +1167,15 @@ En la misma sección se reescribió «Por qué dos caminos»:
   - **rápido:** la inmediatez;
   - **por lotes:** la confiabilidad.
   - Cada una con sus razones en sub-viñetas.
-  - El camino por lotes tiene una razón más: hace posible la red de Neo4j. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
+  - El camino por lotes tiene una razón más: hace posible la red de Neo4j.
+- **Sección 5, «Las seis tareas, paso a paso»:** a pedido del usuario, va antes de la tabla, que pasó a llamarse «Resumen de las tareas». Cada tarea explica para qué sirve y qué hace, según el código:
+  - `extraer`: fuente, ventana y respaldo en Cloud Storage. Los párrafos «De dónde lee» y «El respaldo» se movieron aquí;
+  - `validar_y_limpiar`: los 5 motivos de rechazo de `clean.validate`, la quita de duplicados y los campos de `clean.derive`;
+  - `cargar_mongo`: cuándo escribe y cuándo no;
+  - `cargar_cassandra`: las 4 tablas de `cassandra_store.load_window`;
+  - `cargar_neo4j`: nodos, relaciones y COEDITA, de `neo4j_store.load_window`;
+  - `calcular_kpis`: qué KPI sale de qué base, según `kpis.compute`.
+  - Se quitó la frase suelta «Las tareas 4 y 5 corren a la vez», que ahora está en la tarea 5. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
 
 ---
 
