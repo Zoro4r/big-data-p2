@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis } from "recharts"
 import { FileJson2 } from "lucide-react"
 
-import { Cargando, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
+import { Cargando, Seccion, TarjetaKpi, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
 import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Badge } from "@/components/ui/badge"
@@ -88,19 +87,6 @@ export default function ExploradorPage() {
           ))}
         </div>
 
-        <Seccion titulo="Eventos por tipo y wiki" descripcion={`Últimas 24 horas · ${etiqueta} · agregación $group en MongoDB`} accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
-          {!data ? <Cargando alto={240} /> : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={porTipo} margin={{ top: 20, left: 0, right: 8 }} barGap={4}>
-                <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="tipo" tickLine={false} axisLine={false} fontSize={12} stroke="var(--muted-foreground)" />
-                <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                {wikis.includes("enwiki") && <Bar dataKey="enwiki" fill={COLOR.enwiki} radius={[5, 5, 0, 0]}><LabelList dataKey="enwiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>}
-                {wikis.includes("eswiki") && <Bar dataKey="eswiki" fill={COLOR.eswiki} radius={[5, 5, 0, 0]}><LabelList dataKey="eswiki" position="top" fontSize={11} formatter={(v: number) => entero(v)} /></Bar>}
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Seccion>
 
         <Seccion titulo="Buscar eventos" descripcion="find() con filtros, ordenado por fecha descendente (índice por_wiki_tipo_fecha)">
           <form onSubmit={aplicar} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
