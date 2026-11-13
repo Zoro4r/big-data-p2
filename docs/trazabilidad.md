@@ -1070,6 +1070,10 @@ Cambios hechos a partir de las observaciones del usuario:
   - **Agregado:** promedio por hora con mínimo y máximo; reparto enwiki/eswiki, bots/personas y por tipo.
   - **Quitado:** la velocidad de captura, que corresponde a la extracción; «87 veces el mínimo»; y «4 wikis concentraban el 70 %».
 - **Sección 2:** se quitó la tabla resumen de públicos. La introducción ahora nombra a los tres públicos y qué busca cada uno.
+- **Cuatro públicos en lugar de tres:** «Comunidad y Fundación Wikimedia» se separó en dos.
+  - **Fundación Wikimedia (N3, N4):** casos de la caída de editores y de la Wikipedia en cebuano.
+  - **Comunidad (N5, N6):** los editores, incluidos quienes crean o siguen páginas (en Wikipedia nadie es dueño de una página) y quienes organizan editatones; caso Orangemoody.
+  - **Renumeración:** la red de editores pasó de N6 a N5 y el crecimiento de N5 a N6. Se actualizaron las referencias y el orden de las secciones 8, 11 y 13.
 
 ---
 
