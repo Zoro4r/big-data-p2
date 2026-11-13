@@ -248,7 +248,7 @@ export default function ActividadPage() {
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="ms" type="number" scale="time" domain={ejeHora.dominio} ticks={ejeHora.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
-                <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <Tooltip cursor={{ fill: "var(--muted)" }} labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
                 <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
                 <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[3, 3, 0, 0]} isAnimationActive={false} />
               </BarChart>
