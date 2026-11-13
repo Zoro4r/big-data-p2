@@ -1130,6 +1130,10 @@ Cambios hechos a partir de las observaciones del usuario:
   - [`Arquitectura.tsx`](../web/src/pages/Arquitectura.tsx):
     - la tabla de corridas tiene una columna «Fuente»; las corridas anteriores, sin registro, figuran como EventStreams;
     - los textos de «Datos pasados» y de la tarea `extraer` describen el nuevo comportamiento.
+- **Diagrama de arquitectura del informe:**
+  - la flecha entre MongoDB y el proceso horario tiene dos puntas y la etiqueta «lee y carga»;
+  - la flecha de EventStreams al proceso horario es punteada, con la etiqueta «respaldo si hubo cortes»;
+  - el texto de la caja de Airflow volvió a ser corto.
 
 ---
 
