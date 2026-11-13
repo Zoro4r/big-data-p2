@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react"
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { UserRound } from "lucide-react"
 
 import { Cargando, FilaBarra, Leyenda, Seccion, TarjetaKpi, Vacio } from "@/components/common"
@@ -7,6 +7,7 @@ import { Header, Pagina } from "@/components/layout"
 import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -93,7 +94,7 @@ export default function ActividadPage() {
   const [editor, setEditor] = useState<string | null>(null)
   const { data } = useApi<Actividad>(`/api/actividad?wiki=${wiki}${fecha ? `&fecha=${fecha}` : ""}`)
   useEffect(() => setHora(null), [wiki, fecha])
-  // Hora que se ve minuto a minuto: la que se elige en el gráfico por hora; si no, la última con datos.
+  // Hora que se abre minuto a minuto en un modal al hacer clic en el gráfico por hora.
   const [horaMin, setHoraMin] = useState<number | null>(null)
   useEffect(() => setHoraMin(null), [wiki, fecha])
   const historial = useApi<FilaEditor[]>(editor ? `/api/editor/${encodeURIComponent(editor)}` : null)
@@ -107,7 +108,7 @@ export default function ActividadPage() {
   }, [data])
 
   const horas = useMemo(() => (data?.horas ?? []).slice().sort((a, b) => a.hora - b.hora).map((h) => ({ ...h, etiqueta: `${String(h.hora).padStart(2, "0")}:00` })), [data])
-  const horaVista = horaMin ?? horas[horas.length - 1]?.hora ?? null
+  const horaVista = horaMin
   // Los 60 minutos de la hora elegida (UTC−5); humanos = eventos − bots, para apilar las dos partes en cada barra.
   const ejeHora = useMemo(() => {
     const dia = ejeDia(data?.minutos ?? []).dominio[0]
@@ -169,32 +170,13 @@ export default function ActividadPage() {
                 <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado}>
-                  {horas.map((h) => <Cell key={h.etiqueta} fillOpacity={h.hora === horaVista ? 1 : 0.45} />)}
-                </Bar>
-                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]}>
-                  {horas.map((h) => <Cell key={h.etiqueta} fillOpacity={h.hora === horaVista ? 1 : 0.45} />)}
-                </Bar>
+                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado} />
+                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </Seccion>
 
-        <Seccion titulo={`Eventos por minuto${horaVista != null ? ` · ${etiquetaHora(horaVista)}–${etiquetaHora((horaVista + 1) % 24)}` : ""}`}
-          descripcion="Los 60 minutos de la hora elegida arriba, con humanos y bots apilados; los picos suelen ser bots en ráfaga o una noticia" accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
-          {!data ? <Cargando alto={200} /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={ejeHora.datos} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="15%">
-                <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="ms" type="number" scale="time" domain={ejeHora.dominio} ticks={ejeHora.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
-                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
-                <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
-                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
           <Seccion className="lg:col-span-3" titulo="Páginas con más editores" descripcion="Editores distintos en la hora · Cassandra paginas_top_por_hora"
@@ -253,6 +235,26 @@ export default function ActividadPage() {
           </Seccion>
         </div>
       </Pagina>
+
+      <Dialog open={horaVista != null} onOpenChange={(a) => !a && setHoraMin(null)}>
+        <DialogContent className="sm:max-w-[880px]">
+          <DialogHeader>
+            <DialogTitle>Eventos por minuto · {horaVista != null ? `${etiquetaHora(horaVista)}–${etiquetaHora((horaVista + 1) % 24)}` : ""} (UTC−5)</DialogTitle>
+            <DialogDescription>Los 60 minutos de la hora, con humanos y bots apilados ({etiqueta} · Cassandra eventos_por_minuto). Los picos suelen ser bots en ráfaga o una noticia.</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end"><Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} /></div>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={ejeHora.datos} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="15%">
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="ms" type="number" scale="time" domain={ejeHora.dominio} ticks={ejeHora.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
+                <Tooltip labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
+                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
+                <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
+        </DialogContent>
+      </Dialog>
       {metrica && data && (
         <ModalMetrica m={metricaDia(metrica, data, etiqueta)} {...vecinos(ORDEN_DIA, metrica, (k) => NOMBRE_DIA[k], setMetrica)} onCerrar={() => setMetrica(null)} />
       )}
