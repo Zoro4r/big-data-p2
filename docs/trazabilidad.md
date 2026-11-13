@@ -1141,6 +1141,20 @@ Cambios hechos a partir de las observaciones del usuario:
   - en el diagrama, la flecha entre MongoDB y el proceso horario va de MongoDB al proceso, con la etiqueta «lee la hora».
 - **Primera ejecución con el cambio** (hora 20:00–21:00 UTC−5): usó el respaldo EventStreams, con 19,017 eventos en 122 s, porque el registro de cobertura empezó a las 20:28. Desde la hora 21:00–22:00 la cobertura es completa.
 - **Despliegues** a las 21:05 y 21:12 (UTC−5), entre ejecuciones horarias.
+- **Primera hora leída de MongoDB** (hora 21:00–22:00 UTC−5): 20,770 eventos en 3.2 s, frente a 122 s de la hora anterior desde EventStreams. Calidad del 100 %; `cargar_mongo` registró `omitida`.
+
+### 45. Dashboard: cada vista responde a las necesidades del informe
+
+Revisión de las 7 vistas contra N1 a N7, a pedido del usuario. Cambios aprobados:
+
+- **Red de editores** (commit `feat: show 24h conflict and community cards and most connected editors in network view`):
+  - **Tarjetas:** las 4 de totales del grafo, que eran inventario, se cambiaron por 4 de las últimas 24 horas: reversiones (desde Cassandra), editores revertidos por 2 o más editores, editores agradecidos y editores humanos conectados (desde Neo4j). Funciones [`tarjetas_red`](../api/queries.py) en la API.
+  - **Ranking nuevo «Editores más conectados» (N5):** humanos activos en 24 h con más relaciones COEDITA. Función [`ranking_conectados`](../api/queries.py).
+  - **Rendimiento:** contar reversiones en MongoDB tardaba 60 s, así que se leen de `resumen_por_hora`. Las tarjetas responden en 0.5 a 1.7 s.
+- **En vivo** (commit `feat: add large deletions filter to live view`): filtro «Borrados grandes», con cambios que quitan más de 1,000 bytes (N1, N2). La API trae aparte los de los últimos 30 minutos (`vivo`, campo `borrados`), porque entre los últimos 100 eventos casi nunca hay uno.
+- **Explorador** (commit `refactor: remove event type chart from explorer`): se quitó el gráfico «Eventos por tipo y wiki», que no ayudaba a revisar un caso.
+- **Informe, sección 9:** se actualizó la tabla de vistas (En vivo, Explorador, Red, Arquitectura), el texto de las capturas de En vivo y Red, y las capturas de En vivo, Explorador y Red, tomadas del despliegue.
+- **Observación:** en eswiki, «Automoderador», la herramienta de moderación automática, figura como editor registrado porque no tiene la marca de bot ni «bot» en el nombre. Por eso aparece entre los más conectados y los patrulleros.
 
 ### 44. Informe: componentes explicados uno por uno
 
