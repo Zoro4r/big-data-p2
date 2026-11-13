@@ -1134,6 +1134,13 @@ Cambios hechos a partir de las observaciones del usuario:
   - la flecha entre MongoDB y el proceso horario tiene dos puntas y la etiqueta «lee y carga»;
   - la flecha de EventStreams al proceso horario es punteada, con la etiqueta «respaldo si hubo cortes»;
   - el texto de la caja de Airflow volvió a ser corto.
+- **`cargar_mongo` no escribe si la hora vino de MongoDB** (commit `feat: skip mongo load when the hour was read from mongo`, [`wikipedia_pipeline.py`](../airflow/dags/wikipedia_pipeline.py), tarea `cargar_mongo`):
+  - antes reescribía los mismos ~16,000 documentos por hora sin cambiarlos; con el respaldo de EventStreams sigue cargando, porque agrega lo que el servicio stream no guardó;
+  - la tarea registra `omitida`;
+  - el texto de la tarea en [`Arquitectura.tsx`](../web/src/pages/Arquitectura.tsx) y el informe (sección 4, paso 7; sección 5, tabla de tareas) lo explican;
+  - en el diagrama, la flecha entre MongoDB y el proceso horario va de MongoDB al proceso, con la etiqueta «lee la hora».
+- **Primera ejecución con el cambio** (hora 20:00–21:00 UTC−5): usó el respaldo EventStreams, con 19,017 eventos en 122 s, porque el registro de cobertura empezó a las 20:28. Desde la hora 21:00–22:00 la cobertura es completa.
+- **Despliegues** a las 21:05 y 21:12 (UTC−5), entre ejecuciones horarias.
 
 ---
 
