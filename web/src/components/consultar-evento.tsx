@@ -122,8 +122,9 @@ export function FiltrosConsulta({ c }: { c: ConsultaEventos }) {
 
       <fieldset disabled={conId} className="flex flex-col gap-3 disabled:opacity-50">
         <Campo id="q-tipo" label="Tipo de evento">
-          <Segmentado etiqueta="Tipo de evento" valor={f.tipo} onChange={(v) => setF({ ...f, tipo: v })}
-            opciones={[["todos", "Todos"], ["edit", "Edición"], ["new", "Página nueva"], ["categorize", "Categorización"], ["log", "Otros"]]} />
+          {/* Sin tipo elegido se buscan todos; un segundo clic en el elegido lo deselecciona. */}
+          <Segmentado etiqueta="Tipo de evento" valor={f.tipo} onChange={(v) => setF({ ...f, tipo: f.tipo === v ? "todos" : v })}
+            opciones={[["edit", "Edición"], ["new", "Página nueva"], ["categorize", "Categorización"], ["log", "Otros"]]} />
         </Campo>
         <Campo id="q-periodo" label="Periodo">
           <Desplegable id="q-periodo" valor={f.periodo} onChange={(v) => setF({ ...f, periodo: v })}
