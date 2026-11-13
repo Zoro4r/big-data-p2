@@ -1081,6 +1081,7 @@ Cambios hechos a partir de las observaciones del usuario:
 - **Sección 6 y diagrama de arquitectura:** cifras del 12 nov 20:03 UTC−5, leídas de `/api/arquitectura`.
   - MongoDB: 4.82 millones de documentos, 7.1 GB sin comprimir y 1.7 GB en disco.
   - Neo4j: 1.66 millones de nodos.
+- **«Características»:** el reparto por wiki, por bots y personas y por tipo pasó a ser subviñetas de «Volumen».
 
 ---
 
