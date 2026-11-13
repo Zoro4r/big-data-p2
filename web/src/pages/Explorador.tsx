@@ -42,8 +42,8 @@ function metricaTipo(t: FilaTipo, total24: number, wikis: string[], etiqueta: st
     titulo: t.tipo, etiqueta, momento: "Últimas 24 horas", valor: entero(t.total),
     nota: `${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de los eventos de las últimas 24 h`,
     datos, definicion, lectura,
-    calculo: { codigo: `events.aggregate([{ $match: últimas 24 h }, { $group: { _id: { wiki, type }, eventos: { $sum: 1 } } }])` },
-    origen: <>Se cuenta en <Base base="mongo" /> (colección events) con una agregación $group sobre los documentos de las últimas 24 horas.</>,
+    calculo: { codigo: `SELECT hora, wiki, ediciones, creaciones, categorizaciones, logs\nFROM resumen_por_hora WHERE fecha IN (hoy, ayer)\n-- se suman las últimas 24 horas cerradas` },
+    origen: <>Se lee de <Base base="cassandra" /> (tabla resumen_por_hora), que el proceso de cada hora ya dejó agregada por hora y wiki: se suman las últimas 24 horas cerradas.</>,
   }
 }
 

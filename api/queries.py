@@ -176,15 +176,19 @@ def total_eventos() -> int:
     return mongo_db().events.estimated_document_count()
 
 
-@cacheado
+CAMPO_TIPO = (("ediciones", "edit"), ("creaciones", "new"), ("categorizaciones", "categorize"), ("logs", "log"))
+
+
 def tipos_por_wiki(horas: int = 24) -> list[dict]:
-    desde = datetime.now(timezone.utc) - timedelta(hours=horas)
-    pipeline = [
-        {"$match": {"derived.event_dt": {"$gte": desde}}},
-        {"$group": {"_id": {"wiki": "$wiki", "tipo": "$type"}, "eventos": {"$sum": 1}}},
-    ]
-    return [{"wiki": r["_id"]["wiki"], "tipo": r["_id"]["tipo"], "eventos": r["eventos"]}
-            for r in mongo_db().events.aggregate(pipeline)]
+    """Eventos por wiki y tipo en las últimas `horas` horas cerradas. Sale de Cassandra (resumen_por_hora, ya agregado
+    por hora y wiki): se suman ~24 filas por wiki en vez de agrupar cientos de miles de documentos en MongoDB."""
+    limite = (datetime.now(timezone.utc) - timedelta(hours=horas)).strftime("%Y-%m-%dT%H")
+    conteo: dict = defaultdict(int)
+    for r in resumen_por_hora(2):
+        if r["hora_utc"][:13] >= limite:
+            for campo, tipo in CAMPO_TIPO:
+                conteo[(r["wiki"], tipo)] += r.get(campo) or 0
+    return [{"wiki": w, "tipo": t, "eventos": n} for (w, t), n in conteo.items()]
 
 
 @cacheado
@@ -338,16 +342,10 @@ def arquitectura() -> dict:
     serie = kpis(24)
     eventos_h = [p["valor"] for p in serie.get("eventos_procesados", []) if p["valor"] is not None]
     calidad = [p["valor"] for p in serie.get("calidad_datos_pct", []) if p["valor"] is not None]
-    # Mezcla de tipos de las últimas 24 h: de Cassandra (ya agregada por hora); si no hay, de MongoDB.
+    # Mezcla de tipos de las últimas 24 h, de Cassandra (ya agregada por hora).
     tipos: dict = defaultdict(int)
-    limite = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H")
-    for r in resumen_por_hora(2):
-        if r["hora_utc"][:13] >= limite:
-            for campo, tipo in (("ediciones", "edit"), ("creaciones", "new"), ("categorizaciones", "categorize"), ("logs", "log")):
-                tipos[tipo] += r.get(campo) or 0
-    if not sum(tipos.values()):
-        for t in tipos_por_wiki(24):
-            tipos[t["tipo"]] += t["eventos"]
+    for t in tipos_por_wiki(24):
+        tipos[t["tipo"]] += t["eventos"]
     desde = primero["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat() if primero else None
     return {
         "mongo": {"eventos": total_eventos(), "desde": desde, "tamano_bytes": stats.get("size"),
