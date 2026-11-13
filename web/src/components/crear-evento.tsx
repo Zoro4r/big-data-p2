@@ -35,7 +35,7 @@ const TEXTO_CAT: Record<WikiCrud, { añadida: string; quitada: string }> = {
 export const nuevoId = () => `demo-crud-${Date.now()}`
 const sinPrefijo = (t: string) => t.split(":").slice(1).join(":") || t
 
-function plantilla(tipo: Tipo, accion: Accion, wiki: WikiCrud): Doc {
+function plantilla(tipo: Tipo, accion: Accion, wiki: WikiCrud, prueba = false): Doc {
   const id = nuevoId()
   const ahora = new Date()
   const dt = ahora.toISOString().replace(/\.\d+Z$/, "Z")
@@ -62,7 +62,14 @@ function plantilla(tipo: Tipo, accion: Accion, wiki: WikiCrud): Doc {
       otra: { ...log("delete", "delete"), comment: "Página de prueba" },
     }[accion]
   }
-  return { ...base, ...extra, meta }
+  const doc: Doc = { ...base, ...extra, meta }
+  if (prueba) return doc
+  // Sin datos de prueba: misma forma, con los campos que se escriben a mano vacíos.
+  const vacio: Doc = { ...doc, title: "", user: "", comment: "" }
+  if ("length" in doc) vacio.length = {}
+  if ("revision" in doc) vacio.revision = {}
+  if ("log_params" in doc) vacio.log_params = {}
+  return vacio
 }
 
 const tipoDe = (d: Doc): Tipo => ({ edit: "edicion", new: "nueva", categorize: "categorizacion" } as Record<string, Tipo>)[String(d.type)] ?? "otros"
@@ -113,6 +120,8 @@ export function useEventoNuevo(wikiCabecera: WikiCrud) {
     setTipo: (t: Tipo) => setValor(texto(plantilla(t, "bloqueo", wiki))),
     setAccion: (a: Accion) => setValor(texto(plantilla("otros", a, wiki))),
     restablecer: () => setValor(texto(plantilla(tipoDe(actual), accionDe(actual), wiki))),
+    /** Llena el documento con datos de demostración del tipo elegido. */
+    completar: () => setValor(texto(plantilla(tipoDe(actual), accionDe(actual), wiki, true))),
     /** Tras insertar: mismo documento con un _id nuevo, listo para otra inserción. */
     renovarId: () => cambiar((d) => { const id = nuevoId(); return { ...d, _id: id, meta: { ...obj(d.meta), id } } }),
   }

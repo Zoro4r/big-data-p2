@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Segmentado, type WikiCrud } from "@/components/crear-evento"
 import {
-  Antes, AvisoDemo, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
+  Antes, AvisoDemo, BotonPrueba, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
   Panel, Punto, QuePasa, Tabla, type Operacion, type Registrar,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -66,8 +66,8 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
 
   // ---------------------------------------------------------------- Crear
   const [modoCrear, setModoCrear] = useState<"nodo" | "relacion">("relacion")
-  const [nodo, setNodo] = useState({ user: "Demo_Patrullero", tipo: "registrado" })
-  const [rel, setRel] = useState({ origen: "Demo_Patrullero", destino: "Demo_Vandalo", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera as string })
+  const [nodo, setNodo] = useState({ user: "", tipo: "registrado" })
+  const [rel, setRel] = useState({ origen: "", destino: "", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera as string })
   useEffect(() => setRel((r) => ({ ...r, wiki: wikiCabecera })), [wikiCabecera])
   // Si los editores ya existen o no, para el dibujo de la derecha.
   const [existe, setExiste] = useState<Record<string, Detalle | null>>({})
@@ -95,7 +95,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
   }
 
   // ---------------------------------------------------------------- Consultar
-  const [filtro, setFiltro] = useState({ prefijo: "Demo_", tipo: "todos" })
+  const [filtro, setFiltro] = useState({ prefijo: "", tipo: "todos" })
   const [encontrados, setEncontrados] = useState<Encontrado[] | null>(null)
   const [elegido, setElegido] = useState(0)
   const [detalle, setDetalle] = useState<Detalle | null>(null)
@@ -112,7 +112,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
   }
 
   // ---------------------------------------------------------------- Actualizar y eliminar: un editor cargado
-  const [user, setUser] = useState("Demo_Patrullero")
+  const [user, setUser] = useState("")
   const [cargado, setCargado] = useState<Detalle | null>(null)
   const [cambios, setCambios] = useState<Record<string, string>>({})
   const [nuevaProp, setNuevaProp] = useState({ clave: "", valor: "" })
@@ -168,6 +168,21 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
     setDialogo(false); setConfirmacion(""); setRelElegida(null)
   }
 
+  /** «Completar con datos de prueba»: los formularios empiezan vacíos y esto los llena con editores «Demo_». */
+  async function completarPrueba() {
+    if (op === "Crear") {
+      if (modoCrear === "nodo") setNodo({ user: "Demo_Patrullero", tipo: "registrado" })
+      else setRel({ origen: "Demo_Patrullero", destino: "Demo_Vandalo", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera })
+      return
+    }
+    if (op === "Consultar") { setFiltro({ prefijo: "Demo_", tipo: "todos" }); return }
+    // Actualizar y eliminar necesitan un editor que exista.
+    const d = await pedirDetalle("Demo_Patrullero")
+    if (!d) { toast.info("No existe Demo_Patrullero: créalo en «Crear» y vuelve aquí"); return }
+    setUser("Demo_Patrullero"); setModoBorrar("nodo")
+    cargar("Demo_Patrullero")
+  }
+
   /** Desde la ficha de Consultar: lleva el editor a Actualizar o Eliminar. */
   function irA(destino: Operacion, u: string) {
     setUser(u); setModoBorrar("nodo"); setOp(destino)
@@ -180,6 +195,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
     filtro, setFiltro, encontrados, elegido, elegir, detalle, buscar,
     user, setUser, cargado, cargar, cambios, valor, original, poner, deshacer, nuevaProp, setNuevaProp, agregarProp, guardar,
     modoBorrar, setModoBorrar, relElegida, setRelElegida, relacionesBorrables, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
+    completarPrueba,
   }
 }
 export type Neo4jCrud = ReturnType<typeof useNeo4jCrud>
@@ -217,6 +233,7 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Operaciones valor={n.op} onChange={n.setOp} />
+      <BotonPrueba onClick={n.completarPrueba} />
 
       {n.op === "Crear" && (
         <>

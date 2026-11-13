@@ -8,13 +8,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { EditorEvento, FormularioEvento, nuevoId, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
+import { EditorEvento, FormularioEvento, useEventoNuevo, type WikiCrud } from "@/components/crear-evento"
 import { Coincidencias, FichaDocumento, FiltrosConsulta, useConsultaEventos } from "@/components/consultar-evento"
 import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from "@/components/actualizar-evento"
 import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useEliminacion } from "@/components/eliminar-evento"
 import { CassandraDerecha, CassandraIzquierda, useCassandraCrud } from "@/components/cassandra-crud"
 import { Neo4jDerecha, Neo4jIzquierda, useNeo4jCrud } from "@/components/neo4j-crud"
-import type { Registrar } from "@/components/crud-comun"
+import { BotonPrueba, type Registrar } from "@/components/crud-comun"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { horaLocal } from "@/lib/format"
@@ -46,8 +46,28 @@ export default function CrudPage() {
   // ---------------------------------------------------------------- MongoDB
   const [base, setBase] = useState("mongo")
   const [mOp, setMOp] = useState("Crear")
-  const [m, setM] = useState({ id: nuevoId() })
+  const [m, setM] = useState({ id: "" })
   const evento = useEventoNuevo(wikiForm)
+
+  /** Busca el documento de demostración más reciente («demo-…»), primero en la wiki del formulario. */
+  async function documentoDemo(): Promise<string | null> {
+    for (const w of [wikiForm, wikiForm === "enwiki" ? "eswiki" : "enwiki"]) {
+      const r = await api<{ documentos: { _id: string }[] }>(`/api/crud/mongo/buscar?${new URLSearchParams({ wiki: w, periodo: "todo", demo: "true", limite: "1" })}`)
+      if (r.documentos[0]) return r.documentos[0]._id
+    }
+    return null
+  }
+
+  /** «Completar con datos de prueba» en la operación elegida de MongoDB. */
+  async function pruebaMongo() {
+    if (mOp === "Crear") { evento.completar(); return }
+    if (mOp === "Consultar") { consulta.setF({ ...consulta.f, demo: true, periodo: "todo", editor: "Demo_Editor", titulo: "", id: "" }); return }
+    const id = await documentoDemo().catch(() => null)
+    if (!id) { toast.info("No hay documentos de demostración: crea uno en «Crear» y vuelve aquí"); return }
+    setM((x) => ({ ...x, id }))
+    if (mOp === "Actualizar") actualizacion.cargar(id)
+    else eliminacion.cargar(id)
+  }
 
   /** Inserta el documento del editor. Si el validador lo rechaza, se muestra como resultado de la validación. */
   async function insertarEvento() {
@@ -185,6 +205,7 @@ export default function CrudPage() {
               <Seccion titulo="Colección events" className="h-full" contenidoClassName="flex flex-1 flex-col">
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={setMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
+                  <BotonPrueba onClick={pruebaMongo} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
                     : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />
                     : mOp === "Actualizar" ? <FormularioActualizacion a={actualizacion} id={m.id} setId={(id) => setM({ ...m, id })} />
@@ -210,7 +231,7 @@ export default function CrudPage() {
             </TabsContent>
 
             <TabsContent value="neo4j">
-              <Seccion titulo="Grafo de editores" descripcion={<>MERGE de nodos y relaciones · SET de propiedades · DELETE / DETACH DELETE. Se puede consultar cualquier editor, pero solo se escribe sobre «Demo_…».</>}>
+              <Seccion titulo="Grafo de editores" descripcion="Se puede consultar cualquier editor, pero solo se escribe sobre «Demo_…».">
                 <Neo4jIzquierda n={neo} />
               </Seccion>
             </TabsContent>

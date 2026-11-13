@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import type { WikiCrud } from "@/components/crear-evento"
 import { Segmentado } from "@/components/crear-evento"
 import {
-  Antes, AvisoDemo, CajaWiki, Campo, Chip, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable,
+  Antes, AvisoDemo, BotonPrueba, CajaWiki, Campo, Chip, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable,
   Nota, Operaciones, Panel, Punto, QuePasa, Tabla, type Operacion, type Registrar,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -80,8 +80,8 @@ export function useCassandraCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
 
   // ---------------------------------------------------------------- Crear
   const [nueva, setNueva] = useState({
-    editor: "Demo_Editor", tipo_editor: "registrado", fecha: hoy(), hora: horaUtc(),
-    eventos: "12", ediciones: "9", paginas: "4", delta_bytes: "1250", reversiones_hechas: "1", reversiones_recibidas: "0",
+    editor: "", tipo_editor: "registrado", fecha: hoy(), hora: horaUtc(),
+    eventos: "", ediciones: "", paginas: "", delta_bytes: "", reversiones_hechas: "", reversiones_recibidas: "",
   })
   const filaNueva: Fila = {
     editor: nueva.editor, fecha: nueva.fecha, hora: Number(nueva.hora), wiki, tipo_editor: nueva.tipo_editor,
@@ -106,7 +106,7 @@ export function useCassandraCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
   }
 
   // ---------------------------------------------------------------- Consultar
-  const [consulta, setConsulta] = useState({ editor: "Demo_Editor", fecha: "", hora: "todas" })
+  const [consulta, setConsulta] = useState({ editor: "", fecha: "", hora: "todas" })
   const [resultados, setResultados] = useState<Fila[] | null>(null)
   const [elegido, setElegido] = useState(0)
   async function buscar() {
@@ -117,7 +117,7 @@ export function useCassandraCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
   }
 
   // ---------------------------------------------------------------- Actualizar y eliminar: una fila por su clave
-  const [clave, setClave] = useState({ editor: "Demo_Editor", fecha: hoy(), hora: horaUtc(), wiki: wikiCabecera as string })
+  const [clave, setClave] = useState({ editor: "", fecha: hoy(), hora: horaUtc(), wiki: wikiCabecera as string })
   const [original, setOriginal] = useState<Fila | null>(null)
   const [cambios, setCambios] = useState<Record<string, string>>({})
   async function cargar(k = clave) {
@@ -181,6 +181,23 @@ export function useCassandraCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
     }
   }
 
+  /** «Completar con datos de prueba»: los formularios empiezan vacíos y esto los llena con «Demo_Editor». */
+  async function completarPrueba() {
+    if (op === "Crear") {
+      setNueva({ editor: "Demo_Editor", tipo_editor: "registrado", fecha: hoy(), hora: horaUtc(), eventos: "12", ediciones: "9",
+        paginas: "4", delta_bytes: "1250", reversiones_hechas: "1", reversiones_recibidas: "0" })
+      return
+    }
+    if (op === "Consultar") { setConsulta({ editor: "Demo_Editor", fecha: "", hora: "todas" }); return }
+    // Actualizar y eliminar necesitan una fila que exista: se toma la más reciente de Demo_Editor.
+    const filas = await api<Fila[]>(`/api/crud/cassandra?${new URLSearchParams({ editor: "Demo_Editor", wiki, limite: "1" })}`).catch(() => [])
+    if (!filas.length) { toast.info("No hay filas de Demo_Editor: crea una en «Crear» y vuelve aquí"); return }
+    const f = filas[0]
+    const k = { editor: f.editor, fecha: f.fecha, hora: String(f.hora), wiki: f.wiki }
+    setClave(k); setModo("fila"); setConfirmacion("")
+    cargar(k)
+  }
+
   /** Desde la ficha de Consultar: lleva la fila a Actualizar o Eliminar. */
   function irA(destino: Operacion, f: Fila) {
     const k = { editor: f.editor, fecha: f.fecha, hora: String(f.hora), wiki: f.wiki }
@@ -194,6 +211,7 @@ export function useCassandraCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
     consulta, setConsulta, resultados, elegido, setElegido, buscar,
     clave, setClave, original, cambios, valor, poner, deshacer, cargar, guardar,
     modo, setModo, particion, cargarParticion, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
+    completarPrueba,
   }
 }
 export type CassandraCrud = ReturnType<typeof useCassandraCrud>
@@ -235,6 +253,7 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Operaciones valor={c.op} onChange={c.setOp} />
+      <BotonPrueba onClick={c.completarPrueba} />
 
       {c.op === "Crear" && (
         <>
