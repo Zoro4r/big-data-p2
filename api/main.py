@@ -347,11 +347,20 @@ def cassandra_una_fila(kpi: str, ventana: datetime):
 
 
 @app.get("/api/crud/cassandra")
-def cassandra_leer(kpi: str, fecha: date | None = None, limite: int = 48):
-    """SELECT por partición (el KPI), opcionalmente de un día (UTC)."""
+def cassandra_leer(kpi: str, fecha: date | None = None, hora: int | None = None, limite: int = 48):
+    """SELECT por partición (el KPI), opcionalmente de un día y una hora (UTC). Con día y hora, el rango de
+    ventana cubre una sola fila; con hora sin día, se filtran las últimas filas de esa hora."""
+    if hora is not None and not 0 <= hora <= 23:
+        raise HTTPException(400, "La hora va de 0 a 23")
     desde = datetime.combine(fecha, datetime.min.time(), timezone.utc) if fecha else None
     hasta = desde + timedelta(days=1) if desde else None
-    return [_fila_kpi(r) for r in crud.kpi_consultar(q.cassandra(), kpi, desde, hasta, min(max(limite, 1), 500))]
+    if desde and hora is not None:
+        desde += timedelta(hours=hora)
+        hasta = desde + timedelta(hours=1)
+    filas = crud.kpi_consultar(q.cassandra(), kpi, desde, hasta, min(max(limite, 1), 500))
+    if hora is not None and not fecha:
+        filas = [r for r in filas if r.ventana.hour == hora]
+    return [_fila_kpi(r) for r in filas]
 
 
 @app.patch("/api/crud/cassandra")

@@ -106,12 +106,12 @@ export function useCassandraCrud() {
   }
 
   // ---------------------------------------------------------------- Consultar
-  const [consulta, setConsulta] = useState({ kpi: "", fecha: "" })
+  const [consulta, setConsulta] = useState({ kpi: "", fecha: "", hora: "todas" })
   const [resultados, setResultados] = useState<Fila[] | null>(null)
   const [elegido, setElegido] = useState(0)
   async function buscar(q = consulta, ventana?: string) {
     if (!q.kpi) { toast.error("Elige el KPI: Cassandra siempre consulta por partición"); return }
-    const params = new URLSearchParams({ kpi: q.kpi, ...(q.fecha ? { fecha: q.fecha } : {}) })
+    const params = new URLSearchParams({ kpi: q.kpi, ...(q.fecha ? { fecha: q.fecha } : {}), ...(q.hora !== "todas" ? { hora: q.hora } : {}) })
     const r = await correr(() => api<Fila[]>(`/api/crud/cassandra?${params}`))
     if (r) { setResultados(r); setElegido(Math.max(0, r.findIndex((f) => f.ventana === ventana))) }
   }
@@ -197,7 +197,7 @@ export function useCassandraCrud() {
     setUltimos({ abierto: false, filas: null })
     if (!f) return
     if (op === "Consultar") {
-      const q = { kpi: f.kpi, fecha: f.ventana.slice(0, 10) }
+      const q = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: "todas" }
       setConsulta(q); buscar(q, f.ventana); return
     }
     const k = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: String(Number(f.ventana.slice(11, 13))) }
@@ -290,7 +290,13 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
           <Campo id="cq-kpi" label="KPI" clave="partición" ayuda="Cassandra necesita la partición: siempre se consulta un KPI. Funciona con cualquier KPI real.">
             <Selector id="cq-kpi" valor={c.consulta.kpi} opciones={opcionesKpi} onChange={(v) => c.setConsulta({ ...c.consulta, kpi: v })} />
           </Campo>
-          <Campo id="cq-fecha" label="Fecha (UTC)" ayuda="Opcional: sin fecha, se traen las últimas 48 horas."><Input id="cq-fecha" type="date" value={c.consulta.fecha} onChange={(e) => c.setConsulta({ ...c.consulta, fecha: e.target.value })} /></Campo>
+          <div className="flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 gap-3">
+              <Campo id="cq-fecha" label="Fecha (UTC)"><Input id="cq-fecha" type="date" value={c.consulta.fecha} onChange={(e) => c.setConsulta({ ...c.consulta, fecha: e.target.value })} /></Campo>
+              <Campo id="cq-hora" label="Hora (UTC)"><Selector id="cq-hora" valor={c.consulta.hora} opciones={[["todas", "Todas"], ...HORAS]} onChange={(v) => c.setConsulta({ ...c.consulta, hora: v })} /></Campo>
+            </div>
+            <span className="text-xs text-muted-foreground">Opcionales: sin fecha, se buscan las últimas 48 horas; con hora, solo las filas de esa hora.</span>
+          </div>
           <Button type="submit" disabled={c.ocupado} className="h-10 w-full text-sm"><Search aria-hidden />Buscar</Button>
           {c.resultados && (
             <Coincidencias items={c.resultados} elegido={c.elegido} onElegir={c.setElegido}
