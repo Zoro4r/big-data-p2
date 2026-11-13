@@ -1182,6 +1182,11 @@ En la misma sección se reescribió «Por qué dos caminos»:
   - la viñeta «Nos pasó» de los operadores (sección 2);
   - la frase de horas perdidas en «Confianza (N7)» (sección 11);
   - la fila N7 de las conclusiones (sección 13) ahora dice «permite detectar y recuperar una hora incompleta».
+  - Sección 6, «Modelos de datos»: reescrita a pedido del usuario, con foco en la utilidad de cada base para las necesidades. El contenido sale de las consultas reales de la API ([`api/queries.py`](../api/queries.py): `vivo`, `resumen_por_hora`, `serie_minuto`, `paginas_top`, `actividad_editor`, `ego_red`, `ranking_revertidos`, `paginas_disputadas`):
+    - **Tabla resumen:** sus columnas pasan a ser Base, Qué guarda, Para qué sirve y Necesidades. Cassandra se explica como resúmenes ya calculados para tener los KPIs al instante: 72 filas en lugar de 1.2 millones de cambios.
+    - **MongoDB:** se agregó «Para qué sirve», con su uso en N1, N2 y N7.
+    - **Cassandra:** «Para qué sirve» y una columna con el uso de cada tabla y su necesidad.
+    - **Neo4j:** «Para qué sirve», con tres preguntas que responde el grafo: la historia de un editor (vista «Red de editores», N2), quiénes sostienen la comunidad (COEDITA, N5) y dónde se concentra el conflicto (N2). Se quitó la viñeta «Por qué Neo4j», que ya quedaba cubierta.
   - Luego, a pedido del usuario, se quitó también la sección 12, «Problemas encontrados y soluciones», porque los problemas ya están corregidos. Las instrucciones del curso no piden esa sección ([requerimientos.md, tabla del informe](requerimientos.md)). «Conclusiones» pasó a ser la sección 12 y «Glosario» la 13; ninguna referencia del texto apuntaba a la sección quitada. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
 
 ---
