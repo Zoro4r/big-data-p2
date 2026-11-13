@@ -1280,6 +1280,13 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - Implementación: parámetro `hora` en `GET /api/crud/cassandra` ([main.py, `cassandra_leer`](../api/main.py)).
   - Verificado en la VM: «Eventos procesados» a las 12:00 UTC sin fecha devuelve 2 filas (12 y 13 nov).
   - Al elegir una fila en el modal de Consultar, también se completa la hora, así que la búsqueda trae solo esa fila (commit `fix: fill hour when picking a cassandra row to query`, [cassandra-crud.tsx, `elegirUltimo`](../web/src/components/cassandra-crud.tsx)).
+- **Cassandra y Neo4j escriben sobre datos reales, como MongoDB** (commit `feat: allow crud writes on real cassandra and neo4j data`):
+  - **Pedido del usuario:** el modal de Actualizar y Eliminar debe mostrar los últimos 5 registros, como Consultar, y no solo los «demo_».
+  - **Decisión:** se le preguntó qué hacer con la protección «solo demo_» y eligió quitarla en las dos bases, como en MongoDB. Esto reemplaza la decisión anterior de escribir solo KPIs «demo_».
+  - **API:** se quitaron `solo_demo` y `solo_kpi_demo` ([main.py](../api/main.py)). `/api/crud/cassandra/ultimas` y `/api/crud/neo4j/ultimos` ya no reciben `demo`: devuelven siempre los 5 más recientes ([crud.py, `kpi_ultimas` y `neo4j_ultimos_editores`](../src/wikipipe/crud.py)).
+  - **Interfaz:** sin `AvisoDemo`, `AvisoKpi` ni «solo lectura», y los botones ya no se bloquean por el nombre.
+  - **Sin cambios:** los datos de prueba de Crear siguen usando «demo_», y la descripción de la página lo recomienda.
+  - **Verificado en la VM:** el modal de Neo4j › Actualizar lista 5 editores reales y carga `~2026-60276-33`. El de Cassandra carga `actividad_por_editor · 13:00 UTC`. No se guardó ningún cambio.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
