@@ -1197,6 +1197,13 @@ Revisión pedida por el usuario: la correctitud de los términos y la variedad d
   - Cada una explica qué hace Crear, Consultar, Actualizar y Eliminar en la página, según [Crud.tsx](../web/src/pages/Crud.tsx) y sus componentes.
   - Lleva 4 capturas del dashboard desplegado, con su pie: crear y consultar en MongoDB, y consultar en Cassandra y en Neo4j con «ClueBot NG».
   - Las capturas solo leen datos: no se escribió nada en las bases.
+  - Luego, a pedido del usuario, se agregaron capturas de las 4 operaciones en cada base: 12 en total, con crear, consultar, actualizar y eliminar ordenados.
+    - Para Actualizar y Eliminar se usaron registros de demostración, recorridos con Playwright sobre el dashboard desplegado:
+      - MongoDB: el documento `demo-crud-1794545280582`;
+      - Cassandra: la fila de `Demo_Editor`;
+      - Neo4j: la relación `Demo_Patrullero` → `Demo_Vandalo`.
+    - Los tres se crearon, se actualizaron y se eliminaron en la misma sesión, a las 23:48–23:50 (UTC−5), así que las bases quedaron como estaban.
+    - En Neo4j también se borró `Demo_Vandalo`, y los dos nodos «Demo_» que ya existían de pruebas anteriores.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
