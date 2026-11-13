@@ -4,7 +4,6 @@ import { toast } from "sonner"
 
 import { Seccion, Vacio } from "@/components/common"
 import { Header, Pagina } from "@/components/layout"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -14,18 +13,15 @@ import { CambiosActualizacion, FormularioActualizacion, useActualizacion } from 
 import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useEliminacion } from "@/components/eliminar-evento"
 import { CassandraDerecha, CassandraIzquierda, useCassandraCrud } from "@/components/cassandra-crud"
 import { Neo4jDerecha, Neo4jIzquierda, useNeo4jCrud } from "@/components/neo4j-crud"
-import { BotonPrueba, type Registrar } from "@/components/crud-comun"
+import { BotonPrueba } from "@/components/crud-comun"
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 type Op = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO" | "VALIDADOR"
-interface Registro { op: Op; base: string; detalle: string; hora: string; ok: boolean }
 /** validacion: el validador $jsonSchema de MongoDB rechazó el documento (no es un fallo de la API) */
 interface Resultado { titulo: string; ok: boolean; validacion?: boolean; faltan?: string[]; json: unknown }
 
-const horaActual = () => horaLocal(Date.now(), false, true)
 
 function Operaciones({ valor, onChange, opciones }: { valor: string; onChange: (v: string) => void; opciones: string[] }) {
   return (
@@ -37,7 +33,6 @@ function Operaciones({ valor, onChange, opciones }: { valor: string; onChange: (
 
 export default function CrudPage() {
   const [resultado, setResultado] = useState<Resultado | null>(null)
-  const [log, setLog] = useState<Registro[]>([])
   const [ocupado, setOcupado] = useState(false)
 
   const { wiki } = useWiki()
@@ -81,11 +76,9 @@ export default function CrudPage() {
       const r = await api<{ rechazado: boolean; faltan?: string[]; motivo?: string; documento?: unknown }>("/api/crud/mongo", { method: "POST", body: JSON.stringify(doc) })
       if (r.rechazado) {
         setResultado({ titulo: destino, ok: true, validacion: true, faltan: r.faltan, json: r })
-        setLog((l) => [{ op: "VALIDADOR" as Op, base: destino, detalle: `rechazado: falta ${r.faltan?.join(", ") || "un campo"}`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
         toast.info("El validador de MongoDB rechazó el documento")
       } else {
         setResultado({ titulo: `CREATE · ${destino}`, ok: true, json: r.documento })
-        setLog((l) => [{ op: "CREATE" as Op, base: destino, detalle: id, hora: horaActual(), ok: true }, ...l].slice(0, 8))
         setM((x) => ({ ...x, id }))  // así Consultar, Actualizar y Eliminar apuntan al documento recién creado
         evento.renovarId()
         toast.success(`Documento ${id} insertado`)
@@ -93,7 +86,6 @@ export default function CrudPage() {
     } catch (e) {
       const msg = (e as Error).message
       setResultado({ titulo: `CREATE · ${destino}`, ok: false, json: { error: msg } })
-      setLog((l) => [{ op: "RECHAZADO" as Op, base: destino, detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
       toast.error(msg)
     } finally {
       setOcupado(false)
@@ -103,9 +95,8 @@ export default function CrudPage() {
   const consulta = useConsultaEventos(wikiForm)
   async function buscarEventos() {
     setOcupado(true)
-    const r = await consulta.buscar()
+    await consulta.buscar()
     setOcupado(false)
-    if (r) setLog((l) => [{ op: "READ" as Op, base: "MongoDB · events", detalle: `find · ${r.documentos.length}${r.hay_mas ? "+" : ""} ${r.documentos.length === 1 && !r.hay_mas ? "documento" : "documentos"}`, hora: horaActual(), ok: true }, ...l].slice(0, 8))
   }
   // Al entrar a Consultar se parte de cero: no se busca hasta que la persona presiona Buscar.
   useEffect(() => {
@@ -124,11 +115,9 @@ export default function CrudPage() {
     setOcupado(true)
     try {
       const d = await accion()
-      setLog((l) => [{ op, base: "MongoDB · events", detalle: String(d._id), hora: horaActual(), ok: true }, ...l].slice(0, 8))
       toast.success(texto(d))
     } catch (e) {
       const msg = (e as Error).message
-      setLog((l) => [{ op: "RECHAZADO" as Op, base: "MongoDB · events", detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
       toast.error(msg)
     } finally {
       setOcupado(false)
@@ -143,12 +132,9 @@ export default function CrudPage() {
     setOcupado(true)
     try {
       const r = await actualizacion.guardar()
-      const detalle = `${r.id} · ${r.campos.join(", ")}${r.recalculados.length ? ` (+${r.recalculados.length} recalculados)` : ""}`
-      setLog((l) => [{ op: "UPDATE" as Op, base: "MongoDB · events", detalle, hora: horaActual(), ok: true }, ...l].slice(0, 8))
       toast.success(`Documento actualizado: ${r.campos.length} ${r.campos.length === 1 ? "campo" : "campos"}`)
     } catch (e) {
       const msg = (e as Error).message
-      setLog((l) => [{ op: "RECHAZADO" as Op, base: "MongoDB · events", detalle: msg, hora: horaActual(), ok: false }, ...l].slice(0, 8))
       toast.error(msg)
     } finally {
       setOcupado(false)
@@ -168,26 +154,11 @@ export default function CrudPage() {
   const eliminando = base === "mongo" && mOp === "Eliminar"
 
   // ---------------------------------------------------------------- Cassandra y Neo4j
-  const registrar: Registrar = (op, base, detalle, ok) =>
-    setLog((l) => [{ op, base, detalle, hora: horaActual(), ok }, ...l].slice(0, 8))
-  const cassandra = useCassandraCrud(registrar)
-  const neo = useNeo4jCrud(wikiForm, registrar)
+  const cassandra = useCassandraCrud()
+  const neo = useNeo4jCrud(wikiForm)
 
   const boton = (texto: string, peligro = false) => (
     <Button type="submit" disabled={ocupado} variant={peligro ? "destructive" : "default"} className="h-10 w-full text-sm">{texto}</Button>
-  )
-
-  const historial = log.length > 0 && (
-    <div className="flex flex-col gap-2.5 rounded-xl border px-5 py-4 shadow-xs">
-      <span className="text-[13px] font-medium">Operaciones de esta sesión</span>
-      {log.map((r, i) => (
-        <div key={i} className="grid grid-cols-[96px_64px_minmax(0,1fr)] items-center gap-2 text-[13px]">
-          <Badge variant="outline" className={cn("justify-center", r.op === "VALIDADOR" ? "border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400" : r.ok ? "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400" : "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400")}>{r.op}</Badge>
-          <span className="font-mono text-xs text-muted-foreground">{r.hora}</span>
-          <span className="truncate" title={`${r.base} · ${r.detalle}`}>{r.base} · {r.detalle}</span>
-        </div>
-      ))}
-    </div>
   )
 
   return (
@@ -282,13 +253,11 @@ export default function CrudPage() {
                   <pre className="max-h-[420px] overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground/90">{JSON.stringify(resultado.json, null, 2)}</pre>
                 </div>
               </>
-            ) : !creando && !actualizando && !eliminando && log.length === 0 && (
+            ) : !creando && !actualizando && !eliminando && (
               <Vacio titulo="Sin operaciones todavía" texto="Elige una base y una operación; el resultado aparece aquí." />
             )}
-            {!actualizando && historial}
           </div>
           </div>
-          {actualizando && <div className="lg:col-span-3 lg:col-start-3">{historial}</div>}
         </div>
       </Pagina>
     </>

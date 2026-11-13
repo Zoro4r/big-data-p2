@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Segmentado, type WikiCrud } from "@/components/crear-evento"
 import {
   Antes, AvisoDemo, BotonPrueba, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
-  Panel, Punto, QuePasa, Tabla, type Operacion, type Registrar,
+  Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,6 @@ interface Rel { tipo: string; con: string; etiqueta: string; props: Record<strin
 interface Detalle { editor: Record<string, unknown>; n_salientes: number; n_entrantes: number; salientes: Rel[]; entrantes: Rel[] }
 interface Encontrado { user: string; tipo: string | null; relaciones: number }
 
-const BASE = "Neo4j"
 const RELACIONES: [string, string][] = [["REVIRTIO", "REVIRTIO · revirtió a"], ["MENSAJE_A", "MENSAJE_A · le escribió a"], ["AGRADECIO", "AGRADECIO · agradeció a"], ["BLOQUEO", "BLOQUEO · bloqueó a"]]
 const TIPOS_REL = new Set(RELACIONES.map(([t]) => t))
 const TIPOS_EDITOR: [string, string][] = [["registrado", "Registrado"], ["temporal", "Temporal"], ["bot", "Bot"]]
@@ -43,20 +42,18 @@ const Selector = ({ id, valor, opciones, onChange }: { id: string; valor: string
 /** Detalle de un editor, o null si no existe (sirve para avisar "nuevo" / "ya existe"). */
 const pedirDetalle = (user: string) => api<Detalle>(`/api/crud/neo4j/editor/${encodeURIComponent(user)}`).catch(() => null)
 
-export function useNeo4jCrud(wikiCabecera: WikiCrud, registrar: Registrar) {
+export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   const [op, setOp] = useState<Operacion>("Crear")
   const [ocupado, setOcupado] = useState(false)
 
-  async function correr<T>(opLog: Parameters<Registrar>[0], detalle: string, llamada: () => Promise<T>, exito: (r: T) => string): Promise<T | null> {
+  async function correr<T>(_op: string, detalle: string, llamada: () => Promise<T>, exito: (r: T) => string): Promise<T | null> {
     setOcupado(true)
     try {
       const r = await llamada()
-      registrar(opLog, BASE, detalle, true)
       toast.success(exito(r))
       return r
     } catch (e) {
       const msg = (e as Error).message
-      registrar("RECHAZADO", BASE, msg, false)
       toast.error(msg)
       return null
     } finally {

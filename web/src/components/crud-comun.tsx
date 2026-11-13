@@ -11,9 +11,6 @@ import { cn } from "@/lib/utils"
 
 /** Piezas compartidas por el CRUD de Cassandra y Neo4j (mismos patrones que el de MongoDB). */
 
-export type OpCrud = "CREATE" | "READ" | "UPDATE" | "DELETE" | "RECHAZADO" | "VALIDADOR"
-/** Anota una operación en el historial de la página. */
-export type Registrar = (op: OpCrud, base: string, detalle: string, ok: boolean) => void
 export type Operacion = "Crear" | "Consultar" | "Actualizar" | "Eliminar"
 
 /** Cassandra y Neo4j guardan datos que calcula el pipeline: solo se escribe sobre nombres «Demo_…». */

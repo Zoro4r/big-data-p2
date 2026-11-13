@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Segmentado } from "@/components/crear-evento"
 import {
   Antes, BotonPrueba, Campo, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, Ficha, InputEditable,
-  Nota, Operaciones, Panel, Punto, QuePasa, Tabla, type Operacion, type Registrar,
+  Nota, Operaciones, Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,6 @@ import { KPIS } from "@/lib/kpis"
 
 export interface Fila { kpi: string; ventana: string; valor: number | null; detalle: string | null }
 
-const BASE = "Cassandra · kpis"
 const PREFIJO = "demo_"
 const esKpiDemo = (k: string) => k.startsWith(PREFIJO)
 const hoy = () => new Date().toISOString().slice(0, 10)
@@ -58,21 +57,19 @@ function AvisoKpi({ kpi }: { kpi: string }) {
     : <span className="text-red-700 dark:text-red-400">Solo se escribe sobre KPIs que empiezan con «{PREFIJO}».</span>
 }
 
-export function useCassandraCrud(registrar: Registrar) {
+export function useCassandraCrud() {
   const [op, setOp] = useState<Operacion>("Crear")
   const [ocupado, setOcupado] = useState(false)
 
-  /** Corre una llamada con toast e historial; devuelve el resultado o null si falló. */
-  async function correr<T>(opLog: Parameters<Registrar>[0], detalle: string, llamada: () => Promise<T>, exito?: (r: T) => string): Promise<T | null> {
+  /** Corre una llamada con toast; devuelve el resultado o null si falló. */
+  async function correr<T>(_op: string, detalle: string, llamada: () => Promise<T>, exito?: (r: T) => string): Promise<T | null> {
     setOcupado(true)
     try {
       const r = await llamada()
-      registrar(opLog, BASE, detalle, true)
       if (exito) toast.success(exito(r))
       return r
     } catch (e) {
       const msg = (e as Error).message
-      registrar("RECHAZADO", BASE, msg, false)
       toast.error(msg)
       return null
     } finally {
