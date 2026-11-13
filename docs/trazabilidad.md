@@ -1238,6 +1238,10 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
 - **Otros cambios del CRUD:**
   - se quitaron los subtítulos de Cassandra y Neo4j;
   - en Consultar de MongoDB, el tipo de evento ya no tiene «Todos»: sin elegir se buscan todos, y un segundo clic deselecciona.
+- **MongoDB, «Completar con datos de prueba» en Consultar, Actualizar y Eliminar** (commit `feat: pick test data from the last 5 events in mongodb crud`):
+  - abre un modal con los últimos 5 eventos de la wiki (`ModalUltimos` en [consultar-evento.tsx](../web/src/components/consultar-evento.tsx));
+  - al elegir uno, Consultar lo busca por `_id` (`buscarId`), y Actualizar o Eliminar lo cargan;
+  - en Crear sigue llenando el formulario con datos «Demo_».
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
