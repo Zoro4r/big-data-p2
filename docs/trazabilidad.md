@@ -1187,6 +1187,7 @@ En la misma sección se reescribió «Por qué dos caminos»:
     - **MongoDB:** se agregó «Para qué sirve», con su uso en N1, N2 y N7.
     - **Cassandra:** «Para qué sirve» y una columna con el uso de cada tabla y su necesidad.
     - **Neo4j:** «Para qué sirve», con tres preguntas que responde el grafo: la historia de un editor (vista «Red de editores», N2), quiénes sostienen la comunidad (COEDITA, N5) y dónde se concentra el conflicto (N2). Se quitó la viñeta «Por qué Neo4j», que ya quedaba cubierta.
+    - **Relaciones sin uso:** `CREO`, `SUBIO`, `MOVIDA_A` y `EN_CATEGORIA` no las consulta ningún KPI ni vista. Llevan una nota bajo la tabla de relaciones y una mejora en «Trabajo futuro» (sección 12): medir qué temas crecen (N6) y seguir traslados y archivos subidos.
   - Luego, a pedido del usuario, se quitó también la sección 12, «Problemas encontrados y soluciones», porque los problemas ya están corregidos. Las instrucciones del curso no piden esa sección ([requerimientos.md, tabla del informe](requerimientos.md)). «Conclusiones» pasó a ser la sección 12 y «Glosario» la 13; ninguna referencia del texto apuntaba a la sección quitada. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
 
 ---
