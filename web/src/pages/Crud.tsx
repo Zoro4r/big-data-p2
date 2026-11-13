@@ -200,22 +200,22 @@ export default function CrudPage() {
             </TabsContent>
 
             <TabsContent value="cassandra">
-              <Seccion titulo="Tabla kpis">
+              <Seccion titulo="Tabla kpis" className="h-full">
                 <CassandraIzquierda c={cassandra} />
               </Seccion>
             </TabsContent>
 
             <TabsContent value="neo4j">
-              <Seccion titulo="Grafo de editores">
+              <Seccion titulo="Grafo de editores" className="h-full">
                 <Neo4jIzquierda n={neo} />
               </Seccion>
             </TabsContent>
           </Tabs>
 
-          {/* En pantallas anchas la columna derecha mide lo mismo que la izquierda: su contenido se ubica encima de esa
-              altura (absolute) y, si es más largo, se desplaza por dentro. La primera tarjeta crece hasta llenar el alto. */}
-          <div className="relative lg:col-span-3">
-          <div className="flex flex-col gap-4 lg:absolute lg:inset-x-0 lg:top-[52px] lg:bottom-0 lg:overflow-y-auto [&>*:first-child]:grow">
+          {/* En pantallas anchas las dos columnas miden lo mismo: la fila de la grilla toma la altura de la más alta y
+              cada una se estira hasta ahí (la izquierda con h-full; en la derecha, la primera tarjeta crece). */}
+          <div className="flex flex-col lg:col-span-3 lg:pt-[52px]">
+          <div className="flex flex-1 flex-col gap-4 [&>*:first-child]:grow">
             {creando && <EditorEvento ev={evento} />}
             {actualizando && <CambiosActualizacion a={actualizacion} />}
             {eliminando && <PanelEliminacion e={eliminacion} />}
