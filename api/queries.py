@@ -332,10 +332,16 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
 
 
 @cacheado
+def primer_evento() -> str | None:
+    """Fecha del evento más antiguo guardado en MongoDB (usa el índice por_fecha)."""
+    d = mongo_db().events.find_one({}, {"derived.event_dt": 1}, sort=[("derived.event_dt", 1)])
+    return d["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat() if d else None
+
+
+@cacheado
 def arquitectura() -> dict:
     """Cifras en vivo para la página Arquitectura: volumen, ritmo, tipos, DAG y tamaño de cada base."""
     db = mongo_db()
-    primero = db.events.find_one({}, {"derived.event_dt": 1}, sort=[("derived.event_dt", 1)])
     stats = db.command("collStats", "events")
     serie = kpis(24)
     eventos_h = [p["valor"] for p in serie.get("eventos_procesados", []) if p["valor"] is not None]
@@ -344,7 +350,7 @@ def arquitectura() -> dict:
     tipos: dict = defaultdict(int)
     for t in tipos_por_wiki(24):
         tipos[t["tipo"]] += t["eventos"]
-    desde = primero["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat() if primero else None
+    desde = primer_evento()
     return {
         "mongo": {"eventos": total_eventos(), "desde": desde, "tamano_bytes": stats.get("size"),
                   "disco_bytes": stats.get("storageSize"), "indices": [ix["name"] for ix in db.events.list_indexes()]},

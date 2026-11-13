@@ -91,7 +91,7 @@ def sumar_por(filas: list[dict], clave: str, campos: tuple[str, ...]) -> list[di
 def resumen(wiki: str = "ambas"):
     w = None if wiki == "ambas" else wikis_de(wiki)[0]
     return {"kpis": q.kpis(72, w), "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
-            "total": q.total_eventos()}
+            "total": q.total_eventos(), "desde": q.primer_evento()}
 
 
 @app.get("/api/estado")

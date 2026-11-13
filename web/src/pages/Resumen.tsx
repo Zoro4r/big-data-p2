@@ -16,13 +16,13 @@ import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
 interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null }
 
-interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number }
+interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number; desde: string | null }
 
 // Por columnas, cada una un tema (Volumen, Contenido, Editores, Calidad): arriba el dato general, abajo uno
 // más específico. Se listan columna por columna (en pantallas angostas cada tema queda junto) y `orden`
 // las acomoda en la grilla de 4 columnas de pantallas anchas.
 const TARJETAS: { kpi: Kpi; orden: string; pie: (r: Resumen) => string }[] = [
-  { kpi: "total_eventos_acumulados", orden: "xl:order-1", pie: (r) => `${r.kpis.eventos_procesados.length} horas procesadas` },
+  { kpi: "total_eventos_acumulados", orden: "xl:order-1", pie: (r) => (r.desde ? `guardados desde el ${horaLocal(r.desde).split(" · ")[0]}` : "guardados en MongoDB") },
   { kpi: "eventos_procesados", orden: "xl:order-5", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
   { kpi: "volumen_neto_bytes", orden: "xl:order-2", pie: () => "bytes agregados − eliminados" },
   { kpi: "tasa_creacion_pct", orden: "xl:order-6", pie: () => "páginas nuevas / ediciones" },
