@@ -32,6 +32,9 @@ NOT_REVERT = re.compile(r"\b(restored|warning|reporting)\b", re.IGNORECASE)
 # Página afectada en un evento categorize: el primer enlace [[:Página]] del comentario.
 CATEGORIZE_PAGE = re.compile(r"\[\[:?([^|\]]+)")
 BOT_NAME = re.compile(r"bot\b", re.IGNORECASE)  # ClueBot NG, AnomieBOT, InternetArchiveBot
+# Cuentas automáticas sin la marca de bot ni «bot» en el nombre. Automoderator es la herramienta de moderación
+# automática de MediaWiki; en eswiki su cuenta se llama «Automoderador».
+KNOWN_BOTS = {"automoderador", "automoderator"}
 CAT_ADDED = re.compile(r"added to category|añadida a la categoría", re.IGNORECASE)
 CAT_REMOVED = re.compile(r"removed from category|eliminada de la categoría", re.IGNORECASE)
 
@@ -40,11 +43,12 @@ def user_type(event: dict) -> str:
     """Clasifica al editor: bot, temporal (cuentas ~AAAA-...), ip (formato antiguo) o registrado.
 
     Es bot si el evento viene marcado como bot o si el nombre termina una palabra en "bot"
-    (la política de Wikipedia exige ese nombre). Hace falta porque algunos bots, como
-    ClueBot NG, hacen ediciones sin la marca a propósito.
+    (la política de Wikipedia exige ese nombre), o si es una cuenta automática conocida
+    (KNOWN_BOTS). Hace falta porque algunos bots, como ClueBot NG, hacen ediciones sin la marca
+    a propósito, y otras herramientas automáticas no siguen la regla del nombre.
     """
     user = event.get("user", "")
-    if event.get("bot") or BOT_NAME.search(user):
+    if event.get("bot") or BOT_NAME.search(user) or user.lower() in KNOWN_BOTS:
         return "bot"
     if user.startswith("~"):
         return "temporal"

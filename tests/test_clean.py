@@ -22,6 +22,8 @@ def test_user_types():
     # Bots sin la marca bot=True en el evento
     assert user_type(make(user="ClueBot NG")) == "bot"
     assert user_type(make(user="AnomieBOT")) == "bot"
+    # Cuentas automáticas conocidas, sin marca ni «bot» en el nombre
+    assert user_type(make(user="Automoderador")) == "bot"
     assert user_type(make(user="Abbott")) == "registrado"
 
 
