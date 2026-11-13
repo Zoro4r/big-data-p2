@@ -197,7 +197,7 @@ export function useCassandraCrud() {
     setUltimos({ abierto: false, filas: null })
     if (!f) return
     if (op === "Consultar") {
-      const q = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: "todas" }
+      const q = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: String(Number(f.ventana.slice(11, 13))) }
       setConsulta(q); buscar(q, f.ventana); return
     }
     const k = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: String(Number(f.ventana.slice(11, 13))) }
