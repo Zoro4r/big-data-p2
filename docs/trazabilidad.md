@@ -1274,6 +1274,11 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Datos reales o de demostración:** Consultar lista datos reales; Actualizar y Eliminar listan solo los «demo_», porque son los únicos que se pueden escribir. Si no hay, el modal invita a crearlos en «Crear».
   - **Al elegir:** Consultar busca y abre ese registro; Actualizar y Eliminar lo cargan.
   - **Texto del botón:** cambia según la base: «Elegir entre los últimos eventos», «… las últimas filas» o «… los últimos editores».
+- **Filtro de hora en Cassandra › Consultar** (commit `feat: add hour filter to cassandra crud query`): selector «Hora (UTC)» junto a la fecha, con la opción «Todas».
+  - **Con fecha y hora:** el rango de `ventana` cubre una sola fila.
+  - **Con hora sin fecha:** se filtran las últimas filas de esa hora.
+  - Implementación: parámetro `hora` en `GET /api/crud/cassandra` ([main.py, `cassandra_leer`](../api/main.py)).
+  - Verificado en la VM: «Eventos procesados» a las 12:00 UTC sin fecha devuelve 2 filas (12 y 13 nov).
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
