@@ -321,6 +321,12 @@ def cassandra_kpis():
     return {"reales": q.KPIS, "demo": [n for n in nombres if crud.es_kpi_demo(n)]}
 
 
+@app.get("/api/crud/cassandra/ultimas")
+def cassandra_ultimas(demo: bool = False):
+    """Las 5 filas más recientes, para elegir datos de prueba: de los KPIs de demostración o de los reales."""
+    return [_fila_kpi(r) for r in crud.kpi_ultimas(q.cassandra(), demo)]
+
+
 @app.post("/api/crud/cassandra")
 def cassandra_insertar(f: FilaKpi):
     """INSERT de una fila completa. En Cassandra, si la clave ya existe la fila se reemplaza (upsert)."""
@@ -421,6 +427,12 @@ def neo_crear_relacion(r: Relacion):
     res = crud.neo4j_crear_relacion(d, r.origen, r.destino, r.tipo, props)
     q.limpiar_cache()
     return {"relacion": res, "nodos_nuevos": nuevos}
+
+
+@app.get("/api/crud/neo4j/ultimos")
+def neo_ultimos(demo: bool = False):
+    """Los 5 editores más recientes, para elegir datos de prueba: los de demostración o los reales."""
+    return crud.neo4j_ultimos_editores(q.neo4j(), demo)
 
 
 @app.get("/api/crud/neo4j/editores")

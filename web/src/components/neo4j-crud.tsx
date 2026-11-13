@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Segmentado, type WikiCrud } from "@/components/crear-evento"
 import {
-  Antes, AvisoDemo, BotonesGuardar, BotonPrueba, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
+  Antes, AvisoDemo, BotonesGuardar, BotonPrueba, haceTiempo, ModalElegir, Campo, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, esDemo, Ficha, InputEditable, Nota, Operaciones,
   Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 interface Rel { tipo: string; con: string; etiqueta: string; props: Record<string, unknown> }
 interface Detalle { editor: Record<string, unknown>; n_salientes: number; n_entrantes: number; salientes: Rel[]; entrantes: Rel[] }
 interface Encontrado { user: string; tipo: string | null; relaciones: number }
+interface Ultimo extends Encontrado { actividad: string | null }
 
 const RELACIONES: [string, string][] = [["REVIRTIO", "REVIRTIO · revirtió a"], ["MENSAJE_A", "MENSAJE_A · le escribió a"], ["AGRADECIO", "AGRADECIO · agradeció a"], ["BLOQUEO", "BLOQUEO · bloqueó a"]]
 const TIPOS_REL = new Set(RELACIONES.map(([t]) => t))
@@ -94,9 +95,9 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   const [encontrados, setEncontrados] = useState<Encontrado[] | null>(null)
   const [elegido, setElegido] = useState(0)
   const [detalle, setDetalle] = useState<Detalle | null>(null)
-  async function buscar() {
-    if (!filtro.prefijo.trim()) { toast.error("Escribe el comienzo del nombre del editor"); return }
-    const params = new URLSearchParams({ prefijo: filtro.prefijo.trim(), ...(filtro.tipo !== "todos" ? { tipo: filtro.tipo } : {}) })
+  async function buscar(f = filtro) {
+    if (!f.prefijo.trim()) { toast.error("Escribe el comienzo del nombre del editor"); return }
+    const params = new URLSearchParams({ prefijo: f.prefijo.trim(), ...(f.tipo !== "todos" ? { tipo: f.tipo } : {}) })
     const r = await correr(() => api<Encontrado[]>(`/api/crud/neo4j/editores?${params}`),
       (x) => `${x.length} ${x.length === 1 ? "editor" : "editores"}`)
     if (r) { setEncontrados(r); elegir(r, 0) }
@@ -168,12 +169,21 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
       else setRel({ origen: "demo_editor", destino: "demo_editor_2", tipo: "REVIRTIO", veces: "1", wiki: wikiCabecera })
       return
     }
-    if (op === "Consultar") { setFiltro({ prefijo: "demo_", tipo: "todos" }); return }
-    // Actualizar y eliminar necesitan un editor que exista.
-    const d = await pedirDetalle("demo_editor")
-    if (!d) { toast.info("No existe demo_editor: créalo en «Crear» y vuelve aquí"); return }
-    setUser("demo_editor"); setModoBorrar("nodo")
-    cargar("demo_editor")
+    // Consultar, Actualizar y Eliminar: se elige entre 5 editores. Consultar usa los de actividad más reciente;
+    // Actualizar y Eliminar, los de demostración (son los únicos que se pueden escribir).
+    setUltimos({ abierto: true, filas: null })
+    const filas = await api<Ultimo[]>(`/api/crud/neo4j/ultimos?demo=${op !== "Consultar"}`).catch((e) => { toast.error((e as Error).message); return [] })
+    setUltimos({ abierto: true, filas })
+  }
+  const [ultimos, setUltimos] = useState<{ abierto: boolean; filas: Ultimo[] | null }>({ abierto: false, filas: null })
+  function elegirUltimo(u: string) {
+    setUltimos({ abierto: false, filas: null })
+    if (op === "Consultar") {
+      const f = { prefijo: u, tipo: "todos" }
+      setFiltro(f); buscar(f); return
+    }
+    setUser(u); setModoBorrar("nodo")
+    cargar(u)
   }
 
   /** Desde la ficha de Consultar: lleva el editor a Actualizar o Eliminar. */
@@ -188,7 +198,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     filtro, setFiltro, encontrados, elegido, elegir, detalle, buscar,
     user, setUser, cargado, cargar, cambios, valor, original, poner, deshacer, descartar, nuevaProp, setNuevaProp, agregarProp, guardar,
     modoBorrar, setModoBorrar, relElegida, setRelElegida, relacionesBorrables, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
-    completarPrueba,
+    completarPrueba, ultimos, setUltimos, elegirUltimo,
   }
 }
 export type Neo4jCrud = ReturnType<typeof useNeo4jCrud>
@@ -226,7 +236,13 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Operaciones valor={n.op} onChange={n.setOp} />
-      <BotonPrueba onClick={n.completarPrueba} />
+      <BotonPrueba onClick={n.completarPrueba} ultimos={n.op !== "Crear"} />
+      <ModalElegir abierto={n.ultimos.abierto} onCerrar={() => n.setUltimos({ abierto: false, filas: null })} onElegir={n.elegirUltimo}
+        titulo="Últimos 5 editores" descripcion={`Elige uno y confírmalo para usarlo en ${n.op}.`} columnas={["Editor", "Tipo", "Actividad"]}
+        filas={n.ultimos.filas && n.ultimos.filas.map((e) => ({ id: e.user, titulo: e.user, subtitulo: nRel(e.relaciones),
+          medio: e.tipo ?? "—", derecha: haceTiempo(e.actividad) }))}
+        vacio={n.op === "Consultar" ? "No hay editores con actividad." : "No hay editores de demostración: crea uno en «Crear» y vuelve aquí."}
+        pie={(id) => id} accion="Usar este editor" />
 
       {n.op === "Crear" && (
         <>

@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Segmentado } from "@/components/crear-evento"
 import {
-  Antes, BotonesGuardar, BotonPrueba, Campo, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, Ficha, InputEditable,
+  Antes, BotonesGuardar, BotonPrueba, ModalElegir, Campo, Clave, Coincidencias, ConfirmarEscribiendo, DialogoBorrar, Ficha, InputEditable,
   Nota, Operaciones, Panel, Punto, QuePasa, Tabla, type Operacion,
 } from "@/components/crud-comun"
 import { Vacio } from "@/components/common"
@@ -109,11 +109,11 @@ export function useCassandraCrud() {
   const [consulta, setConsulta] = useState({ kpi: "", fecha: "" })
   const [resultados, setResultados] = useState<Fila[] | null>(null)
   const [elegido, setElegido] = useState(0)
-  async function buscar() {
-    if (!consulta.kpi) { toast.error("Elige el KPI: Cassandra siempre consulta por partición"); return }
-    const params = new URLSearchParams({ kpi: consulta.kpi, ...(consulta.fecha ? { fecha: consulta.fecha } : {}) })
+  async function buscar(q = consulta, ventana?: string) {
+    if (!q.kpi) { toast.error("Elige el KPI: Cassandra siempre consulta por partición"); return }
+    const params = new URLSearchParams({ kpi: q.kpi, ...(q.fecha ? { fecha: q.fecha } : {}) })
     const r = await correr(() => api<Fila[]>(`/api/crud/cassandra?${params}`))
-    if (r) { setResultados(r); setElegido(0) }
+    if (r) { setResultados(r); setElegido(Math.max(0, r.findIndex((f) => f.ventana === ventana))) }
   }
 
   // ---------------------------------------------------------------- Actualizar y eliminar: una fila por su clave
@@ -185,12 +185,21 @@ export function useCassandraCrud() {
   /** «Completar con datos de prueba»: los formularios empiezan vacíos y esto los llena con el KPI «demo_kpi». */
   async function completarPrueba() {
     if (op === "Crear") { setNueva({ kpi: "demo_kpi", fecha: hoy(), hora: horaUtc(), valor: "42", detalle: "valor de demostración" }); return }
-    if (op === "Consultar") { setConsulta({ kpi: nombres.demo[0] ?? "eventos_procesados", fecha: "" }); return }
-    // Actualizar y eliminar necesitan una fila que exista: se toma la más reciente del primer KPI de demostración.
-    const kpi = nombres.demo[0]
-    const filas = kpi ? await api<Fila[]>(`/api/crud/cassandra?${new URLSearchParams({ kpi, limite: "1" })}`).catch(() => []) : []
-    if (!filas.length) { toast.info("No hay KPIs de demostración: crea uno en «Crear» y vuelve aquí"); return }
-    const f = filas[0]
+    // Consultar, Actualizar y Eliminar: se elige entre las 5 filas más recientes. Consultar usa los KPIs reales;
+    // Actualizar y Eliminar, los de demostración (son los únicos que se pueden escribir).
+    setUltimos({ abierto: true, filas: null })
+    const filas = await api<Fila[]>(`/api/crud/cassandra/ultimas?demo=${op !== "Consultar"}`).catch((e) => { toast.error((e as Error).message); return [] })
+    setUltimos({ abierto: true, filas })
+  }
+  const [ultimos, setUltimos] = useState<{ abierto: boolean; filas: Fila[] | null }>({ abierto: false, filas: null })
+  function elegirUltimo(id: string) {
+    const f = ultimos.filas?.find((x) => `${x.kpi}|${x.ventana}` === id)
+    setUltimos({ abierto: false, filas: null })
+    if (!f) return
+    if (op === "Consultar") {
+      const q = { kpi: f.kpi, fecha: f.ventana.slice(0, 10) }
+      setConsulta(q); buscar(q, f.ventana); return
+    }
     const k = { kpi: f.kpi, fecha: f.ventana.slice(0, 10), hora: String(Number(f.ventana.slice(11, 13))) }
     setClave(k); setModo("fila"); setConfirmacion("")
     cargar(k)
@@ -209,7 +218,7 @@ export function useCassandraCrud() {
     consulta, setConsulta, resultados, elegido, setElegido, buscar,
     clave, setClave, original, cambios, valor, poner, deshacer, descartar, cargar, guardar,
     modo, setModo, particion, cargarParticion, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
-    completarPrueba,
+    completarPrueba, ultimos, setUltimos, elegirUltimo,
   }
 }
 export type CassandraCrud = ReturnType<typeof useCassandraCrud>
@@ -249,7 +258,13 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
       <Operaciones valor={c.op} onChange={c.setOp} />
-      <BotonPrueba onClick={c.completarPrueba} />
+      <BotonPrueba onClick={c.completarPrueba} ultimos={c.op !== "Crear"} />
+      <ModalElegir abierto={c.ultimos.abierto} onCerrar={() => c.setUltimos({ abierto: false, filas: null })} onElegir={c.elegirUltimo}
+        titulo="Últimas 5 filas" descripcion={`Elige una y confírmala para usarla en ${c.op}.`} columnas={["KPI", "Valor", "Hora"]}
+        filas={c.ultimos.filas && c.ultimos.filas.map((f) => ({ id: `${f.kpi}|${f.ventana}`, titulo: nombreKpi(f.kpi), subtitulo: f.detalle ?? undefined,
+          medio: f.valor == null ? "—" : String(f.valor), derecha: etiquetaVentana(f.ventana).slice(13) }))}
+        vacio={c.op === "Consultar" ? "No hay filas en la tabla kpis." : "No hay KPIs de demostración: crea uno en «Crear» y vuelve aquí."}
+        pie={(id) => id.replace("|", " · ")} accion="Usar esta fila" />
 
       {c.op === "Crear" && (
         <>
