@@ -1341,6 +1341,15 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Tarjeta «Eventos acumulados»** (commit `fix: show start date under accumulated events`): el pie decía «72 horas procesadas», que era la ventana del gráfico. Ahora dice «guardados desde el 31 oct». `/api/resumen` devuelve `desde` con la nueva función `primer_evento`, que también usa la vista Arquitectura ([queries.py](../api/queries.py), [Resumen.tsx](../web/src/pages/Resumen.tsx)).
   - **Tabla «Ejecuciones del pipeline»** (commit `refactor: show source instead of bots and reversions in pipeline runs`): se quitaron las columnas Bots y Reversiones, que ya muestra el gráfico de evolución, y se agregó «Leída de» (MongoDB o EventStreams), lo que necesita un operador (N7).
   - **Informe:** se reemplazaron la captura de las tarjetas y la de las partes de la vista (sin la F) y se actualizó la descripción de la parte E.
+- **Informe, sección 9 (Dashboard) por partes** (revisiones 115 y 116): a pedido del usuario, cada vista tiene su subsección con una captura del 13 nov en la que las partes están numeradas con círculos rojos. Cada número indica qué es, para qué sirve y para quién (patrulleros, Fundación Wikimedia, comunidad u operadores).
+  - **En vivo:** 7 partes.
+  - **Actividad en el tiempo:** 8 partes.
+  - **Explorador de eventos:** 7 partes.
+  - **Red de editores:** 9 partes.
+  - **Resumen y KPIs:** remite a la sección 8 y usa la captura con letras.
+  - **Operaciones CRUD:** remite a la sección 7.
+  - **Arquitectura:** se describe en un párrafo: el detalle por componente, las corridas y la línea punteada del respaldo.
+  - Reemplaza la lista anterior de capturas con pie («Las capturas de cada vista, tomadas…»).
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
