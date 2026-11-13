@@ -301,7 +301,7 @@ const FUENTE: Record<string, string> = { mongodb: "MongoDB", eventstreams: "Even
 const PASOS: [string, string, string][] = [
   ["extraer", "Toma la hora completa de MongoDB si el servicio stream la cubrió sin cortes; si no, la vuelve a pedir al stream (con ?since=). La guarda cruda en un archivo .jsonl.gz.", "Archivo crudo"],
   ["validar_y_limpiar", "Descarta eventos sin meta, sin campos obligatorios, de tipo desconocido o con fecha mal formada, y agrega el bloque derived. Los rechazados se guardan con su motivo.", "Archivo limpio + rechazados"],
-  ["cargar_mongo", "Inserta o reemplaza los eventos limpios en la colección events.", "MongoDB"],
+  ["cargar_mongo", "Inserta o reemplaza los eventos limpios en la colección events. Si la hora se leyó de MongoDB no escribe nada: ya está ahí completa.", "MongoDB"],
   ["cargar_cassandra", "Agrega la hora: totales, serie por minuto, actividad por editor y páginas más editadas.", "Cassandra"],
   ["cargar_neo4j", "Crea o actualiza con MERGE los editores, páginas y categorías, y sus relaciones.", "Neo4j"],
   ["calcular_kpis", "Calcula los 12 KPIs de la hora (global y por wiki) con las tres bases y los guarda.", "Cassandra"],

@@ -4,7 +4,7 @@ Etapas (las pedidas en la sección 3 de las instrucciones):
 1. extraer            → data/raw/AAAA-MM-DD/HHMM.jsonl.gz, desde MongoDB si el servicio stream
                         cubrió la hora sin huecos; si no, desde EventStreams (ver wikipipe/fuente.py)
 2. validar_y_limpiar  → data/clean/... y data/rejected/...
-3. cargar_mongo       → colección events (fuente de verdad)
+3. cargar_mongo       → colección events (fuente de verdad); no escribe si la hora se leyó de MongoDB
 4. cargar_cassandra   → lee la ventana de Mongo y escribe agregados (en paralelo con 5)
 5. cargar_neo4j       → lee la ventana de Mongo y construye el grafo
 6. calcular_kpis      → calcula los KPIs en cada base y los guarda en Cassandra
@@ -63,9 +63,13 @@ def wikipedia_pipeline():
         return stats
 
     @task
-    def cargar_mongo(limpieza: dict) -> dict:
+    def cargar_mongo(limpieza: dict, extraccion: dict) -> dict:
         from wikipipe import mongo
 
+        # Si la hora se leyó de MongoDB, ya está ahí completa (eventos y rechazados): no se reescribe.
+        if extraccion.get("fuente") == "mongodb":
+            return {"processed": limpieza.get("valid", 0), "inserted": 0, "updated": 0, "rejected_stored": 0,
+                    "omitida": "la hora se leyó de MongoDB"}
         return mongo.load_events(mongo.get_db(), Path(limpieza["clean_path"]), Path(limpieza["rejected_path"]))
 
     @task
@@ -131,7 +135,7 @@ def wikipedia_pipeline():
 
     extraccion = extraer()
     limpieza = validar_y_limpiar(extraccion)
-    mongo_ok = cargar_mongo(limpieza)
+    mongo_ok = cargar_mongo(limpieza, extraccion)
     cass_ok = cargar_cassandra(mongo_ok)
     neo_ok = cargar_neo4j(mongo_ok)
     calcular_kpis(extraccion, limpieza, mongo_ok, cass_ok, neo_ok)
