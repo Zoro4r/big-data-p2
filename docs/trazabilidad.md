@@ -1303,6 +1303,12 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - ya no hay flecha del lote a MongoDB;
     - las flechas llegan a puntos distintos de cada caja, sin amontonarse.
   - **Pie del diagrama:** explica la línea punteada.
+- **Explorador de eventos más rápido** (commit `perf: read explorer type counts from cassandra`):
+  - **Diagnóstico:** se midió en la VM cada consulta de la vista. El conteo de eventos por tipo de las últimas 24 h (`tipos_por_wiki`) tardaba 8.3 s, porque agrupaba unos 400 mil documentos en MongoDB en cada carga (la caché dura 60 s). Las demás tardaban menos de 0.1 s.
+  - **Solución:** el conteo ahora suma las últimas 24 horas cerradas de la tabla `resumen_por_hora` de Cassandra, que ya está agregada por hora y wiki ([queries.py, `tipos_por_wiki`](../api/queries.py)). Tarda 0.09 s.
+  - **Arquitectura:** la vista usa la misma función y ya no recurre a MongoDB si Cassandra está vacía.
+  - **Explorador:** el modal de cada tipo indica que el dato sale de Cassandra.
+  - **Pendiente:** el filtro «Solo reversiones» del Explorador sigue tardando unos 7 s. Se propuso un índice parcial en MongoDB sobre `derived.event_dt` para las reversiones, y el usuario todavía no lo decide.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
