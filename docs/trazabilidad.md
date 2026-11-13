@@ -1182,7 +1182,7 @@ En la misma sección se reescribió «Por qué dos caminos»:
   - la viñeta «Nos pasó» de los operadores (sección 2);
   - la frase de horas perdidas en «Confianza (N7)» (sección 11);
   - la fila N7 de las conclusiones (sección 13) ahora dice «permite detectar y recuperar una hora incompleta».
-  - La tabla de problemas de la sección 12 se mantiene. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
+  - Luego, a pedido del usuario, se quitó también la sección 12, «Problemas encontrados y soluciones», porque los problemas ya están corregidos. Las instrucciones del curso no piden esa sección ([requerimientos.md, tabla del informe](requerimientos.md)). «Conclusiones» pasó a ser la sección 12 y «Glosario» la 13; ninguna referencia del texto apuntaba a la sección quitada. La relación COEDITA y la búsqueda del editor más conectado recorren la red completa ([`neo4j_store.py`](../src/wikipipe/neo4j_store.py), `Q_COEDITA`), y hacerlo a cada instante sería un costo desmedido. Por eso el servicio stream no escribe en Neo4j.
 
 ---
 
