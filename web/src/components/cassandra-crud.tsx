@@ -226,11 +226,11 @@ function ClaveFila({ c }: { c: CassandraCrud }) {
     <div className="flex flex-col gap-3">
       <Campo id="ck-kpi" label="KPI" clave="partición"><Input id="ck-kpi" className="font-mono" value={k.kpi} onChange={(e) => c.setClave({ ...k, kpi: e.target.value })} /></Campo>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-3">
-        <Campo id="ck-fecha" label="Fecha (UTC)" clave="agrupación"><Input id="ck-fecha" type="date" value={k.fecha} onChange={(e) => c.setClave({ ...k, fecha: e.target.value })} /></Campo>
-        <Campo id="ck-hora" label="Hora (UTC)" clave="agrupación"><Selector id="ck-hora" valor={k.hora} opciones={HORAS} onChange={(v) => c.setClave({ ...k, hora: v })} /></Campo>
+        <Campo id="ck-fecha" label="Fecha" clave="agrupación"><Input id="ck-fecha" type="date" value={k.fecha} onChange={(e) => c.setClave({ ...k, fecha: e.target.value })} /></Campo>
+        <Campo id="ck-hora" label="Hora" clave="agrupación"><Selector id="ck-hora" valor={k.hora} opciones={HORAS} onChange={(v) => c.setClave({ ...k, hora: v })} /></Campo>
         <Button type="button" variant="outline" disabled={c.ocupado || !k.kpi} onClick={() => c.cargar()}>Cargar</Button>
       </div>
-      <span className="text-xs text-muted-foreground">El KPI y la hora identifican la fila. Llega sola desde Consultar.</span>
+      <span className="text-xs text-muted-foreground">El KPI, la fecha y la hora (en UTC) identifican la fila. Llega sola desde Consultar.</span>
     </div>
   )
 }
