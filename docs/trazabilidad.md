@@ -1253,6 +1253,10 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Cassandra y Neo4j** (commit `fix: use example placeholders in cassandra and neo4j crud`):
     - Cassandra: «Ej. demo_kpi», «Ej. 42» y «Ej. Valor de prueba (opcional)»;
     - Neo4j: «Ej. Demo_John_Doe», «Ej. Demo_Jane_Doe», «Ej. Demo_», «Ej. rol» y «Ej. patrullero».
+  - **Sin «demo» en los placeholders** (commit `fix: use realistic placeholders in cassandra and neo4j crud`): a pedido del usuario, los ejemplos parecen reales.
+    - Cassandra: «Ej. tasa_reversion_pct», «Ej. 4.2» y «Ej. 38 reversiones», que es el formato real del detalle ([kpis.py:89](../src/wikipipe/kpis.py#L89)).
+    - Neo4j: «Ej. John Doe», «Ej. Jane Doe» y «Ej. John».
+    - Las ayudas bajo los campos siguen recordando que solo se escribe sobre «demo_» o «Demo_».
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
