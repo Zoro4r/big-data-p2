@@ -1287,6 +1287,14 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Interfaz:** sin `AvisoDemo`, `AvisoKpi` ni «solo lectura», y los botones ya no se bloquean por el nombre.
   - **Sin cambios:** los datos de prueba de Crear siguen usando «demo_», y la descripción de la página lo recomienda.
   - **Verificado en la VM:** el modal de Neo4j › Actualizar lista 5 editores reales y carga `~2026-60276-33`. El de Cassandra carga `actividad_por_editor · 13:00 UTC`. No se guardó ningún cambio.
+- **Cada operación empieza vacía** (commit `fix: reset crud forms when switching operation`):
+  - **Problema:** al pasar de Actualizar a Eliminar con las pestañas, el formulario llegaba completado con lo de la otra operación, porque las dos compartían la clave.
+  - **Solución:** cambiar de pestaña ahora limpia la clave y lo cargado:
+    - **Cassandra:** `cambiarOp` ([cassandra-crud.tsx](../web/src/components/cassandra-crud.tsx)).
+    - **Neo4j:** `cambiarOp` ([neo4j-crud.tsx](../web/src/components/neo4j-crud.tsx)).
+    - **MongoDB:** `cambiarMOp` en [Crud.tsx](../web/src/pages/Crud.tsx) y `limpiar` en `useActualizacion`/`useEliminacion`.
+  - **Se mantiene:** los botones «Actualizar este» y «Eliminar» de Consultar siguen llevando el registro elegido, porque esa navegación es explícita.
+  - **Se quitó:** después de Crear en MongoDB, el `_id` nuevo ya no queda puesto en las otras operaciones.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
