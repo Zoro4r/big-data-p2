@@ -1193,6 +1193,10 @@ Revisión pedida por el usuario: la correctitud de los términos y la variedad d
   - un párrafo nuevo, «Cómo leer los gráficos»;
   - capturas nuevas de Resumen, En vivo, Actividad y Red.
 - **Docs del repo:** [justificacion-dataset.md](justificacion-dataset.md) y [requerimientos.md](requerimientos.md) usan la nueva definición.
+- **Informe, sección 7 (CRUD), detalle por base:** a pedido del usuario, antes de la tabla resumen, que pasó a llamarse «Resumen de las operaciones», hay una subsección por base: MongoDB (`events`), Cassandra (`actividad_editor`) y Neo4j (grafo de editores).
+  - Cada una explica qué hace Crear, Consultar, Actualizar y Eliminar en la página, según [Crud.tsx](../web/src/pages/Crud.tsx) y sus componentes.
+  - Lleva 4 capturas del dashboard desplegado, con su pie: crear y consultar en MongoDB, y consultar en Cassandra y en Neo4j con «ClueBot NG».
+  - Las capturas solo leen datos: no se escribió nada en las bases.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
