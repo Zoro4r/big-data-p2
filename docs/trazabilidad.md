@@ -1155,6 +1155,14 @@ Revisión de las 7 vistas contra N1 a N7, a pedido del usuario. Cambios aprobado
 - **Explorador** (commit `refactor: remove event type chart from explorer`): se quitó el gráfico «Eventos por tipo y wiki», que no ayudaba a revisar un caso.
 - **Informe, sección 9:** se actualizó la tabla de vistas (En vivo, Explorador, Red, Arquitectura), el texto de las capturas de En vivo y Red, y las capturas de En vivo, Explorador y Red, tomadas del despliegue.
 - **Observación:** en eswiki, «Automoderador», la herramienta de moderación automática, figura como editor registrado porque no tiene la marca de bot ni «bot» en el nombre. Por eso aparece entre los más conectados y los patrulleros.
+- **Corrección aprobada** (commit `fix: classify automoderator accounts as bots`):
+  - [`clean.user_type`](../src/wikipipe/clean.py) reconoce como bot las cuentas de `KNOWN_BOTS`: Automoderador y Automoderator. Hay una prueba nueva en [`tests/test_clean.py`](../tests/test_clean.py); pasan 16.
+  - Desplegado a las 22:40 (UTC−5).
+  - Datos existentes corregidos en la VM:
+    - MongoDB: 1,320 eventos con `derived.user_type = bot`;
+    - Neo4j: el nodo pasó a `tipo = bot`, y se borraron sus 1,397 relaciones COEDITA, porque COEDITA solo une humanos;
+    - Cassandra: 225 filas de `actividad_editor` con `tipo_editor = bot`.
+  - **No se recalcularon** los agregados por hora ya escritos (`resumen_por_hora`, KPIs de horas pasadas). La tasa de automatización de eswiki de esas horas queda apenas más baja: 1,320 eventos en 12 días. Las horas nuevas ya salen bien.
 
 ### 44. Informe: componentes explicados uno por uno
 
