@@ -41,7 +41,7 @@ function plantilla(tipo: Tipo, accion: Accion, wiki: WikiCrud, prueba = false): 
   const dt = ahora.toISOString().replace(/\.\d+Z$/, "Z")
   const p = PREFIJO[wiki]
   const base: Doc = {
-    _id: id, type: "edit", wiki, namespace: 0, title: "Demo CRUD", user: "Demo_Editor", bot: false, comment: "",
+    _id: id, type: "edit", wiki, namespace: 0, title: "demo_titulo", user: "demo_editor", bot: false, comment: "",
     timestamp: Math.floor(ahora.getTime() / 1000),
   }
   const meta = { id, dt, domain: `${wiki.slice(0, 2)}.wikipedia.org`, stream: "mediawiki.recentchange" }
@@ -51,14 +51,14 @@ function plantilla(tipo: Tipo, accion: Accion, wiki: WikiCrud, prueba = false): 
   } else if (tipo === "nueva") {
     extra = { type: "new", title: "Demo página nueva", comment: "Página creada para la demostración del CRUD", length: { new: 1840 }, revision: { new: 1380853877 } }
   } else if (tipo === "categorizacion") {
-    extra = { type: "categorize", namespace: 14, title: `${p.categoria}Demo categoría`, comment: `[[:Demo CRUD]] ${TEXTO_CAT[wiki].añadida}` }
+    extra = { type: "categorize", namespace: 14, title: `${p.categoria}demo_categoria`, comment: `[[:demo_titulo]] ${TEXTO_CAT[wiki].añadida}` }
   } else {
     const log = (log_type: string, log_action: string, params: Doc = {}) => ({ type: "log", log_type, log_action, log_params: params })
     extra = {
-      bloqueo: { ...log("block", "block", { duration: "31 hours", flags: "nocreate" }), namespace: 2, title: `${p.usuario}Demo_Vandalo`, user: "Demo_Admin", comment: "Vandalismo reiterado" },
-      agradecimiento: { ...log("thanks", "thank"), namespace: 2, title: `${p.usuario}Demo_Patrullero` },
-      traslado: { ...log("move", "move", { target: "Demo CRUD (renombrada)", noredir: "0" }), comment: "Título más preciso" },
-      subida: { ...log("upload", "upload"), namespace: 6, title: `${p.archivo}Demo_CRUD.png`, comment: "Imagen subida para la demostración" },
+      bloqueo: { ...log("block", "block", { duration: "31 hours", flags: "nocreate" }), namespace: 2, title: `${p.usuario}demo_vandalo`, user: "demo_admin", comment: "Vandalismo reiterado" },
+      agradecimiento: { ...log("thanks", "thank"), namespace: 2, title: `${p.usuario}demo_patrullero` },
+      traslado: { ...log("move", "move", { target: "demo_titulo_2", noredir: "0" }), comment: "Título más preciso" },
+      subida: { ...log("upload", "upload"), namespace: 6, title: `${p.archivo}demo_archivo.png`, comment: "Imagen subida para la demostración" },
       otra: { ...log("delete", "delete"), comment: "Página de prueba" },
     }[accion]
   }
@@ -190,7 +190,7 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
   const setTipoEditor = (t: string) => ev.cambiar((x) => {
     const user = String(x.user ?? "")
     if (t === "temporal") return { ...x, bot: false, user: user.startsWith("~") ? user : `~2026-${String(Date.now()).slice(-5)}` }
-    return { ...x, bot: t === "bot", user: user.startsWith("~") ? "Demo_Editor" : user }
+    return { ...x, bot: t === "bot", user: user.startsWith("~") ? "demo_editor" : user }
   })
   const tipoEditor = (id: string) => (
     <Campo id={id} label="Tipo de editor">
