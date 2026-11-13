@@ -1118,6 +1118,19 @@ Cambios hechos a partir de las observaciones del usuario:
   - sección 5: tarea `extraer`, plazo de unos 9 días y el nuevo párrafo «De dónde lee la extracción»;
   - sección 12: fila nueva en la tabla de problemas.
 
+**Cambios relacionados:**
+
+- **Reconexión del servicio stream** (commit `fix: reset stream reconnect delay after each successful connection`, [`streaming.py`](../src/wikipipe/streaming.py), métodos `leer` y `correr`):
+  - Wikimedia corta la conexión cada tanto, y cada corte termina en una excepción. Por eso la espera antes de reconectar nunca volvía a 1 s.
+  - Llevaba 88 reconexiones de 60 s cada una, y la vista «En vivo» quedaba un minuto atrasada en cada corte. No se perdían datos, porque retoma con `Last-Event-ID`.
+  - Ahora la espera vuelve a 1 s apenas se conecta.
+- **Fuente en el dashboard** (commit `feat: show batch source in architecture page`):
+  - [`db/cassandra/schema.cql`](../db/cassandra/schema.cql): nueva columna `fuente` en `ejecuciones`. [`cassandra_store.ensure_schema`](../src/wikipipe/cassandra_store.py) la agrega con `ALTER TABLE` si la tabla ya existía.
+  - `write_run` guarda la fuente.
+  - [`Arquitectura.tsx`](../web/src/pages/Arquitectura.tsx):
+    - la tabla de corridas tiene una columna «Fuente»; las corridas anteriores, sin registro, figuran como EventStreams;
+    - los textos de «Datos pasados» y de la tarea `extraer` describen el nuevo comportamiento.
+
 ---
 
 ## Pendientes
