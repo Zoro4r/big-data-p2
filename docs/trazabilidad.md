@@ -1192,7 +1192,8 @@ Revisión pedida por el usuario: la correctitud de los términos y la variedad d
   - secciones 4 (Cassandra), 5 (tareas 4 y 6), 6 (tablas y la viñeta de Neo4j, que ahora es «¿A quién revierten más?») y 9 (tabla de vistas y textos de las capturas);
   - un párrafo nuevo, «Cómo leer los gráficos»;
   - capturas nuevas de Resumen, En vivo, Actividad y Red.
-- **Docs del repo:** [justificacion-dataset.md](justificacion-dataset.md) y [requerimientos.md](requerimientos.md) usan la nueva definición. En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
+- **Docs del repo:** [justificacion-dataset.md](justificacion-dataset.md) y [requerimientos.md](requerimientos.md) usan la nueva definición.
+- **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
 
 ### 44. Informe: componentes explicados uno por uno
 
