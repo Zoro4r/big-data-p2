@@ -197,7 +197,7 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
       <Desplegable id={id} valor={tipoEditorDe(d)} onChange={setTipoEditor} opciones={[["registrado", "Registrado"], ["temporal", "Temporal"], ["bot", "Bot"]]} />
     </Campo>
   )
-  const editor = (label = "Editor") => <Campo id="ev-user" label={label}><Texto id="ev-user" ph="Ej. Demo_Editor" valor={d.user} onChange={(v) => set("user", v)} /></Campo>
+  const editor = (label = "Editor") => <Campo id="ev-user" label={label}><Texto id="ev-user" ph="Ej. John Doe" valor={d.user} onChange={(v) => set("user", v)} /></Campo>
   const comentario = (label = "Comentario") => <Campo id="ev-com" label={label}><Texto id="ev-com" ph="Ej. Corrección de ortografía" valor={d.comment} onChange={(v) => set("comment", v)} /></Campo>
   const par = (a: ReactNode, b: ReactNode) => <div className="grid grid-cols-2 gap-3">{a}{b}</div>
 
@@ -258,7 +258,7 @@ export function FormularioEvento({ ev }: { ev: EventoNuevo }) {
         )}
         {a === "agradecimiento" && (
           <>
-            {par(editor("Quién agradece"), <Campo id="ev-dest" label="Usuario agradecido"><Texto id="ev-dest" ph="Ej. Demo_Editor" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.usuario)} /></Campo>)}
+            {par(editor("Quién agradece"), <Campo id="ev-dest" label="Usuario agradecido"><Texto id="ev-dest" ph="Ej. Jane Doe" valor={sinPrefijo(titulo)} onChange={conPrefijo(p.usuario)} /></Campo>)}
             {tipoEditor("ev-tipo-editor")}
           </>
         )}
