@@ -129,9 +129,9 @@ export default function RedPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {!t ? Array.from({ length: 3 }, (_, i) => <Cargando key={i} alto={120} />) : (
             <>
-              <TarjetaKpi etiqueta="Reversiones" titulo={`${etiqueta} · últimas ${t.horas} horas`} valor={entero(t.reversiones)} pie={`${entero(t.editores_revertidos)} editores revertidos`} onAbrir={() => setMetrica("reversiones")} />
-              <TarjetaKpi etiqueta="Revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="editores revertidos por 2 o más editores" onAbrir={() => setMetrica("varios")} />
-              <TarjetaKpi etiqueta="Editores agradecidos" valor={entero(t.editores_agradecidos)} pie={`${entero(t.pares_agradecimiento)} pares que se agradecieron`} onAbrir={() => setMetrica("agradecidos")} />
+              <TarjetaKpi etiqueta="Reversiones" color="rosa" titulo={`${etiqueta} · últimas ${t.horas} horas`} valor={entero(t.reversiones)} pie={`${entero(t.editores_revertidos)} editores revertidos`} onAbrir={() => setMetrica("reversiones")} />
+              <TarjetaKpi etiqueta="Revertidos por varios" color="violeta" valor={entero(t.revertidos_por_varios)} pie="Editores revertidos por 2 o más editores" onAbrir={() => setMetrica("varios")} />
+              <TarjetaKpi etiqueta="Editores agradecidos" color="verde" valor={entero(t.editores_agradecidos)} pie={`${entero(t.pares_agradecimiento)} pares que se agradecieron`} onAbrir={() => setMetrica("agradecidos")} />
             </>
           )}
         </div>

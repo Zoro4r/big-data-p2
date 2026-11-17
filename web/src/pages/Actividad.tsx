@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, colorWiki, entero, horaDeCelda, horaLocal, ejeDia, horaMs } from "@/lib/format"
+import { COLOR, colorTipo, colorWiki, compararValores, entero, horaDeCelda, horaLocal, ejeDia, horaMs } from "@/lib/format"
 
 interface Actividad {
   fecha: string
@@ -93,6 +93,8 @@ export default function ActividadPage() {
   const [metrica, setMetrica] = useState<MetricaDia | null>(null)
   const [editor, setEditor] = useState<string | null>(null)
   const { data } = useApi<Actividad>(`/api/actividad?wiki=${wiki}${fecha ? `&fecha=${fecha}` : ""}`)
+  const diaAnterior = data?.fecha ? new Date(new Date(data.fecha + "T00:00:00Z").getTime() - 86_400_000).toISOString().slice(0, 10) : null
+  const comparacion = useApi<Actividad>(diaAnterior && data?.fechas.includes(diaAnterior) ? `/api/actividad?wiki=${wiki}&fecha=${diaAnterior}` : null)
   useEffect(() => setHora(null), [wiki, fecha])
   // Hora que se abre minuto a minuto en un modal al hacer clic en el gráfico por hora.
   const [horaMin, setHoraMin] = useState<number | null>(null)
@@ -106,6 +108,15 @@ export default function ActividadPage() {
     const pico = data.minutos.reduce((a, b) => (b.eventos > a.eventos ? b : a))
     return { ev, bots, rev: data.minutos.reduce((s, m) => s + m.reversiones, 0), min: data.minutos.length, pico }
   }, [data])
+
+  const previo = useMemo(() => {
+    if (!data?.minutos.length || !comparacion.data) return null
+    const minutos = new Set(data.minutos.map((m) => horaLocal(m.t, false)))
+    const anteriores = comparacion.data.minutos.filter((m) => minutos.has(horaLocal(m.t, false)))
+    if (anteriores.length !== minutos.size) return null
+    return { ev: anteriores.reduce((s, m) => s + m.eventos, 0), bots: anteriores.reduce((s, m) => s + m.eventos_bot, 0),
+      rev: anteriores.reduce((s, m) => s + m.reversiones, 0), minutos: anteriores.length }
+  }, [data, comparacion.data])
 
   const horas = useMemo(() => (data?.horas ?? []).slice().sort((a, b) => a.hora - b.hora).map((h) => ({ ...h, etiqueta: `${String(h.hora).padStart(2, "0")}:00` })), [data])
   const horaVista = horaMin
@@ -150,18 +161,19 @@ export default function ActividadPage() {
             </Select>
           </div>
         }>
+        {previo && <p className="text-xs text-muted-foreground">Color del valor frente a los mismos minutos del día anterior · reversiones con criterio inverso.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
-              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
+              <TarjetaKpi etiqueta="Eventos del día" color="azul" tonoValor={compararValores(tot.ev, previo?.ev)} valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
+              <TarjetaKpi etiqueta="Promedio por minuto" color="naranja" tonoValor={compararValores(tot.ev / tot.min, previo ? previo.ev / previo.minutos : null)} valor={entero(tot.ev / tot.min)} pie={`Pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
+              <TarjetaKpi etiqueta="Hechos por bots" color="verde" tonoValor={compararValores(tot.bots / tot.ev, previo?.ev ? previo.bots / previo.ev : null)} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta="Reversiones" color="rosa" tonoValor={compararValores(tot.rev, previo?.rev, true)} valor={entero(tot.rev)} pie="Ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>
 
-        <Seccion titulo="Eventos por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora · haz clic en una hora para verla minuto a minuto`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
+        <Seccion titulo="Eventos por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora · haz clic en una hora para verla minuto a minuto`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.humano }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%" className="cursor-pointer"
@@ -170,7 +182,7 @@ export default function ActividadPage() {
                 <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado} />
+                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.humano} />
                 <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -242,14 +254,14 @@ export default function ActividadPage() {
             <DialogTitle>Eventos por minuto · {horaVista != null ? `${etiquetaHora(horaVista)}–${etiquetaHora((horaVista + 1) % 24)}` : ""} (UTC−5)</DialogTitle>
             <DialogDescription>Los 60 minutos de la hora, con humanos y bots apilados ({etiqueta} · Cassandra eventos_por_minuto). Los picos suelen ser bots en ráfaga o una noticia.</DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end"><Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} /></div>
+          <div className="flex justify-end"><Leyenda items={[{ nombre: "Humanos", color: COLOR.humano }, { nombre: "Bots", color: COLOR.bot }]} /></div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={ejeHora.datos} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="15%">
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="ms" type="number" scale="time" domain={ejeHora.dominio} ticks={ejeHora.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip cursor={{ fill: "var(--muted)" }} labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
+                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.humano} isAnimationActive={false} />
                 <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[3, 3, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>

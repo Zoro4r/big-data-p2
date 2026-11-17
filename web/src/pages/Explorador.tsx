@@ -83,7 +83,7 @@ export default function ExploradorPage() {
       <Pagina titulo="Explorador de eventos" descripcion={`Cada cambio de Wikipedia se guarda completo en MongoDB como documento JSON, con sus campos originales y los campos derivados que agrega la limpieza.${data ? ` La colección events tiene ${entero(data.total)} documentos.` : ""}`}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : porTipo.map((t) => (
-            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={`${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de las últimas 24 h`} onAbrir={() => setTipoAbierto(t.clave)} />
+            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} color={t.clave === "new" ? "violeta" : t.clave === "categorize" ? "naranja" : t.clave === "log" ? "cian" : "azul"} valor={entero(t.total)} pie={`${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de las últimas 24 h`} onAbrir={() => setTipoAbierto(t.clave)} />
           ))}
         </div>
 

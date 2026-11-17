@@ -69,24 +69,47 @@ export function ejeDia<T extends { t: string }>(serie: T[], horas = 2) {
 export const horaMs = (ms: number | string) => horaLocal(Number(ms), false)
 
 /**
- * Dos paletas que no se cruzan: las wikis (azul y naranja) y el tipo de editor (gris, violeta y verde).
+ * Colores compartidos por las tarjetas, leyendas y gráficos.
  * Así un mismo color significa siempre lo mismo en todo el dashboard.
  */
 export const COLOR = {
-  enwiki: "#2a78d6",
-  eswiki: "#eb6834",
-  registrado: "#71717a",
+  enwiki: "#3b82f6",
+  eswiki: "#8b5cf6",
+  humano: "#f97316",
+  registrado: "#ea580c",
   temporal: "#8b5cf6",
   ip: "#8b5cf6",
-  bot: "#1baf7a",
+  bot: "#10b981",
   otro: "#a1a1aa",
 } as const
 
-/** Color de la serie según la wiki elegida; "ambas" usa un gris neutro para no confundirse con una wiki. */
+/** Color de la serie según la wiki elegida; "ambas" usa el azul general del panel. */
 export function colorWiki(wiki: string): string {
-  return wiki === "enwiki" ? COLOR.enwiki : wiki === "eswiki" ? COLOR.eswiki : "var(--neutro)"
+  return wiki === "enwiki" ? COLOR.enwiki : wiki === "eswiki" ? COLOR.eswiki : COLOR.enwiki
 }
 
 export function colorTipo(tipo: string | null | undefined): string {
   return (tipo && (COLOR as Record<string, string>)[tipo]) || COLOR.otro
+}
+
+
+export const PALETA_METRICA = {
+  azul: { texto: "text-blue-700 dark:text-blue-400", grafico: "#3b82f6" },
+  naranja: { texto: "text-orange-700 dark:text-orange-400", grafico: "#f97316" },
+  verde: { texto: "text-emerald-700 dark:text-emerald-400", grafico: "#10b981" },
+  violeta: { texto: "text-violet-700 dark:text-violet-400", grafico: "#8b5cf6" },
+  rosa: { texto: "text-rose-700 dark:text-rose-400", grafico: "#f43f5e" },
+  cian: { texto: "text-cyan-700 dark:text-cyan-400", grafico: "#06b6d4" },
+} as const
+export type ColorMetrica = keyof typeof PALETA_METRICA
+export type TonoValor = "bueno" | "malo" | "neutro"
+export const TEXTO_TENDENCIA: Record<TonoValor, string> = {
+  bueno: "text-emerald-700 dark:text-emerald-400",
+  malo: "text-red-700 dark:text-red-400",
+  neutro: "",
+}
+
+export function compararValores(actual: number | null | undefined, anterior: number | null | undefined, inverso = false): TonoValor {
+  if (actual == null || anterior == null || !Number.isFinite(actual) || !Number.isFinite(anterior) || actual === anterior) return "neutro"
+  return (actual > anterior) !== inverso ? "bueno" : "malo"
 }

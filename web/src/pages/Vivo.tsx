@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { BORRADO_GRANDE, cumpleFiltros, FILTROS_EDITOR, SIN_FILTROS, FILTROS_TIPO, NOMBRE_EDITOR, NOMBRE_TIPO, PLURAL_TIPO, tipoEvento, type EventoResumen, type Filtros } from "@/lib/eventos"
-import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
+import { COLOR, colorTipo, compararValores, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface Vivo {
@@ -171,7 +171,7 @@ function hace(iso: string, ahora: number): string {
 }
 
 export default function VivoPage() {
-  const [data, setData] = useState<Vivo | null>(null)
+  const [{ actual: data, anterior }, setLecturas] = useState<{ actual: Vivo | null; anterior: Vivo | null }>({ actual: null, anterior: null })
   const [error, setError] = useState<string | null>(null)
   const [reloj, setReloj] = useState(Date.now())
   const { wiki, wikis, etiqueta } = useWiki()
@@ -179,17 +179,22 @@ export default function VivoPage() {
 
   // Consulta la API cada pocos segundos mientras la página está abierta.
   useEffect(() => {
-    setData(null)
+    setLecturas({ actual: null, anterior: null })
     setError(null)
     let vigente = true
-    const cargar = () =>
-      api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
+    let enCurso = false
+    const cargar = () => {
+      if (enCurso) return
+      enCurso = true
+      return api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
         .then((d) => {
           if (!vigente) return
-          setData(d)
+          setLecturas((previous) => ({ actual: d, anterior: previous.actual }))
           setError(null)
         })
         .catch((e: Error) => vigente && setError(e.message))
+        .finally(() => { enCurso = false })
+    }
     cargar()
     const t = setInterval(cargar, REFRESCO_MS)
     const r = setInterval(() => setReloj(Date.now()), 1000)
@@ -222,20 +227,27 @@ export default function VivoPage() {
     return { ev, bots: p.reduce((s, x) => s + x.eventos_bot, 0), rev: p.reduce((s, x) => s + x.reversiones, 0) }
   }, [data])
 
+  const previos = anterior ? {
+    editores: Object.values(anterior.editores ?? {}).reduce((sum, n) => sum + n, 0),
+    eventos: anterior.por_minuto.reduce((sum, p) => sum + p.eventos, 0),
+    bots: anterior.por_minuto.reduce((sum, p) => sum + p.eventos_bot, 0),
+    reversiones: anterior.por_minuto.reduce((sum, p) => sum + p.reversiones, 0),
+  } : null
+
   return (
     <>
       <Header ruta={["Panel", "En vivo"]} />
       <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada evento de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
         {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
-        <div className="space-y-1"><h2 className="text-base font-semibold">Actividad reciente · provisional</h2><p className="text-sm text-muted-foreground">Últimos 30 minutos por minuto · el minuto actual está en curso. El ritmo por segundo usa los últimos 60 segundos.</p></div>
+        <div className="space-y-1"><h2 className="text-base font-semibold">Actividad reciente · provisional</h2><p className="text-sm text-muted-foreground">Últimos 30 minutos por minuto · el minuto actual está en curso. El ritmo por segundo usa los últimos 60 segundos. El color del valor indica el cambio frente a la actualización anterior.</p></div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
-              <TarjetaKpi etiqueta="Editores activos" valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
+              <TarjetaKpi etiqueta="Eventos por segundo" color="azul" tonoValor={compararValores(data.eventos_ultimo_minuto, anterior?.eventos_ultimo_minuto)} valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
+              <TarjetaKpi etiqueta="Editores activos" color="naranja" tonoValor={compararValores(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0), previos?.editores)} valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
                 pie={`${entero((data.editores?.registrado ?? 0) + (data.editores?.temporal ?? 0) + (data.editores?.ip ?? 0))} personas · ${entero(data.editores?.bot ?? 0)} bots en 30 min`} onAbrir={() => setMetrica("editores")} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones detectadas" valor={entero(tot.rev)} pie="en los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
+              <TarjetaKpi etiqueta="Hechos por bots" color="verde" tonoValor={compararValores(tot.ev ? tot.bots / tot.ev : null, previos?.eventos ? previos.bots / previos.eventos : null)} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta="Reversiones detectadas" color="rosa" tonoValor={compararValores(tot.rev, previos?.reversiones, true)} valor={entero(tot.rev)} pie="En los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>
