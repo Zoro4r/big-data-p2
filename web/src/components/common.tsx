@@ -1,5 +1,4 @@
 import type { ReactNode } from "react"
-import { ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,34 +14,30 @@ const TONO = {
 export function TarjetaKpi(props: {
   etiqueta: string
   valor: string
-  cambio?: { texto: string; tono: keyof typeof TONO; sube: boolean } | null
+  cambio?: { texto: string; tono: keyof typeof TONO; sube: boolean | null } | null
   pie: ReactNode
   titulo?: string
+  /** Solo colorea el valor cuando se solicita explícitamente (por ejemplo, contenido con signo). */
+  tonoValor?: keyof typeof TONO
   /** Si se pasa, la tarjeta se puede clickear (abre el detalle del KPI) */
   onAbrir?: () => void
   /** Clases extra para el elemento de la grilla (por ejemplo, su posición con `order`) */
   className?: string
 }) {
   const { etiqueta, valor, cambio, pie, titulo, onAbrir, className } = props
-  const Icono = cambio?.sube ? TrendingUp : TrendingDown
+  const colorValor = props.tonoValor === "bueno" ? "text-green-700 dark:text-green-400" : props.tonoValor === "malo" ? "text-red-700 dark:text-red-400" : "text-foreground"
   // Subgrid: la tarjeta ocupa 3 filas de la grilla padre (nombre, valor, contexto), así las tarjetas
   // de una misma fila alinean su valor aunque algún nombre ocupe dos líneas.
   const tarjeta = (
-    <Card className={cn("row-span-3 grid grid-rows-subgrid gap-x-0 gap-y-3 py-[18px] shadow-xs", !onAbrir && className, onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
-      <div className="flex items-start justify-between gap-2 px-5">
-        <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
+    <Card className={cn("row-span-3 grid min-h-40 grid-rows-subgrid gap-x-0 gap-y-3 py-4 text-left shadow-xs", !onAbrir && className, onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
+      <div className="flex min-h-9 items-start justify-between gap-2 self-center px-5">
+        <CardDescription className="min-w-0 text-[13px] leading-[18px] font-medium text-foreground">
           {etiqueta}
-          {onAbrir && <ArrowUpRight className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />}
         </CardDescription>
-        {cambio && (
-          <Badge variant="outline" className={cn("gap-1 font-medium", TONO[cambio.tono])}>
-            <Icono className="size-3" aria-hidden />
-            {cambio.texto}
-          </Badge>
-        )}
+        {cambio && <Badge variant="outline" className={cn("ml-auto px-1.5 text-[11px] font-medium tabular-nums", TONO[cambio.tono])}>{cambio.texto}</Badge>}
       </div>
-      <CardTitle className="self-end px-5 text-[28px] leading-none font-semibold tracking-tight tabular-nums">{valor}</CardTitle>
-      <span className="px-5 text-[13px] font-medium">{pie}</span>
+      <CardTitle className={cn("self-center px-5 text-[28px] leading-none font-semibold tracking-tight tabular-nums", colorValor)}>{valor}</CardTitle>
+      <span className="min-h-9 self-center px-5 text-[13px] leading-[18px] font-normal text-muted-foreground">{pie}</span>
     </Card>
   )
   if (!onAbrir) return tarjeta

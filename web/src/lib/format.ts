@@ -44,6 +44,12 @@ export function horaLocal(iso: string | number, conDia = true, segundos = false)
   return conDia ? `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} · ${hora}` : hora
 }
 
+/** Intervalo con las dos fechas cuando cruza la medianoche en UTC−5. */
+export function intervaloLocal(inicio: string, fin: string): string {
+  const mismoDia = aLocal(inicio).toISOString().slice(0, 10) === aLocal(fin).toISOString().slice(0, 10)
+  return `${horaLocal(inicio)}–${horaLocal(fin, !mismoDia)} UTC−5`
+}
+
 /** Hora y día en UTC−5 de una celda guardada por (fecha, hora) en UTC: ("2026-11-11", 3) → "10 nov · 22:00". */
 export const horaDeCelda = (fecha: string, hora: number, conDia = true) => horaLocal(`${fecha}T${dos(hora)}:00:00Z`, conDia)
 
@@ -63,24 +69,41 @@ export function ejeDia<T extends { t: string }>(serie: T[], horas = 2) {
 export const horaMs = (ms: number | string) => horaLocal(Number(ms), false)
 
 /**
- * Dos paletas que no se cruzan: las wikis (azul y naranja) y el tipo de editor (gris, violeta y verde).
- * Así un mismo color significa siempre lo mismo en todo el dashboard.
+ * Paleta pastel compartida por las leyendas y los gráficos.
+ * Cada categoría conserva su color entre vistas; los valores de KPI son neutros.
  */
 export const COLOR = {
-  enwiki: "#2a78d6",
-  eswiki: "#eb6834",
-  registrado: "#71717a",
-  temporal: "#8b5cf6",
-  ip: "#8b5cf6",
-  bot: "#1baf7a",
-  otro: "#a1a1aa",
+  enwiki: "#809fcb",
+  eswiki: "#d99bb1",
+  humano: "#809fcb",
+  registrado: "#809fcb",
+  temporal: "#afc1da",
+  ip: "#afc1da",
+  bot: "#d99bb1",
+  otro: "#bcc3cf",
 } as const
 
-/** Color de la serie según la wiki elegida; "ambas" usa un gris neutro para no confundirse con una wiki. */
+/** Color de la serie según la wiki elegida; "ambas" usa el azul general del panel. */
 export function colorWiki(wiki: string): string {
-  return wiki === "enwiki" ? COLOR.enwiki : wiki === "eswiki" ? COLOR.eswiki : "var(--neutro)"
+  return wiki === "enwiki" ? COLOR.enwiki : wiki === "eswiki" ? COLOR.eswiki : COLOR.enwiki
 }
 
 export function colorTipo(tipo: string | null | undefined): string {
   return (tipo && (COLOR as Record<string, string>)[tipo]) || COLOR.otro
+}
+
+
+export type TonoValor = "bueno" | "malo" | "neutro"
+
+export function compararValores(actual: number | null | undefined, anterior: number | null | undefined): TonoValor {
+  if (actual == null || anterior == null || !Number.isFinite(actual) || !Number.isFinite(anterior) || actual === anterior) return "neutro"
+  return actual > anterior ? "bueno" : "malo"
+}
+
+/** Diferencia absoluta; los porcentajes se comparan en puntos porcentuales. */
+export function variacion(actual: number | null | undefined, anterior: number | null | undefined, unidad: "numero" | "pp" = "numero") {
+  if (actual == null || anterior == null || !Number.isFinite(actual) || !Number.isFinite(anterior)) return null
+  const diferencia = Math.round((actual - anterior) * 100) / 100
+  return { texto: `${diferencia > 0 ? "+" : diferencia < 0 ? "−" : ""}${numero(Math.abs(diferencia))}${unidad === "pp" ? " pp" : ""}`,
+    tono: compararValores(diferencia, 0), sube: diferencia === 0 ? null : diferencia > 0 }
 }

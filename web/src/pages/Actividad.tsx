@@ -14,18 +14,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, colorWiki, entero, horaDeCelda, horaLocal, ejeDia, horaMs } from "@/lib/format"
+import { COLOR, colorTipo, colorWiki, variacion, entero, horaDeCelda, horaLocal, ejeDia, horaMs } from "@/lib/format"
 
-interface Actividad {
-  fecha: string
-  fechas: string[]
-  minutos: { t: string; eventos: number; eventos_bot: number; reversiones: number }[]
-  horas: { hora: number; eventos: number; eventos_bot: number; eventos_humanos: number; reversiones: number }[]
-  top: { hora: number; posicion: number; wiki: string; pagina: string; ediciones: number; editores: number; delta_bytes: number }[]
-}
+import { totalesActividad, type Actividad } from "@/lib/actividad"
+
 type MetricaDia = "dia" | "prom" | "bots" | "rev"
 const ORDEN_DIA: MetricaDia[] = ["dia", "prom", "bots", "rev"]
-const NOMBRE_DIA: Record<MetricaDia, string> = { dia: "Eventos del día", prom: "Promedio por minuto", bots: "Hechos por bots", rev: "Reversiones" }
+const NOMBRE_DIA: Record<MetricaDia, string> = { dia: "Eventos consolidados", prom: "Promedio por minuto", bots: "Eventos de bots", rev: "Reversiones detectadas" }
 
 /** Anterior y siguiente (circular) para recorrer las tarjetas desde el modal. */
 function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) => void) {
@@ -37,48 +32,45 @@ function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) 
 /** Detalle de cada tarjeta del día, a partir de las series por minuto y por hora de Cassandra. */
 function metricaDia(k: MetricaDia, d: Actividad, etiqueta: string): MetricaModal {
   const horas = d.horas.slice().sort((a, b) => a.hora - b.hora)
-  const ev = d.minutos.reduce((s, m) => s + m.eventos, 0)
-  const bots = d.minutos.reduce((s, m) => s + m.eventos_bot, 0)
-  const rev = d.minutos.reduce((s, m) => s + m.reversiones, 0)
-  const pico = d.minutos.reduce((a, b) => (b.eventos > a.eventos ? b : a), d.minutos[0])
+  const { ev, bots, rev, min: minutos, pico } = totalesActividad(d)
   const max = (c: "eventos" | "reversiones") => horas.reduce((a, b) => (b[c] > a[c] ? b : a), horas[0])
   const min = horas.reduce((a, b) => (b.eventos < a.eventos ? b : a), horas[0])
   const hh = (h?: { hora: number }) => (h ? `${String(h.hora).padStart(2, "0")}:00` : "—")
   const desde = horas.length ? hh(horas[0]) : ""
-  const origen = <>Se lee de <Base base="cassandra" /> (tabla eventos_por_minuto, una partición por wiki y día), que llenan la capa de streaming y el DAG.</>
+  const origen = <>Se lee de <Base base="cassandra" /> (tabla resumen_por_hora). El detalle por minuto se restringe a esas mismas horas consolidadas.</>
   const comun = { etiqueta, momento: `${d.fecha} · UTC−5`, origen }
   if (k === "dia") return {
-    ...comun, titulo: NOMBRE_DIA.dia, valor: entero(ev), nota: `${horas.length} horas con datos`,
+    ...comun, titulo: NOMBRE_DIA.dia, valor: minutos ? entero(ev) : "—", nota: "Solo horas consolidadas del día",
     serie: { valores: horas.map((h) => h.eventos), desde },
     datos: [["Hora más activa", `${hh(max("eventos"))} · ${entero(max("eventos")?.eventos)}`], ["Hora más tranquila", `${hh(min)} · ${entero(min?.eventos)}`],
       ["Promedio por hora", horas.length ? entero(ev / horas.length) : "—"]],
-    definicion: `Eventos de ${etiqueta} registrados durante el día elegido (UTC−5).`,
-    calculo: { texto: "Σ eventos por minuto del día" },
+    definicion: `Eventos de ${etiqueta} de las horas consolidadas del día elegido (UTC−5).`,
+    calculo: { texto: "Σ eventos de las horas consolidadas del día" },
     lectura: "Volumen diario de actividad. Permite comparar días y ver el ciclo de día y noche de cada wiki.",
   }
   if (k === "prom") return {
-    ...comun, titulo: NOMBRE_DIA.prom, valor: d.minutos.length ? entero(ev / d.minutos.length) : "—",
+    ...comun, titulo: NOMBRE_DIA.prom, valor: minutos ? entero(ev / minutos) : "—",
     nota: pico ? `pico de ${entero(pico.eventos)} a las ${horaLocal(pico.t, false)}` : undefined,
     serie: { valores: horas.map((h) => h.eventos / 60), desde },
-    datos: [["Minutos con datos", entero(d.minutos.length)], ["Minuto más activo", pico ? `${entero(pico.eventos)} · ${horaLocal(pico.t, false)}` : "—"]],
-    definicion: "Eventos que llegan en un minuto típico del día.",
-    calculo: { fraccion: ["eventos del día", "minutos con datos"] },
+    datos: [["Minutos consolidados", entero(minutos)], ["Minuto más activo", pico ? `${entero(pico.eventos)} · ${horaLocal(pico.t, false)}` : "—"]],
+    definicion: "Promedio por minuto de las horas consolidadas del día, incluidos sus minutos sin eventos.",
+    calculo: { fraccion: ["eventos consolidados del día", "horas consolidadas × 60"] },
     lectura: "Ritmo habitual de la wiki. Un pico muy por encima del promedio suele ser un bot trabajando en ráfaga o una noticia.",
   }
   if (k === "bots") return {
-    ...comun, titulo: NOMBRE_DIA.bots, valor: ev ? `${((bots / ev) * 100).toFixed(1)} %` : "—", nota: `${entero(bots)} eventos de bots`,
+    ...comun, titulo: NOMBRE_DIA.bots, valor: ev ? `${((bots / ev) * 100).toFixed(2)} %` : "—", nota: `${entero(bots)} eventos de bots`,
     serie: { valores: horas.map((h) => (h.eventos ? (h.eventos_bot / h.eventos) * 100 : 0)), desde },
     datos: [["Eventos de bots", entero(bots)], ["Eventos humanos", entero(ev - bots)]],
-    definicion: "Porcentaje de los eventos del día hechos por bots.",
+    definicion: "Porcentaje de los eventos consolidados del día hechos por bots.",
     calculo: { fraccion: ["eventos de bots", "total de eventos", "× 100"] },
     lectura: "Cuánto del trabajo diario hacen bots (marca bot=true o «bot» en el nombre). Si sube en ciertas horas, suele ser un bot procesando páginas en lote.",
   }
   return {
-    ...comun, titulo: NOMBRE_DIA.rev, valor: entero(rev), nota: "ediciones que revierten a otro editor",
+    ...comun, titulo: NOMBRE_DIA.rev, valor: minutos ? entero(rev) : "—", nota: "Ediciones que deshacen cambios de otro editor",
     serie: { valores: horas.map((h) => h.reversiones), desde },
     datos: [["Hora con más", `${hh(max("reversiones"))} · ${entero(max("reversiones")?.reversiones)}`], ["Por cada 100 eventos", ev ? ((rev / ev) * 100).toFixed(2) : "—"]],
-    definicion: "Ediciones del día que deshacen el trabajo de otro editor.",
-    calculo: { texto: "Σ reversiones por minuto del día" },
+    definicion: "Ediciones de las horas consolidadas del día que deshacen el trabajo de otro editor.",
+    calculo: { texto: "Σ reversiones de las horas consolidadas del día" },
     lectura: "Señal de vandalismo o de conflicto. Las horas con muchas reversiones suelen coincidir con patrulleros o bots antivandalismo activos.",
   }
 }
@@ -93,19 +85,23 @@ export default function ActividadPage() {
   const [metrica, setMetrica] = useState<MetricaDia | null>(null)
   const [editor, setEditor] = useState<string | null>(null)
   const { data } = useApi<Actividad>(`/api/actividad?wiki=${wiki}${fecha ? `&fecha=${fecha}` : ""}`)
+  const diaAnterior = data?.fecha ? new Date(new Date(data.fecha + "T00:00:00Z").getTime() - 86_400_000).toISOString().slice(0, 10) : null
+  const comparacion = useApi<Actividad>(diaAnterior && data?.fechas.includes(diaAnterior) ? `/api/actividad?wiki=${wiki}&fecha=${diaAnterior}` : null)
   useEffect(() => setHora(null), [wiki, fecha])
   // Hora que se abre minuto a minuto en un modal al hacer clic en el gráfico por hora.
   const [horaMin, setHoraMin] = useState<number | null>(null)
   useEffect(() => setHoraMin(null), [wiki, fecha])
   const historial = useApi<FilaEditor[]>(editor ? `/api/editor/${encodeURIComponent(editor)}` : null)
 
-  const tot = useMemo(() => {
-    if (!data?.minutos.length) return null
-    const ev = data.minutos.reduce((s, m) => s + m.eventos, 0)
-    const bots = data.minutos.reduce((s, m) => s + m.eventos_bot, 0)
-    const pico = data.minutos.reduce((a, b) => (b.eventos > a.eventos ? b : a))
-    return { ev, bots, rev: data.minutos.reduce((s, m) => s + m.reversiones, 0), min: data.minutos.length, pico }
-  }, [data])
+  const tot = useMemo(() => data ? totalesActividad(data) : null, [data])
+  const previo = useMemo(() => {
+    if (!data?.horas.length || !comparacion.data) return null
+    const elegidas = new Set(data.horas.map((h) => h.hora))
+    const anteriores = comparacion.data.horas.filter((h) => elegidas.has(h.hora))
+    if (anteriores.length !== elegidas.size) return null
+    const result = totalesActividad({ ...comparacion.data, horas: anteriores })
+    return { ...result, minutos: result.min }
+  }, [data, comparacion.data])
 
   const horas = useMemo(() => (data?.horas ?? []).slice().sort((a, b) => a.hora - b.hora).map((h) => ({ ...h, etiqueta: `${String(h.hora).padStart(2, "0")}:00` })), [data])
   const horaVista = horaMin
@@ -140,7 +136,7 @@ export default function ActividadPage() {
   return (
     <>
       <Header ruta={["Panel", "Actividad en el tiempo"]} />
-      <Pagina titulo="Actividad en el tiempo" descripcion={`Actividad de ${etiqueta} el ${data?.fecha ?? "…"} (UTC−5). Cada vista lee una tabla de Cassandra diseñada para esa consulta.`}
+      <Pagina titulo="Actividad en el tiempo" descripcion={`Actividad consolidada de ${etiqueta} el ${data?.fecha ?? "…"} (UTC−5).`}
         acciones={
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Día (UTC−5)</span>
@@ -150,18 +146,20 @@ export default function ActividadPage() {
             </Select>
           </div>
         }>
+        {Boolean(data?.pendientes?.eventos) && <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">Además, {entero(data?.pendientes.eventos)} eventos del día esperan consolidación.</p>}
+        {previo && <p className="text-xs text-muted-foreground">Cambios frente a las mismas horas del día anterior.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos del día" valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
-              <TarjetaKpi etiqueta="Promedio por minuto" valor={entero(tot.ev / tot.min)} pie={`pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={`${((tot.bots / tot.ev) * 100).toFixed(1)} %`} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
+              <TarjetaKpi etiqueta={NOMBRE_DIA.dia} cambio={variacion(tot.ev, previo?.ev)} valor={tot.min ? entero(tot.ev) : "—"} pie={data?.corte ? `Cierre: ${horaLocal(data.corte)}` : "Sin horas consolidadas"} onAbrir={() => setMetrica("dia")} />
+              <TarjetaKpi etiqueta="Promedio por minuto" cambio={variacion(tot.ev / tot.min, previo ? previo.ev / previo.minutos : null)} valor={tot.min ? entero(tot.ev / tot.min) : "—"} pie={tot.pico ? `Pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}` : "Sin horas consolidadas"} onAbrir={() => setMetrica("prom")} />
+              <TarjetaKpi etiqueta={NOMBRE_DIA.bots} cambio={variacion(tot.ev ? 100 * tot.bots / tot.ev : null, previo?.ev ? 100 * previo.bots / previo.ev : null, "pp")} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(2)} %` : "—"} pie={`${entero(tot.bots)} de ${entero(tot.ev)} eventos`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta={NOMBRE_DIA.rev} cambio={variacion(tot.rev, previo?.rev)} valor={tot.min ? entero(tot.rev) : "—"} pie="Deshacen cambios de otro editor" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>
 
-        <Seccion titulo="Eventos por hora" descripcion={`Eventos de ${etiqueta} · Cassandra resumen_por_hora · haz clic en una hora para verla minuto a minuto`} accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} />}>
+        <Seccion titulo="Eventos por hora" descripcion="Horas consolidadas · haz clic en una barra para ver sus minutos" accion={<Leyenda items={[{ nombre: "Humanos", color: COLOR.humano }, { nombre: "Bots", color: COLOR.bot }]} />}>
           {!data ? <Cargando alto={260} /> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={horas} margin={{ left: 0, right: 8, top: 8 }} barCategoryGap="22%" className="cursor-pointer"
@@ -170,7 +168,7 @@ export default function ActividadPage() {
                 <XAxis dataKey="etiqueta" tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)} />
                 <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.registrado} />
+                <Bar dataKey="eventos_humanos" name="Humanos" stackId="a" fill={COLOR.humano} />
                 <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -242,14 +240,14 @@ export default function ActividadPage() {
             <DialogTitle>Eventos por minuto · {horaVista != null ? `${etiquetaHora(horaVista)}–${etiquetaHora((horaVista + 1) % 24)}` : ""} (UTC−5)</DialogTitle>
             <DialogDescription>Los 60 minutos de la hora, con humanos y bots apilados ({etiqueta} · Cassandra eventos_por_minuto). Los picos suelen ser bots en ráfaga o una noticia.</DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end"><Leyenda items={[{ nombre: "Humanos", color: COLOR.registrado }, { nombre: "Bots", color: COLOR.bot }]} /></div>
+          <div className="flex justify-end"><Leyenda items={[{ nombre: "Humanos", color: COLOR.humano }, { nombre: "Bots", color: COLOR.bot }]} /></div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={ejeHora.datos} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="15%">
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="ms" type="number" scale="time" domain={ejeHora.dominio} ticks={ejeHora.ticks} tickFormatter={horaMs} tickLine={false} axisLine={false} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={44} fontSize={11} stroke="var(--muted-foreground)" />
                 <Tooltip cursor={{ fill: "var(--muted)" }} labelFormatter={(t) => `${horaMs(t)} UTC−5`} contentStyle={{ borderRadius: 8, fontSize: 12, background: "var(--popover)", borderColor: "var(--border)", color: "var(--popover-foreground)" }} formatter={(v: number, n: string) => [entero(v), n]} />
-                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.registrado} isAnimationActive={false} />
+                <Bar dataKey="humanos" name="Humanos" stackId="a" fill={COLOR.humano} isAnimationActive={false} />
                 <Bar dataKey="eventos_bot" name="Bots" stackId="a" fill={COLOR.bot} radius={[3, 3, 0, 0]} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>

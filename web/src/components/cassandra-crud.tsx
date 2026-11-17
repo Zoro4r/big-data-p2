@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api } from "@/lib/api"
 import { KPIS } from "@/lib/kpis"
+import { useCreados } from "@/lib/crud-creados"
 
 /** CRUD de la tabla kpis de Cassandra (clave ((kpi), ventana)): cada fila es el valor ya calculado de un KPI en una hora.
  *  Los datos de prueba usan KPIs «demo_…», que el dashboard no muestra porque no tienen tarjeta. */
@@ -48,6 +49,8 @@ const Selector = ({ id, valor, opciones, onChange }: { id: string; valor: string
 
 
 export function useCassandraCrud() {
+  const creados = useCreados("cassandra")
+  const [filasCreadas, setFilasCreadas] = useState<Fila[]>([])
   const [op, setOp] = useState<Operacion>("Crear")
   const [ocupado, setOcupado] = useState(false)
 
@@ -94,7 +97,10 @@ export function useCassandraCrud() {
   async function insertar() {
     const r = await correr(() => api<{ reemplazo: boolean; fila: Fila }>("/api/crud/cassandra", { method: "POST", body: JSON.stringify(filaNueva) }),
       (x) => (x.reemplazo ? "Fila reemplazada (la clave ya existía)" : "Fila insertada"))
-    if (r) { setInsertada(r); setExistente(r.fila); recargarNombres() }
+    if (r) {
+      creados.agregar(JSON.stringify([r.fila.kpi, r.fila.ventana]))
+      setInsertada(r); setExistente(r.fila); recargarNombres()
+    }
   }
 
   // ---------------------------------------------------------------- Consultar
@@ -169,6 +175,8 @@ export function useCassandraCrud() {
       (x) => `${x.filas_eliminadas} ${x.filas_eliminadas === 1 ? "fila eliminada" : "filas eliminadas"}`)
     setDialogo(false)
     if (r) {
+      const eliminadas = modo === "fila" && original ? [original] : particion ?? []
+      creados.quitar(...eliminadas.map((f) => JSON.stringify([f.kpi, f.ventana])))
       setBorrado(`DELETE · ${r.filas_eliminadas} ${r.filas_eliminadas === 1 ? "fila" : "filas"} · ${detalle}`)
       setOriginal(null); setParticion(null); setConfirmacion(""); recargarNombres()
     }
@@ -179,12 +187,24 @@ export function useCassandraCrud() {
     if (op === "Crear") { setNueva({ kpi: "demo_kpi", fecha: hoy(), hora: horaUtc(), valor: "42", detalle: "valor de demostración" }); return }
     // Consultar, Actualizar y Eliminar: se elige entre las 5 filas más recientes de la tabla.
     setUltimos({ abierto: true, filas: null })
-    const filas = await api<Fila[]>("/api/crud/cassandra/ultimas").catch((e) => { toast.error((e as Error).message); return [] })
-    setUltimos({ abierto: true, filas })
+    try {
+      const [filas, propias] = await Promise.all([
+        api<Fila[]>("/api/crud/cassandra/ultimas"),
+        creados.cargar((id) => {
+          const [kpi, ventana] = JSON.parse(id) as [string, string]
+          return api<Fila>(`/api/crud/cassandra/fila?${new URLSearchParams({ kpi, ventana })}`)
+        }),
+      ])
+      setFilasCreadas(propias)
+      setUltimos({ abierto: true, filas })
+    } catch (e) {
+      setUltimos({ abierto: false, filas: null })
+      toast.error((e as Error).message)
+    }
   }
   const [ultimos, setUltimos] = useState<{ abierto: boolean; filas: Fila[] | null }>({ abierto: false, filas: null })
   function elegirUltimo(id: string) {
-    const f = ultimos.filas?.find((x) => `${x.kpi}|${x.ventana}` === id)
+    const f = [...filasCreadas, ...(ultimos.filas ?? [])].find((x) => JSON.stringify([x.kpi, x.ventana]) === id)
     setUltimos({ abierto: false, filas: null })
     if (!f) return
     if (op === "Consultar") {
@@ -216,7 +236,7 @@ export function useCassandraCrud() {
     consulta, setConsulta, resultados, elegido, setElegido, buscar,
     clave, setClave, original, cambios, valor, poner, deshacer, descartar, cargar, guardar,
     modo, setModo, particion, cargarParticion, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
-    completarPrueba, ultimos, setUltimos, elegirUltimo,
+    completarPrueba, ultimos, setUltimos, elegirUltimo, filasCreadas,
   }
 }
 export type CassandraCrud = ReturnType<typeof useCassandraCrud>
@@ -259,10 +279,12 @@ export function CassandraIzquierda({ c }: { c: CassandraCrud }) {
       <BotonPrueba onClick={c.completarPrueba} ultimos={c.op !== "Crear" && "las últimas filas"} />
       <ModalElegir abierto={c.ultimos.abierto} onCerrar={() => c.setUltimos({ abierto: false, filas: null })} onElegir={c.elegirUltimo}
         titulo="Últimas 5 filas" descripcion={`Elige una y confírmala para usarla en ${c.op}.`} columnas={["KPI", "Valor", "Hora"]}
-        filas={c.ultimos.filas && c.ultimos.filas.map((f) => ({ id: `${f.kpi}|${f.ventana}`, titulo: nombreKpi(f.kpi), subtitulo: f.detalle ?? undefined,
+        filas={c.ultimos.filas && c.ultimos.filas.map((f) => ({ id: JSON.stringify([f.kpi, f.ventana]), titulo: nombreKpi(f.kpi), subtitulo: f.detalle ?? undefined,
+          medio: f.valor == null ? "—" : String(f.valor), derecha: etiquetaVentana(f.ventana).slice(13) }))}
+        creadas={c.filasCreadas.map((f) => ({ id: JSON.stringify([f.kpi, f.ventana]), titulo: nombreKpi(f.kpi), subtitulo: f.detalle ?? undefined,
           medio: f.valor == null ? "—" : String(f.valor), derecha: etiquetaVentana(f.ventana).slice(13) }))}
         vacio="No hay filas en la tabla kpis."
-        pie={(id) => id.replace("|", " · ")} accion="Usar esta fila" />
+        pie={(id) => (JSON.parse(id) as string[]).join(" · ")} accion="Usar esta fila" />
 
       {c.op === "Crear" && (
         <>

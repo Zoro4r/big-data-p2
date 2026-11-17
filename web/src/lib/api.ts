@@ -37,7 +37,8 @@ export function useApi<T>(ruta: string | null) {
   const [version, setVersion] = useState(0)
 
   useEffect(() => {
-    if (!ruta) return
+    setData(null)
+    if (!ruta) { setCargando(false); return }
     let vigente = true
     setCargando(true)
     setError(null)

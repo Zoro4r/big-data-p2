@@ -6,7 +6,9 @@ Este documento recorre, sección por sección, lo que piden las instrucciones de
 
 Cada referencia a otro archivo indica la sección o las líneas y lleva un enlace directo. Las páginas del dashboard enlazan a la versión desplegada (http://34.45.96.253:8501, pide la contraseña del equipo).
 
-**Estado general:** las secciones 1 a 6 están implementadas y desplegadas. Quedan pendientes el informe en PDF (con capturas del dashboard) y el video.
+La revisión de desarrollo en `dev-ian` añade ventanas por wiki en Neo4j, recuperación de conteos, métricas con períodos explícitos y pruebas locales. El procedimiento está en [correcciones-dev-ian.md](correcciones-dev-ian.md). Las cifras de GCP de este documento corresponden a la fecha indicada arriba.
+
+**Estado general de esa revisión:** las secciones 1 a 6 están implementadas y desplegadas. Quedan pendientes el informe en PDF (con capturas del dashboard) y el video.
 
 | Sección | Estado |
 | --- | --- |
@@ -55,11 +57,12 @@ Cada referencia a otro archivo indica la sección o las líneas y lleva un enlac
   - hay índices por fecha, por wiki y tipo, por editor y por página ([`indexes`, línea 65](../db/mongo/schema.json#L65)).
 
 **Cassandra: series de tiempo y agregados.**
-- Siete tablas en [db/cassandra/schema.cql](../db/cassandra/schema.cql), cada una diseñada para una consulta del dashboard:
+- Ocho tablas en [db/cassandra/schema.cql](../db/cassandra/schema.cql), cada una diseñada para una consulta del dashboard:
   - [`resumen_por_hora` (línea 8)](../db/cassandra/schema.cql#L8): totales de cada hora por wiki.
   - [`eventos_por_minuto` (línea 27)](../db/cassandra/schema.cql#L27): serie por minuto.
   - [`actividad_editor` (línea 39)](../db/cassandra/schema.cql#L39): historial de un editor, hora por hora.
   - [`paginas_top_por_hora` (línea 55)](../db/cassandra/schema.cql#L55): páginas más editadas de cada hora.
+  - `paginas_disputadas_por_hora`: ranking horario de páginas con reversiones.
   - [`kpis` (línea 68)](../db/cassandra/schema.cql#L68) y [`kpis_por_wiki` (línea 77)](../db/cassandra/schema.cql#L77): el valor de cada KPI por hora.
   - [`ejecuciones` (línea 87)](../db/cassandra/schema.cql#L87): registro de las corridas del pipeline.
 - Encaja con Cassandra porque son series temporales que se escriben sin parar y se leen por partición (un día, una wiki, un editor) con orden por tiempo.
@@ -79,7 +82,7 @@ Cada referencia a otro archivo indica la sección o las líneas y lleva un enlac
   - [«Modelo de grafo preliminar»](justificacion-dataset.md#modelo-de-grafo-preliminar): el esquema del grafo, de dónde sale cada relación y un ejemplo real.
 - La página [Arquitectura](http://34.45.96.253:8501/arquitectura) del dashboard: cada base abre un modal con qué guarda, por qué ahí y quién escribe.
   - MongoDB, además, el validador y los índices ([`Mongo`, línea 354](../web/src/pages/Arquitectura.tsx#L354)).
-  - Cassandra, las 7 tablas con su clave primaria ([`Cassandra`, línea 385](../web/src/pages/Arquitectura.tsx#L385)).
+  - Cassandra, las 8 tablas con su clave primaria ([`Cassandra`, línea 385](../web/src/pages/Arquitectura.tsx#L385)).
   - Neo4j, el esquema del grafo, de qué parte del evento sale cada relación y un ejemplo real de reversiones ([`Neo4j`, línea 416](../web/src/pages/Arquitectura.tsx#L416)).
 
 Falta pasarla al informe técnico en PDF, que todavía está pendiente (ver [Entregables](#entregables)). Este material será la base de su sección de modelos de datos.
@@ -130,24 +133,12 @@ Las operaciones están en dos lugares:
 
 Las tres bases usan la misma interfaz: la columna izquierda tiene los campos y la derecha muestra el resultado antes de ejecutar. Las piezas compartidas están en [crud-comun.tsx](../web/src/components/crud-comun.tsx).
 
-**Cassandra (tabla `actividad_editor`, clave `((editor), fecha, hora, wiki)`)**: interfaz en [cassandra-crud.tsx](../web/src/components/cassandra-crud.tsx) ([`useCassandraCrud`, línea 57](../web/src/components/cassandra-crud.tsx#L57)). Las rutas de API van desde [`cassandra_insertar`, main.py línea 306](../api/main.py#L306) y las funciones de base, en [crud.py, sección «Cassandra», línea 146](../src/wikipipe/crud.py#L146).
-- **Inserción:**
-  - `INSERT` de la fila completa: la clave (editor como partición; fecha, hora y wiki como agrupación) y las seis métricas;
-  - a la derecha se ve la fila que se va a insertar;
-  - si esa clave ya existe, un aviso explica que en Cassandra el INSERT **reemplaza** la fila, sin error de duplicado.
-- **Consulta:**
-  - `SELECT` por partición: siempre por editor, con fecha y hora opcionales;
-  - las coincidencias aparecen debajo de "Buscar";
-  - la ficha muestra las métricas y la fila completa.
-- **Actualización:**
-  - se carga la fila por su clave completa y se editan las métricas con "· editado" y deshacer;
-  - a la derecha, la tabla de cambios y la fila resultante;
-  - el `UPDATE` cambia solo esas columnas ([`cassandra_actualizar_columnas`, crud.py línea 200](../src/wikipipe/crud.py#L200));
-  - la clave no se puede cambiar, porque sería otra fila.
-- **Eliminación:**
-  - `DELETE` de una fila, o de toda la partición del editor;
-  - se confirma escribiendo el editor y luego en un diálogo;
-  - antes de borrar se muestra qué filas se van.
+**Cassandra (tabla `kpis`, clave `((kpi), ventana)`)**. La interfaz está en [cassandra-crud.tsx](../web/src/components/cassandra-crud.tsx) y reutiliza las funciones de [crud.py](../src/wikipipe/crud.py).
+- **Inserción** de una fila con nombre de KPI, ventana UTC, valor y detalle. Una clave existente se reemplaza mediante upsert.
+- **Consulta** por KPI, con fecha y hora opcionales.
+- **Actualización** de `valor` y `detalle` por clave completa. Se comprueba que la fila exista.
+- **Eliminación** de una fila o de la partición del KPI, con confirmación en la interfaz.
+- Los datos de prueba se identifican con el prefijo `demo_`.
 
 **Neo4j (grafo de editores)**: interfaz en [neo4j-crud.tsx](../web/src/components/neo4j-crud.tsx) ([`useNeo4jCrud`, línea 46](../web/src/components/neo4j-crud.tsx#L46)). Las rutas de API van desde [`neo_crear_editor`, main.py línea 384](../api/main.py#L384) y las funciones de base, en [crud.py, sección «Neo4j», línea 210](../src/wikipipe/crud.py#L210).
 - **Crear nodo:** `MERGE (:Editor {user})` con su tipo.
@@ -164,7 +155,7 @@ Las tres bases usan la misma interfaz: la columna izquierda tiene los campos y l
   - `user` es la clave única y no se cambia.
 - **Eliminar:**
   - `DETACH DELETE` de un nodo, que antes lista las relaciones que se borrarán con él;
-  - o `DELETE` de una sola relación, elegida de la lista;
+  - o `DELETE` de una sola relación, identificada mediante `elementId`, respetando su wiki y ventana;
   - el nodo se confirma escribiendo su nombre y luego en un diálogo.
 
 **Datos de demostración:**
@@ -212,14 +203,14 @@ Calculamos **12 KPIs** cada hora, global y por wiki:
 | Eventos procesados | eventos en la hora | Cassandra |
 | Crecimiento de actividad | (eventos h − eventos h−1) / eventos h−1 × 100 | Cassandra |
 | Tasa de automatización | eventos de bots / eventos × 100 | Cassandra |
-| Actividad por editor humano | eventos humanos / editores humanos distintos | Cassandra |
+| Actividad por editor humano | eventos humanos / cuentas humanas distintas de la ventana | MongoDB |
 | Tasa de creación | páginas nuevas / (ediciones + páginas nuevas) × 100 | MongoDB |
 | Volumen neto de contenido | Σ (bytes nuevos − bytes anteriores) | MongoDB |
 | Tasa de reversión | ediciones que revierten a otro editor / ediciones × 100 | MongoDB |
 | Eventos acumulados | documentos en `events` hasta el fin de la hora | MongoDB |
 | Página más disputada | página con más reversiones recibidas en la hora | Cassandra |
-| Editor humano más conectado | editor activo con más relaciones `COEDITA` | Neo4j |
-| Editor más revertido | editor con más reversiones recibidas | Neo4j |
+| Editor humano más conectado | editor con más coeditores humanos durante esa hora | Neo4j |
+| Editor más revertido | editor con más reversiones recibidas durante esa hora | Neo4j |
 | Calidad de datos | eventos válidos / eventos extraídos × 100 | Limpieza (DAG) |
 
 - Cubren los ejemplos de las instrucciones: registros procesados (Eventos procesados), crecimiento (Crecimiento de actividad), entidad con más conexiones (Editor más conectado), promedio por usuario (Actividad por editor humano) y tendencia temporal (serie del día en el dashboard).

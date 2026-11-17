@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { COLOR, colorTipo, entero } from "@/lib/format"
+import { COLOR, colorTipo, entero, intervaloLocal } from "@/lib/format"
 
 interface Ranking { editor: string; tipo: string; reversiones: number }
 interface Tarjetas {
-  horas: number; reversiones: number; editores_revertidos: number; revertidos_por_varios: number
+  horas: number; inicio: string; fin: string; reversiones: number; editores_revertidos: number; revertidos_por_varios: number
   pares_agradecimiento: number; editores_agradecidos: number
 }
 interface Red {
@@ -21,7 +21,6 @@ interface Red {
   revertidos: (Ranking & { revertido_por: number })[]
   patrulleros: (Ranking & { editores_revertidos: number })[]
   conectados: { editor: string; tipo: string; coeditores: number }[]
-  disputadas: { pagina: string; wiki: string; titulo: string; reversiones: number; ediciones: number; horas: number }[]
 }
 interface Ego {
   centro: { user: string; tipo: string } | null
@@ -37,31 +36,31 @@ function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) 
   return { anterior: { nombre: nombre(a), ir: () => ir(a) }, siguiente: { nombre: nombre(s), ir: () => ir(s) } }
 }
 
-/** Detalle de cada tarjeta: qué cuenta, cómo se calcula y para qué sirve. Las cuatro miran las últimas 24 horas. */
+/** Detalle de las tres tarjetas de las últimas 24 horas consolidadas. */
 function metricaRed(k: MetricaRed, t: Tarjetas, etiqueta: string): MetricaModal {
-  const comun = { etiqueta, momento: `Últimas ${t.horas} horas` }
+  const comun = { etiqueta, momento: intervaloLocal(t.inicio, t.fin) }
   const grafo = <>Se calcula en <Base base="neo4j" /> al abrir la página, sobre las relaciones con actividad en las últimas {t.horas} horas.</>
   if (k === "reversiones") return {
-    ...comun, titulo: "Reversiones", valor: entero(t.reversiones),
+    ...comun, titulo: "Reversiones detectadas", valor: entero(t.reversiones),
     datos: [["Editores revertidos", entero(t.editores_revertidos)]],
     definicion: "Ediciones que deshicieron el cambio de otro editor en las últimas 24 horas, y cuántos editores distintos fueron revertidos.",
     calculo: { texto: "Suma de las reversiones de cada hora (resumen_por_hora) · editores con al menos una relación REVIRTIO recibida en 24 h" },
-    lectura: "Cuánto trabajo de control hubo. Un salto respecto de lo habitual suele indicar un ataque o una guerra de ediciones: conviene mirar las páginas disputadas.",
+    lectura: "Muestra cuánto se deshicieron cambios de otros editores. Por sí sola, una reversión no indica vandalismo ni explica el motivo del cambio.",
     origen: <>Las reversiones salen de <Base base="cassandra" />, ya sumadas por hora; los editores revertidos, de <Base base="neo4j" />.</>,
   }
   if (k === "varios") return {
-    ...comun, titulo: "Revertidos por varios editores", valor: entero(t.revertidos_por_varios),
+    ...comun, titulo: "Editores revertidos por varios", valor: entero(t.revertidos_por_varios),
     datos: [["Editores revertidos", entero(t.editores_revertidos)]],
     definicion: "Editores a los que dos o más editores distintos les deshicieron cambios en las últimas 24 horas.",
-    calculo: { codigo: "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor)\nWHERE r.ultima_vez >= datetime($desde)\nWITH b, count(DISTINCT a) AS por\nRETURN sum(CASE WHEN por >= 2 THEN 1 ELSE 0 END)" },
+    calculo: { codigo: "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor)\nWHERE r.ventana >= $desde AND r.ventana < $hasta\nWITH b, count(DISTINCT a) AS por\nRETURN sum(CASE WHEN por >= 2 THEN 1 ELSE 0 END)" },
     lectura: "Cuando varios patrulleros revierten a la misma cuenta, lo más probable es un vándalo persistente o un recién llegado que necesita orientación. Son los casos a revisar primero.",
     origen: grafo,
   }
   return {
-    ...comun, titulo: "Editores agradecidos", valor: entero(t.editores_agradecidos),
+    ...comun, titulo: "Editores que recibieron gracias", valor: entero(t.editores_agradecidos),
     datos: [["Pares que se agradecieron", entero(t.pares_agradecimiento)]],
     definicion: "Editores que recibieron al menos un agradecimiento (la función «agradecer» de Wikipedia) en las últimas 24 horas.",
-    calculo: { codigo: "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor)\nWHERE r.ultima_vez >= datetime($desde)\nRETURN count(DISTINCT b)" },
+    calculo: { codigo: "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor)\nWHERE r.ventana >= $desde AND r.ventana < $hasta\nRETURN count(DISTINCT b)" },
     lectura: "Señal de colaboración positiva: muestra a quién reconoce la comunidad por su trabajo.",
     origen: grafo,
   }
@@ -93,7 +92,7 @@ export default function RedPage() {
   const [busqueda, setBusqueda] = useState("")
   const [usuario, setUsuario] = useState<string | null>(null)
   const centro = usuario ?? data?.patrulleros[0]?.editor ?? null
-  const ego = useApi<Ego>(centro ? `/api/red/ego/${encodeURIComponent(centro)}?limite=40` : null)
+  const ego = useApi<Ego>(centro ? `/api/red/ego/${encodeURIComponent(centro)}?limite=40&wiki=${wiki}` : null)
   const { ref, ancho } = useAncho<HTMLDivElement>()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fg = useRef<any>(null)
@@ -124,18 +123,24 @@ export default function RedPage() {
   return (
     <>
       <Header ruta={["Panel", "Red de editores"]} />
-      <Pagina titulo="Red de editores" descripcion="Quién se relaciona con quién: reversiones, avisos, agradecimientos, bloqueos y páginas en común. Sirve para ver dónde hay conflicto (quién revierte a quién y qué páginas están en disputa) y quiénes sostienen la comunidad (los editores más conectados). Se calcula en Neo4j sobre la red acumulada.">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {!t ? Array.from({ length: 3 }, (_, i) => <Cargando key={i} alto={120} />) : (
-            <>
-              <TarjetaKpi etiqueta="Reversiones" titulo={`${etiqueta} · últimas ${t.horas} horas`} valor={entero(t.reversiones)} pie={`${entero(t.editores_revertidos)} editores revertidos`} onAbrir={() => setMetrica("reversiones")} />
-              <TarjetaKpi etiqueta="Revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="editores revertidos por 2 o más editores" onAbrir={() => setMetrica("varios")} />
-              <TarjetaKpi etiqueta="Editores agradecidos" valor={entero(t.editores_agradecidos)} pie={`${entero(t.pares_agradecimiento)} pares que se agradecieron`} onAbrir={() => setMetrica("agradecidos")} />
-            </>
-          )}
+      <Pagina titulo="Red de editores" descripcion="Explora las relaciones entre editores y descubre quiénes colaboran, revierten cambios o reciben agradecimientos.">
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold">Últimas 24 horas consolidadas · {etiqueta}</h2>
+            {t && <p className="text-sm text-muted-foreground">{intervaloLocal(t.inicio, t.fin)}</p>}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {!t ? Array.from({ length: 3 }, (_, i) => <Cargando key={i} alto={160} />) : (
+              <>
+                <TarjetaKpi etiqueta="Reversiones detectadas" valor={entero(t.reversiones)} pie={`Deshicieron cambios de ${entero(t.editores_revertidos)} editores`} onAbrir={() => setMetrica("reversiones")} />
+                <TarjetaKpi etiqueta="Editores revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="Por 2 o más editores distintos" onAbrir={() => setMetrica("varios")} />
+                <TarjetaKpi etiqueta="Editores que recibieron gracias" valor={entero(t.editores_agradecidos)} pie="Al menos un agradecimiento recibido" onAbrir={() => setMetrica("agradecidos")} />
+              </>
+            )}
+          </div>
         </div>
 
-        <Seccion titulo="Conexiones de un editor" descripcion={centro ? `Vecindario de ${centro}: arrastra los nodos, usa la rueda para acercar y haz clic en un vecino para explorarlo` : ""}
+        <Seccion titulo="Conexiones de un editor" descripcion={`Historial acumulado · ${etiqueta}. Arrastra los nodos, acerca con la rueda o pulsa un editor para ver sus conexiones.`}
           accion={
             <form onSubmit={buscar} className="flex gap-2">
               <Input aria-label="Editor" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder={centro ?? "Nombre de usuario"} className="w-56" />
@@ -196,7 +201,7 @@ export default function RedPage() {
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          <Seccion titulo="Editores más revertidos" descripcion={`Reversiones recibidas en ${etiqueta} · posible vandalismo`}>
+          <Seccion titulo="Editores más revertidos" descripcion={`Reversiones recibidas en todo el historial de ${etiqueta}`}>
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
                 {data.revertidos.map((r) => (
@@ -207,7 +212,7 @@ export default function RedPage() {
               </div>
             )}
           </Seccion>
-          <Seccion titulo="Patrulleros más activos" descripcion={`Reversiones hechas en ${etiqueta} · humanos y bots antivandalismo`}>
+          <Seccion titulo="Patrulleros más activos" descripcion={`Reversiones hechas en todo el historial de ${etiqueta}`}>
             {!data ? <Cargando alto={260} /> : (
               <div className="flex flex-col gap-2.5">
                 {data.patrulleros.map((r) => (
@@ -218,8 +223,8 @@ export default function RedPage() {
               </div>
             )}
           </Seccion>
-          <Seccion titulo="Editores más conectados" descripcion={`Humanos activos en 24 h en ${etiqueta} · con más coeditores`}>
-            {!data ? <Cargando alto={260} /> : data.conectados.length === 0 ? <Vacio titulo="Sin datos" texto="No hay editores humanos con coeditores en las últimas 24 horas." /> : (
+          <Seccion titulo="Editores más conectados" descripcion={`Coeditores humanos distintos en todo el historial de ${etiqueta}`}>
+            {!data ? <Cargando alto={260} /> : data.conectados.length === 0 ? <Vacio titulo="Sin datos" texto="No hay conexiones de coedición registradas." /> : (
               <div className="flex flex-col gap-2.5">
                 {data.conectados.map((r) => (
                   <button key={r.editor} type="button" onClick={() => setUsuario(r.editor)} className="rounded-md text-left hover:bg-muted/50" title={`Comparte páginas con ${entero(r.coeditores)} editores · ver su red`}>
@@ -231,17 +236,7 @@ export default function RedPage() {
           </Seccion>
         </div>
 
-        <Seccion titulo="Páginas más disputadas" descripcion={`${etiqueta} · reversiones recibidas en las últimas 24 h · una página en disputa es la que tiene cambios que otros deshacen`}>
-          {!data ? <Cargando alto={260} /> : data.disputadas.length === 0 ? <Vacio titulo="Sin reversiones" texto="Ninguna página recibió reversiones en las últimas 24 horas." /> : (
-            <div className="flex flex-col gap-2.5">
-              {data.disputadas.map((p) => (
-                <div key={p.pagina} title={`${p.reversiones} reversiones · ${p.ediciones} ediciones · en ${p.horas} ${p.horas === 1 ? "hora" : "horas"}`}>
-                  <FilaBarra nombre={p.titulo} valor={p.reversiones} max={data.disputadas[0].reversiones} color={COLOR[p.wiki as "enwiki"] ?? COLOR.otro} />
-                </div>
-              ))}
-            </div>
-          )}
-        </Seccion>
+
       </Pagina>
       {metrica && t && (
         <ModalMetrica m={metricaRed(metrica, t, etiqueta)}

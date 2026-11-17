@@ -96,15 +96,113 @@ KPIS = [
 ]
 
 
+def completed_runs(horas: int = 72) -> list[dict]:
+    return list(mongo_db().pipeline_runs.find(
+        {"format_version": 2, "reprocessing": {"$ne": True}},
+        {"window_start": 1, "window_end": 1, "window_start_dt": 1, "recorded_at": 1})
+        .sort("window_start_dt", -1).limit(horas))
+
+
+def stable_windows(runs: list[dict]) -> set[str]:
+    """Ventanas que conservaron su versión durante la lectura de Cassandra."""
+    current = {run["_id"]: run for run in mongo_db().pipeline_runs.find(
+        {"_id": {"$in": [run["_id"] for run in runs]}, "reprocessing": {"$ne": True}}, {"recorded_at": 1})}
+    return {datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc).isoformat()
+            for run in runs if run["_id"] in current and current[run["_id"]].get("recorded_at") == run.get("recorded_at")}
+
+
+@cacheado
+def resumen_acumulado(corte: str, wiki: str | None = None) -> dict:
+    """Totales exactos de las horas consolidadas hasta el corte del Resumen."""
+    end = datetime.fromisoformat(corte)
+    runs = [run for run in completed_runs(0) if datetime.fromisoformat(run["window_end"]) <= end]
+    allowed = {datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc) for run in runs}
+    fields = ("eventos", "ediciones", "creaciones", "eventos_bot", "reversiones", "delta_bytes")
+    rows = []
+    session = cassandra()
+    for day in sorted({start.date() for start in allowed}):
+        for row in session.execute("SELECT * FROM resumen_por_hora WHERE fecha = %s", (day,)):
+            values = _fila(row)
+            start = datetime.combine(values["fecha"], datetime.min.time(), timezone.utc).replace(hour=values["hora"])
+            if start in allowed and (wiki is None or values["wiki"] == wiki):
+                rows.append((start, values))
+    stable = stable_windows(runs)
+    totals = {field: 0 for field in fields}
+    hours = set()
+    for start, values in rows:
+        if start.isoformat() in stable:
+            hours.add(start)
+            for field in fields:
+                totals[field] += values.get(field) or 0
+    return {**totals, "horas": len(hours), "inicio": min(hours).isoformat() if hours else None, "fin": corte}
+
+
+@cacheado
+def protagonistas_acumulados(corte: str, wiki: str | None = None) -> dict:
+    """Rankings históricos exactos al corte, solo de ventanas consolidadas del modelo 2."""
+    end = datetime.fromisoformat(corte)
+    runs = [run for run in completed_runs(0) if datetime.fromisoformat(run["window_end"]) <= end]
+    starts = sorted({datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc) for run in runs})
+    windows = [start.isoformat() for start in starts]
+    result = {name: None for name in ("pagina_mas_disputada", "editor_mas_conectado", "editor_mas_revertido")}
+    if not starts:
+        return {"protagonistas": result, "actualizando": False}
+    # No se suman rankings parciales por hora: podrían omitir al ganador histórico.
+    pages = list(mongo_db().events.aggregate([
+        {"$match": {"wiki": {"$in": [wiki] if wiki else sorted(config.WIKIS)},
+                    "derived.event_dt": {"$gte": starts[0], "$lt": end},
+                    "type": "edit", "derived.revert_target": {"$exists": True, "$nin": [None, ""]}}},
+        {"$match": {"$expr": {"$in": [{"$dateTrunc": {"date": "$derived.event_dt", "unit": "hour"}}, starts]}}},
+        {"$group": {"_id": {"wiki": "$wiki", "title": "$title"}, "valor": {"$sum": 1}}},
+        {"$sort": {"valor": -1, "_id.wiki": 1, "_id.title": 1}}, {"$limit": 1},
+    ]))
+    if pages:
+        page = pages[0]
+        result["pagina_mas_disputada"] = {"valor": page["valor"], "detalle": f"{page['_id']['wiki']}:{page['_id']['title']}"}
+    connected = _cypher(
+        "MATCH (e:Editor)-[r:EDITO]->(p:Pagina)<-[other:EDITO]-(b:Editor) "
+        "WHERE r.ventana IN $windows AND other.ventana IN $windows "
+        "AND r.tipo <> 'bot' AND other.tipo <> 'bot' AND e <> b AND ($wiki IS NULL OR p.wiki = $wiki) "
+        "RETURN e.user AS detalle, count(DISTINCT b) AS valor ORDER BY valor DESC, detalle LIMIT 1",
+        windows=windows, wiki=wiki)
+    reverted = _cypher(
+        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ventana IN $windows AND ($wiki IS NULL OR r.wiki = $wiki) "
+        "RETURN b.user AS detalle, sum(r.veces) AS valor, count(DISTINCT a) AS por "
+        "ORDER BY valor DESC, por DESC, detalle LIMIT 1", windows=windows, wiki=wiki)
+    if connected:
+        result["editor_mas_conectado"] = connected[0]
+    if reverted:
+        row = reverted[0]
+        result["editor_mas_revertido"] = {"valor": row["valor"], "detalle":
+            f"{row['detalle']} (revertido por {row['por']} {'editor' if row['por'] == 1 else 'editores'})"}
+    changing = stable_windows(runs) != set(windows)
+    return {"protagonistas": {name: None for name in result} if changing else result, "actualizando": changing}
+
+
 @cacheado
 def kpis(horas: int = 72, wiki: str | None = None) -> dict:
-    """Serie de cada KPI, de la hora más reciente a la más antigua. Sin wiki: ambas wikis juntas."""
-    s, out = cassandra(), {}
-    for kpi in KPIS:
-        filas = s.execute("SELECT ventana, valor, detalle FROM kpis WHERE kpi = %s LIMIT %s", (kpi, horas)) if wiki is None \
-            else s.execute("SELECT ventana, valor, detalle FROM kpis_por_wiki WHERE kpi = %s AND wiki = %s LIMIT %s", (kpi, wiki, horas))
-        out[kpi] = [{"ventana": r.ventana.replace(tzinfo=timezone.utc).isoformat(), "valor": r.valor, "detalle": r.detalle}
-                    for r in filas]
+    """Series alineadas exclusivamente con ventanas completadas del modelo actual."""
+    runs = completed_runs(horas)
+    out = {name: [] for name in KPIS}
+    if not runs:
+        return out
+    start = datetime.fromisoformat(runs[-1]["window_start"])
+    end = datetime.fromisoformat(runs[0]["window_end"])
+    session = cassandra()
+    for name in KPIS:
+        if wiki is None:
+            rows = session.execute("SELECT ventana, valor, detalle FROM kpis WHERE kpi = %s "
+                                   "AND ventana >= %s AND ventana < %s", (name, start, end))
+        else:
+            rows = session.execute("SELECT ventana, valor, detalle FROM kpis_por_wiki WHERE kpi = %s AND wiki = %s "
+                                   "AND ventana >= %s AND ventana < %s", (name, wiki, start, end))
+        values = {r.ventana.replace(tzinfo=timezone.utc).isoformat(): r for r in rows}
+        for run in runs:
+            key = datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc).isoformat()
+            row = values.get(key)
+            out[name].append({"ventana": key, "valor": row.valor if row else None, "detalle": row.detalle if row else None})
+    stable = stable_windows(runs)
+    out = {name: [point for point in points if point["ventana"] in stable] for name, points in out.items()}
     return out
 
 
@@ -176,6 +274,18 @@ def total_eventos() -> int:
     return mongo_db().events.estimated_document_count()
 
 
+@cacheado
+def dataset_eventos(wiki: str | None = None) -> dict:
+    """Total y composición del mismo dataset de MongoDB, incluida la ingesta reciente."""
+    rows = list(mongo_db().events.aggregate([
+        {"$match": {"wiki": {"$in": [wiki] if wiki else sorted(config.WIKIS)}}},
+        {"$group": {"_id": {"wiki": "$wiki", "tipo": "$type"}, "eventos": {"$sum": 1}}},
+    ], hint="por_wiki_tipo_fecha"))
+    return {"total": sum(row["eventos"] for row in rows),
+            "tipos": [{**row["_id"], "eventos": row["eventos"]} for row in rows],
+            "corte": datetime.now(timezone.utc).isoformat()}
+
+
 CAMPO_TIPO = (("ediciones", "edit"), ("creaciones", "new"), ("categorizaciones", "categorize"), ("logs", "log"))
 
 
@@ -217,12 +327,12 @@ def documento(event_id: str) -> dict | None:
 
 
 def crud_buscar(wiki: str, tipo: str, horas: int | None, editor: str, titulo: str, solo_demo: bool, event_id: str,
-                antes: datetime | None, limite: int) -> dict:
+                antes: datetime | None, limite: int, antes_id: str = "") -> dict:
     """Búsqueda de la página CRUD (Consultar). Sin caché: tiene que ver lo que se acaba de crear o borrar.
 
     Con _id exacto se ignoran los demás filtros. El editor se busca por prefijo para aprovechar el
     índice por_editor; el título, por texto contenido (sin distinguir mayúsculas). "Ver más" pide los
-    anteriores a la fecha del último documento mostrado (`antes`), no un skip: el stream sigue
+    anteriores al par fecha e identificador del último documento (`antes`, `antes_id`), no un skip: el stream sigue
     insertando y un skip repetiría documentos.
     """
     if event_id:
@@ -246,15 +356,18 @@ def crud_buscar(wiki: str, tipo: str, horas: int | None, editor: str, titulo: st
         if horas:
             fecha["$gte"] = datetime.now(timezone.utc) - timedelta(hours=horas)
             partes.append(f'"derived.event_dt": {{ $gte: hace {horas} h }}')
-        if antes:
+        if antes and antes_id:
+            filtro["$or"] = [{"derived.event_dt": {"$lt": antes}},
+                              {"derived.event_dt": antes, "_id": {"$lt": antes_id}}]
+        elif antes:
             fecha["$lt"] = antes
         if fecha:
             filtro["derived.event_dt"] = fecha
         consulta = f"db.events.find({{ {', '.join(partes)} }})"
-    consulta += f'.sort({{ "derived.event_dt": -1 }}).limit({limite})'
+    consulta += f'.sort({{ "derived.event_dt": -1, "_id": -1 }}).limit({limite})'
     inicio = time.perf_counter()
     proy = {"_id": 1, "derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "log_type": 1}
-    docs = list(mongo_db().events.find(filtro, proy).sort("derived.event_dt", -1).limit(limite + 1))
+    docs = list(mongo_db().events.find(filtro, proy).sort([("derived.event_dt", -1), ("_id", -1)]).limit(limite + 1))
     ms = round((time.perf_counter() - inicio) * 1000)
 
     def resumen(d: dict) -> dict:
@@ -272,11 +385,11 @@ def crud_buscar(wiki: str, tipo: str, horas: int | None, editor: str, titulo: st
 
 def estado() -> dict:
     """Última hora consolidada por el DAG (Cassandra) y último evento guardado por el streaming (Mongo)."""
-    fila = cassandra().execute("SELECT ventana FROM kpis WHERE kpi = 'eventos_procesados' LIMIT 1").one()
+    runs = completed_runs(1)
     marcador = mongo_db().stream_state.find_one({"_id": "recentchange"}, {"last_dt": 1}) or {}
     return {
         "ahora": datetime.now(timezone.utc).isoformat(),
-        "ultima_hora": fila.ventana.replace(tzinfo=timezone.utc).isoformat() if fila else None,
+        "ultima_hora": runs[0]["window_start"] if runs else None,
         "stream_ultimo_evento": marcador.get("last_dt"),
     }
 
@@ -284,27 +397,57 @@ def estado() -> dict:
 BORRADO_GRANDE = 1000  # bytes; igual que en web/src/lib/eventos.ts
 
 
+def metricas_vivo(ahora: datetime, wikis: list[str]) -> dict:
+    """Dos ventanas contiguas de cinco minutos, con el mismo corte y editores distintos."""
+    corte = ahora - timedelta(minutes=5)
+    inicio = ahora - timedelta(minutes=10)
+    result = {periodo: {"inicio": start.isoformat(), "fin": end.isoformat(), "eventos": 0,
+                       "ediciones": 0, "eventos_bot": 0, "reversiones": 0, "editores": {}}
+              for periodo, start, end in (("actual", corte, ahora), ("anterior", inicio, corte))}
+    rows = mongo_db().events.aggregate([
+        {"$match": {"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": inicio, "$lt": ahora}}},
+        {"$group": {"_id": {"periodo": {"$cond": [{"$gte": ["$derived.event_dt", corte]}, "actual", "anterior"]},
+                            "editor": "$user"},
+                    "tipo": {"$first": "$derived.user_type"}, "eventos": {"$sum": 1},
+                    "ediciones": {"$sum": {"$cond": [{"$eq": ["$type", "edit"]}, 1, 0]}},
+                    "eventos_bot": {"$sum": {"$cond": [{"$eq": ["$derived.user_type", "bot"]}, 1, 0]}},
+                    "reversiones": {"$sum": {"$cond": [{"$ne": [{"$ifNull": ["$derived.revert_target", ""]}, ""]}, 1, 0]}}}},
+    ])
+    for row in rows:
+        totals = result[row["_id"]["periodo"]]
+        for field in ("eventos", "ediciones", "eventos_bot", "reversiones"):
+            totals[field] += row[field]
+        tipo = "bot" if row["eventos_bot"] else row["tipo"] or "registrado"
+        totals["editores"][tipo] = totals["editores"].get(tipo, 0) + 1
+    return result
+
+
 def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     """Actividad de los últimos minutos escrita por el servicio de streaming (sin caché)."""
     ahora = datetime.now(timezone.utc)
     wikis = wikis or sorted(config.WIKIS)
     s, por_minuto = cassandra(), []
+    desde = (ahora - timedelta(minutes=minutos - 1)).replace(second=0, microsecond=0)
     for wiki in wikis:
         filas = []
         for f in (ahora.date(), ahora.date() - timedelta(days=1)):  # el día anterior, si cruzó la medianoche
             if len(filas) >= minutos:
                 break
-            filas += list(s.execute("SELECT * FROM eventos_por_minuto WHERE wiki = %s AND fecha = %s LIMIT %s",
-                                    (wiki, f, minutos - len(filas))))
-        por_minuto += [{"wiki": wiki, "t": r.minuto.replace(tzinfo=timezone.utc).isoformat(), "eventos": r.eventos,
-                        "ediciones": r.ediciones, "eventos_bot": r.eventos_bot, "reversiones": r.reversiones}
-                       for r in filas]
+            filas += list(s.execute("SELECT * FROM eventos_por_minuto WHERE wiki = %s AND fecha = %s AND minuto >= %s AND minuto <= %s",
+                                    (wiki, f, desde, ahora)))
+        by_minute = {r.minuto.replace(tzinfo=timezone.utc): r for r in filas}
+        for offset in range(minutos):
+            minute = desde + timedelta(minutes=offset)
+            row = by_minute.get(minute)
+            por_minuto.append({"wiki": wiki, "t": minute.isoformat(),
+                               **{key: (getattr(row, key) or 0) if row else 0 for key in
+                                  ("eventos", "ediciones", "eventos_bot", "reversiones")}})
     db = mongo_db()
     hace_un_minuto = ahora - timedelta(seconds=60)
     proy = {"derived": 1, "wiki": 1, "type": 1, "title": 1, "user": 1, "comment": 1}
     ultimos = db.events.find({"wiki": {"$in": wikis}}, proy).sort("derived.event_dt", -1).limit(100)  # el dashboard filtra y muestra 25
     # Borrados grandes de la ventana: entre los últimos 100 casi nunca hay uno, así que se buscan aparte.
-    borrados = db.events.find({"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": ahora - timedelta(minutes=minutos)},
+    borrados = db.events.find({"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": desde, "$lt": ahora},
                                "derived.delta_bytes": {"$lte": -BORRADO_GRANDE}}, proy).sort("derived.event_dt", -1).limit(25)
     resumen = lambda d: {
         "_id": d["_id"], "fecha": d["derived"]["event_dt"].replace(tzinfo=timezone.utc).isoformat(),
@@ -314,15 +457,16 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     }
     # Editores distintos de la ventana, por tipo: se agrupa por editor y luego por su tipo.
     editores = {r["_id"] or "registrado": r["n"] for r in db.events.aggregate([
-        {"$match": {"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": ahora - timedelta(minutes=minutos)}}},
+        {"$match": {"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": desde, "$lt": ahora}}},
         {"$group": {"_id": "$user", "tipo": {"$first": "$derived.user_type"}}},
         {"$group": {"_id": "$tipo", "n": {"$sum": 1}}}])}
     estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
     return {
-        "ahora": ahora.isoformat(),
+        "ahora": ahora.isoformat(), "inicio": desde.isoformat(), "fin": ahora.isoformat(), "provisional": True,
+        "metricas": metricas_vivo(ahora, wikis),
         "editores": editores,
         "eventos_ultimo_minuto": db.events.count_documents(
-            {"derived.event_dt": {"$gte": hace_un_minuto}, "wiki": {"$in": wikis}}),
+            {"derived.event_dt": {"$gte": hace_un_minuto, "$lt": ahora}, "wiki": {"$in": wikis}}),
         "por_minuto": sorted(por_minuto, key=lambda x: x["t"]),
         "ultimos": [resumen(d) for d in ultimos],
         "borrados": [resumen(d) for d in borrados],
@@ -408,22 +552,26 @@ def _desde(horas: int) -> str:
 @cacheado
 def tarjetas_red(horas: int = 24, wiki: str | None = None) -> dict:
     """Las tres tarjetas de la vista Red de editores: conflicto (N2) y comunidad (N5) en las últimas horas."""
-    desde = _desde(horas)
+    runs = completed_runs(1)
+    hasta = runs[0]["window_end"] if runs else datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0).isoformat()
+    desde = (datetime.fromisoformat(hasta) - timedelta(hours=horas)).isoformat()
     revertidos = _cypher(
-        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ultima_vez >= datetime($desde) AND ($wiki IS NULL OR r.wiki = $wiki) "
+        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ventana >= $desde AND r.ventana < $hasta AND ($wiki IS NULL OR r.wiki = $wiki) "
         "WITH b, count(DISTINCT a) AS por RETURN count(b) AS revertidos, sum(CASE WHEN por >= 2 THEN 1 ELSE 0 END) AS varios",
-        desde=desde, wiki=wiki)[0]
+        desde=desde, hasta=hasta, wiki=wiki)[0]
     # Las reversiones ya están sumadas por hora en Cassandra: contarlas en MongoDB tardaría un minuto.
     wikis = [wiki] if wiki else sorted(config.WIKIS)
-    limite = datetime.now(timezone.utc) - timedelta(hours=horas)
+    limite = datetime.fromisoformat(desde)
     reversiones = sum(f["reversiones"] or 0 for f in resumen_por_hora(2)
                       if f["wiki"] in wikis and datetime.combine(f["fecha"], datetime.min.time(), timezone.utc)
-                      + timedelta(hours=f["hora"]) >= limite)
+                      + timedelta(hours=f["hora"]) >= limite
+                      and datetime.combine(f["fecha"], datetime.min.time(), timezone.utc)
+                      + timedelta(hours=f["hora"]) < datetime.fromisoformat(hasta))
     gracias = _cypher(
-        "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor) WHERE r.ultima_vez >= datetime($desde) AND ($wiki IS NULL OR r.wiki = $wiki) "
-        "RETURN count(r) AS pares, count(DISTINCT b) AS agradecidos", desde=desde, wiki=wiki)[0]
+        "MATCH (a:Editor)-[r:AGRADECIO]->(b:Editor) WHERE r.ventana >= $desde AND r.ventana < $hasta AND ($wiki IS NULL OR r.wiki = $wiki) "
+        "RETURN count(DISTINCT [a.user,b.user]) AS pares, count(DISTINCT b) AS agradecidos", desde=desde, hasta=hasta, wiki=wiki)[0]
     return {
-        "horas": horas,
+        "horas": horas, "inicio": desde, "fin": hasta,
         "reversiones": reversiones,
         "editores_revertidos": revertidos["revertidos"],
         "revertidos_por_varios": revertidos["varios"],
@@ -434,13 +582,12 @@ def tarjetas_red(horas: int = 24, wiki: str | None = None) -> dict:
 
 @cacheado
 def ranking_conectados(limite: int = 10, horas: int = 24, wiki: str | None = None) -> list[dict]:
-    """Editores humanos activos en las últimas horas con más coeditores (relación COEDITA, N5)."""
+    """Coeditores humanos distintos sobre todo el historial, dentro de la wiki elegida."""
     return _cypher(
-        "MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($desde) AND e.tipo <> 'bot' "
-        "  AND ($wiki IS NULL OR EXISTS { (e)-[r:EDITO]->(p:Pagina) WHERE p.wiki = $wiki AND r.ultima_vez >= datetime($desde) }) "
-        "WITH e, COUNT { (e)-[:COEDITA]-() } AS coeditores WHERE coeditores > 0 "
-        "RETURN e.user AS editor, e.tipo AS tipo, coeditores ORDER BY coeditores DESC, editor LIMIT $limite",
-        desde=_desde(horas), limite=limite, wiki=wiki)
+        "MATCH (e:Editor)-[r:EDITO]->(p:Pagina)<-[other:EDITO]-(b:Editor) "
+        "WHERE r.tipo <> 'bot' AND other.tipo <> 'bot' AND e <> b AND ($wiki IS NULL OR p.wiki = $wiki) "
+        "RETURN e.user AS editor, e.tipo AS tipo, count(DISTINCT b) AS coeditores "
+        "ORDER BY coeditores DESC, editor LIMIT $limite", limite=limite, wiki=wiki)
 
 
 @cacheado
@@ -462,12 +609,15 @@ def ranking_patrulleros(limite: int = 10, wiki: str | None = None) -> list[dict]
 @cacheado
 def paginas_disputadas(horas: int = 24, limite: int = 12, wiki: str | None = None) -> list[dict]:
     """Páginas con más reversiones recibidas en las últimas horas (tabla paginas_disputadas_por_hora)."""
-    limite_t = datetime.now(timezone.utc) - timedelta(hours=horas)
+    runs = completed_runs(1)
+    end = datetime.fromisoformat(runs[0]["window_end"]) if runs else datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    limite_t = end - timedelta(hours=horas)
     s, suma = cassandra(), {}
     for w in ([wiki] if wiki else sorted(config.WIKIS)):
         for f in _fechas(2):
             for r in s.execute("SELECT * FROM paginas_disputadas_por_hora WHERE wiki = %s AND fecha = %s", (w, f)):
-                if datetime.combine(r.fecha.date(), datetime.min.time(), timezone.utc) + timedelta(hours=r.hora) < limite_t:
+                when = datetime.combine(r.fecha.date(), datetime.min.time(), timezone.utc) + timedelta(hours=r.hora)
+                if not limite_t <= when < end:
                     continue
                 p = suma.setdefault((w, r.pagina), {"pagina": f"{w}:{r.pagina}", "wiki": w, "titulo": r.pagina,
                                                      "reversiones": 0, "ediciones": 0, "horas": 0})
@@ -478,11 +628,18 @@ def paginas_disputadas(horas: int = 24, limite: int = 12, wiki: str | None = Non
 
 
 @cacheado
-def ego_red(user: str, limite: int = 30) -> dict:
+def ego_red(user: str, limite: int = 30, wiki: str | None = None) -> dict:
     centro = _cypher("MATCH (e:Editor {user: $u}) RETURN e.user AS user, e.tipo AS tipo", u=user)
     rels = _cypher(
-        "MATCH (e:Editor {user: $u})-[r:REVIRTIO|MENSAJE_A|AGRADECIO|BLOQUEO|COEDITA]-(o:Editor) "
+        "MATCH (e:Editor {user: $u})-[r:REVIRTIO|MENSAJE_A|AGRADECIO|BLOQUEO]-(o:Editor) "
+        "WHERE $wiki IS NULL OR r.wiki = $wiki "
         "RETURN startNode(r).user AS origen, endNode(r).user AS destino, type(r) AS tipo, "
-        "       coalesce(r.veces, r.paginas_en_comun, 1) AS peso, o.user AS vecino, o.tipo AS tipo_vecino "
-        "ORDER BY peso DESC LIMIT $limite", u=user, limite=limite)
-    return {"centro": centro[0] if centro else None, "relaciones": rels}
+        "sum(coalesce(r.veces,1)) AS peso, o.user AS vecino, o.tipo AS tipo_vecino",
+        u=user, wiki=wiki)
+    coeditors = _cypher(
+        "MATCH (e:Editor {user:$u})-[r:EDITO]->(p:Pagina)<-[other:EDITO]-(o:Editor) "
+        "WHERE e <> o AND r.tipo <> 'bot' AND other.tipo <> 'bot' AND ($wiki IS NULL OR p.wiki=$wiki) "
+        "RETURN e.user AS origen, o.user AS destino, 'COEDITA' AS tipo, count(DISTINCT p) AS peso, "
+        "o.user AS vecino, o.tipo AS tipo_vecino", u=user, wiki=wiki)
+    combined = sorted(rels + coeditors, key=lambda r: (-r["peso"], r["vecino"], r["tipo"]))[:limite]
+    return {"centro": centro[0] if centro else None, "relaciones": combined}

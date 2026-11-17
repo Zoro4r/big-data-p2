@@ -90,8 +90,21 @@ def sumar_por(filas: list[dict], clave: str, campos: tuple[str, ...]) -> list[di
 @app.get("/api/resumen")
 def resumen(wiki: str = "ambas"):
     w = None if wiki == "ambas" else wikis_de(wiki)[0]
-    return {"kpis": q.kpis(72, w), "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
-            "total": q.total_eventos(), "desde": q.primer_evento()}
+    series = q.kpis(72, w)
+    latest = series["eventos_procesados"][0]["ventana"] if series["eventos_procesados"] else None
+    end = (datetime.fromisoformat(latest) + timedelta(hours=1)).isoformat() if latest else None
+    return {"kpis": series, "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
+            "total": q.total_eventos(), "desde": q.primer_evento(), "wiki": wiki,
+            "intervalo": {"inicio": latest, "fin": end}, "corte": end,
+            "acumulado": q.resumen_acumulado(end, w) if end else None}
+
+
+@app.get("/api/resumen/acumulado/protagonistas")
+def protagonistas_acumulados(corte: datetime, wiki: str = "ambas"):
+    if corte.tzinfo is None:
+        raise HTTPException(status_code=400, detail="El corte debe incluir su zona horaria")
+    w = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return q.protagonistas_acumulados(corte.isoformat(), w)
 
 
 @app.get("/api/estado")
@@ -118,7 +131,10 @@ def serie10(wiki: str = "ambas", fecha: date | None = None):
 def actividad(wiki: str = "ambas", fecha: date | None = None):
     wikis = wikis_de(wiki)
     fechas = q.fechas_con_datos()
-    fecha = fecha or (date.fromisoformat(fechas[0]) if fechas else datetime.now(timezone.utc).date())
+    completed = q.completed_runs(0)
+    fecha = fecha or (datetime.fromisoformat(completed[0]["window_start"]).astimezone(q.ZONA).date() if completed
+                      else date.fromisoformat(fechas[0]) if fechas else datetime.now(q.ZONA).date())
+    fechas = sorted(set([*fechas, fecha.isoformat()]), reverse=True)
     # `fecha` es un día en UTC−5: se leen las dos fechas UTC que lo cubren, se quedan las filas de ese día
     # y la hora se devuelve en UTC−5.
     def del_dia(f: date, h: int):
@@ -127,13 +143,25 @@ def actividad(wiki: str = "ambas", fecha: date | None = None):
 
     horas = [{**h, "hora": hl} for h in q.resumen_por_hora(30)
              if h["wiki"] in wikis and (hl := del_dia(h["fecha"], h["hora"])) is not None]
-    minutos = [m for w in wikis for d in q.fechas_utc(fecha) for m in q.serie_minuto(w, d)
+    minutos = [{**m, "wiki": w} for w in wikis for d in q.fechas_utc(fecha) for m in q.serie_minuto(w, d)
                if datetime.fromisoformat(m["t"]).astimezone(q.ZONA).date() == fecha]
+    runs = [run for run in completed
+            if datetime.fromisoformat(run["window_start"]).astimezone(q.ZONA).date() == fecha]
+    stable = q.stable_windows(runs)
+
+    def hour_key(iso: str) -> str:
+        return datetime.fromisoformat(iso).astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0).isoformat()
+
+    horas = [h for h in horas if hour_key(h["hora_utc"]) in stable]
+    covered = {(h["wiki"], hour_key(h["hora_utc"])) for h in horas}
+    pending = [m for m in minutos if (m["wiki"], hour_key(m["t"])) not in covered]
+    minutos = [m for m in minutos if (m["wiki"], hour_key(m["t"])) in covered]
     # Top de páginas: con "ambas" se juntan los dos rankings de cada hora y se vuelve a ordenar.
     top = []
     por_hora: dict = {}
     for t in (t for w in wikis for d in q.fechas_utc(fecha) for t in q.paginas_top(w, d)):
-        if (hl := del_dia(t["fecha"], t["hora"])) is not None:
+        start = datetime.combine(t["fecha"], datetime.min.time(), timezone.utc).replace(hour=t["hora"])
+        if (t["wiki"], start.isoformat()) in covered and (hl := del_dia(t["fecha"], t["hora"])) is not None:
             por_hora.setdefault(hl, []).append({**t, "hora": hl})
     for hora, filas in por_hora.items():
         filas.sort(key=lambda t: (-t["editores"], -t["ediciones"]))
@@ -141,7 +169,9 @@ def actividad(wiki: str = "ambas", fecha: date | None = None):
     return {"fecha": fecha.isoformat(), "fechas": fechas,
             "minutos": sumar_por(minutos, "t", ("eventos", "eventos_bot", "reversiones")),
             "horas": sumar_por(horas, "hora", ("eventos", "eventos_bot", "eventos_humanos", "reversiones")),
-            "top": top}
+            "top": top, "alcance": "consolidado",
+            "corte": (max(datetime.fromisoformat(start) for _, start in covered) + timedelta(hours=1)).isoformat() if covered else None,
+            "pendientes": {"eventos": sum(m["eventos"] or 0 for m in pending), "horas": len({hour_key(m["t"]) for m in pending})}}
 
 
 @app.get("/api/editor/{nombre}")
@@ -152,8 +182,9 @@ def editor(nombre: str):
 @app.get("/api/eventos")
 def eventos(wiki: str = "ambas", tipo: str = "todos", editor: str = "", titulo: str = "",
             limite: int = 50):
-    return {"total": q.total_eventos(), "tipos": q.tipos_por_wiki(24),
-            "eventos": q.buscar_eventos("todas" if wiki == "ambas" else wikis_de(wiki)[0], tipo, editor.strip(), titulo.strip(), min(limite, 500))}
+    w = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return {**q.dataset_eventos(w),
+            "eventos": q.buscar_eventos("todas" if w is None else w, tipo, editor.strip(), titulo.strip(), min(limite, 500))}
 
 
 @app.get("/api/eventos/{event_id}")
@@ -188,8 +219,9 @@ def red(wiki: str = "ambas"):
 
 
 @app.get("/api/red/ego/{nombre}")
-def ego(nombre: str, limite: int = 30):
-    return q.ego_red(nombre, min(limite, 150))
+def ego(nombre: str, limite: int = 30, wiki: str = "ambas"):
+    selected = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return q.ego_red(nombre, min(max(limite, 1), 150), selected)
 
 
 # ---------------------------------------------------------------- CRUD (reutiliza wikipipe.crud)
@@ -230,11 +262,11 @@ PERIODOS = {"hora": 1, "dia": 24, "semana": 168, "todo": None}
 
 @app.get("/api/crud/mongo/buscar")
 def mongo_buscar(wiki: str = "enwiki", tipo: str = "todos", periodo: str = "dia", editor: str = "", titulo: str = "",
-                 demo: bool = False, id: str = "", antes: datetime | None = None, limite: int = 10):
+                 demo: bool = False, id: str = "", antes: datetime | None = None, limite: int = 10, antes_id: str = ""):
     if wiki not in ("enwiki", "eswiki") or tipo not in ("todos", "edit", "new", "categorize", "log") or periodo not in PERIODOS:
         raise HTTPException(400, "Filtro no válido")
     return q.crud_buscar(wiki, tipo, PERIODOS[periodo], editor.strip(), titulo.strip(), demo, id.strip(),
-                         antes, min(max(limite, 1), 50))
+                         antes, min(max(limite, 1), 50), antes_id)
 
 
 @app.get("/api/crud/mongo/{event_id}")
@@ -375,17 +407,17 @@ def cassandra_eliminar(kpi: str, ventana: datetime | None = None):
     return {"filas_eliminadas": n}
 
 
-TIPOS_EDITOR = ("registrado", "temporal", "bot")
+TIPOS_EDITOR = ("registrado", "temporal", "ip", "bot")
 
 
 class NodoEditor(BaseModel):
-    user: str
+    user: str = Field(min_length=1)
     tipo: str = "registrado"
 
 
 class Relacion(BaseModel):
-    origen: str
-    destino: str
+    origen: str = Field(min_length=1)
+    destino: str = Field(min_length=1)
     tipo: str
     veces: int = Field(1, ge=1)
     wiki: str | None = None
@@ -397,16 +429,24 @@ class CambiosNodo(BaseModel):
 
 @app.post("/api/crud/neo4j/editor")
 def neo_crear_editor(n: NodoEditor):
+    n.user = n.user.strip()
+    if not n.user:
+        raise HTTPException(400, "El nombre del editor es obligatorio")
     if n.tipo not in TIPOS_EDITOR:
         raise HTTPException(400, "Tipo de editor no válido")
     existia = crud.neo4j_detalle_editor(q.neo4j(), n.user, 0) is not None
+    editor = crud.neo4j_crear_editor(q.neo4j(), n.user, n.tipo)
     q.limpiar_cache()
-    return {"creado": not existia, "editor": crud.neo4j_crear_editor(q.neo4j(), n.user, n.tipo)}
+    return {"creado": not existia, "editor": editor}
 
 
 @app.post("/api/crud/neo4j/relacion")
 def neo_crear_relacion(r: Relacion):
     """MERGE de la relación; si alguno de los dos editores no existe, se crea con él."""
+    if not r.origen.strip() or not r.destino.strip():
+        raise HTTPException(400, "Los nombres de los editores son obligatorios")
+    if r.wiki is not None and r.wiki not in config.WIKIS:
+        raise HTTPException(400, "Wiki no válida")
     if r.tipo not in crud.RELACIONES_EDITOR:
         raise HTTPException(400, "Tipo de relación no permitido")
     d = q.neo4j()
@@ -452,9 +492,9 @@ def neo_actualizar(user: str, body: CambiosNodo):
 
 
 @app.delete("/api/crud/neo4j/relacion")
-def neo_eliminar_relacion(origen: str, destino: str, tipo: str):
+def neo_eliminar_relacion(origen: str, destino: str, tipo: str, relacion_id: str | None = None):
     try:
-        n = crud.neo4j_eliminar_relacion(q.neo4j(), origen, destino, tipo)
+        n = crud.neo4j_eliminar_relacion(q.neo4j(), origen, destino, tipo, relacion_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     q.limpiar_cache()

@@ -14,7 +14,8 @@ import { ConfirmarEliminacion, FormularioEliminacion, PanelEliminacion, useElimi
 import { CassandraDerecha, CassandraIzquierda, useCassandraCrud } from "@/components/cassandra-crud"
 import { Neo4jDerecha, Neo4jIzquierda, useNeo4jCrud } from "@/components/neo4j-crud"
 import { BotonesGuardar, BotonPrueba } from "@/components/crud-comun"
-import { api } from "@/lib/api"
+import { api, ApiError } from "@/lib/api"
+import { useCreados } from "@/lib/crud-creados"
 import { useWiki } from "@/lib/estado"
 import { cn } from "@/lib/utils"
 
@@ -42,6 +43,8 @@ export default function CrudPage() {
   const [mOp, setMOp] = useState("Crear")
   const [m, setM] = useState({ id: "" })
   const evento = useEventoNuevo(wikiForm)
+  const creadosMongo = useCreados("mongo")
+  const [docsCreados, setDocsCreados] = useState<Coincidencia[]>([])
 
   // «Completar con datos de prueba» en Consultar, Actualizar y Eliminar: un modal con los últimos 5 eventos para elegir uno.
   const [ultimos, setUltimos] = useState<{ abierto: boolean; docs: Coincidencia[] | null }>({ abierto: false, docs: null })
@@ -49,7 +52,15 @@ export default function CrudPage() {
     if (mOp === "Crear") { evento.completar(); return }
     setUltimos({ abierto: true, docs: null })
     try {
-      const r = await api<{ documentos: Coincidencia[] }>(`/api/crud/mongo/buscar?${new URLSearchParams({ wiki: wikiForm, periodo: "todo", limite: "5" })}`)
+      const [r, creados] = await Promise.all([
+        api<{ documentos: Coincidencia[] }>(`/api/crud/mongo/buscar?${new URLSearchParams({ wiki: wikiForm, periodo: "todo", limite: "5" })}`),
+        creadosMongo.cargar(async (id) => {
+          const d = await api<{ documentos: Coincidencia[] }>(`/api/crud/mongo/buscar?${new URLSearchParams({ id, wiki: wikiForm, periodo: "todo", limite: "1" })}`)
+          if (!d.documentos[0]) throw new ApiError(404, "El documento ya no existe")
+          return d.documentos[0]
+        }),
+      ])
+      setDocsCreados(creados.filter((d) => d.wiki === wikiForm))
       setUltimos({ abierto: true, docs: r.documentos })
     } catch (e) {
       setUltimos({ abierto: false, docs: null })
@@ -77,6 +88,7 @@ export default function CrudPage() {
         setResultado({ titulo: destino, ok: true, validacion: true, faltan: r.faltan, json: r })
         toast.info("El validador de MongoDB rechazó el documento")
       } else {
+        creadosMongo.agregar(id)
         setResultado({ titulo: `CREATE · ${destino}`, ok: true, json: r.documento })
         evento.renovarId()
         toast.success(`Documento ${id} insertado`)
@@ -122,7 +134,11 @@ export default function CrudPage() {
       setConfirmar(false)
     }
   }
-  const confirmarEliminacion = () => correr(eliminacion.eliminar, (d) => `«${String(d.title ?? d._id)}» eliminado`)
+  const confirmarEliminacion = () => correr(async () => {
+    const d = await eliminacion.eliminar()
+    creadosMongo.quitar(String(d._id))
+    return d
+  }, (d) => `«${String(d.title ?? d._id)}» eliminado`)
 
   const actualizacion = useActualizacion()
   /** Cambiar de operación con las pestañas deja el formulario vacío (no arrastra lo cargado en otra operación). */
@@ -176,11 +192,11 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" className="h-full" contenidoClassName="flex flex-1 flex-col">
+              <Seccion titulo="Colección events" descripcion="Los cambios de horas ya consolidadas se reflejan en métricas y relaciones al reprocesar su hora en Airflow." className="h-full" contenidoClassName="flex flex-1 flex-col">
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={cambiarMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   <BotonPrueba onClick={pruebaMongo} ultimos={mOp !== "Crear" && "los últimos eventos"} />
-                  <ModalUltimos abierto={ultimos.abierto} docs={ultimos.docs} onCerrar={() => setUltimos({ abierto: false, docs: null })} onElegir={elegirUltimo}
+                  <ModalUltimos abierto={ultimos.abierto} docs={ultimos.docs} creados={docsCreados} onCerrar={() => setUltimos({ abierto: false, docs: null })} onElegir={elegirUltimo}
                     operacion={mOp} />
                   {mOp === "Crear" ? <FormularioEvento ev={evento} />
                     : mOp === "Consultar" ? <FiltrosConsulta c={consulta} />

@@ -3,47 +3,45 @@ import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer,
 import { FileText, Share2, Undo2 } from "lucide-react"
 
 import { Cargando, Seccion, TarjetaKpi } from "@/components/common"
+import { Base, ModalMetrica, type MetricaModal } from "@/components/modal-metrica"
 import { DetalleKpi } from "@/components/detalle-kpi"
 import { Header, Pagina } from "@/components/layout"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { colorWiki, entero, horaLocal } from "@/lib/format"
-import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
+import { entero, horaLocal, intervaloLocal, COLOR, compararValores } from "@/lib/format"
+import { cambio, formatoKpi, KPIS, type Kpi } from "@/lib/kpis"
 
-interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
-interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: number | null; fuente: string | null }
+import { DEFINICION_PROTAGONISTA, metricasAcumuladas, type Resumen, type VistaResumen, type ProtagonistasAcumulados } from "@/lib/resumen"
 
 /** De dónde leyó la hora el proceso horario; las corridas anteriores a guardar la fuente salieron de EventStreams. */
 const FUENTE: Record<string, string> = { mongodb: "MongoDB", eventstreams: "EventStreams" }
 
-interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number; desde: string | null }
-
-// Por columnas, cada una un tema (Volumen, Contenido, Editores, Calidad): arriba el dato general, abajo uno
-// más específico. Se listan columna por columna (en pantallas angostas cada tema queda junto) y `orden`
-// las acomoda en la grilla de 4 columnas de pantallas anchas.
-const TARJETAS: { kpi: Kpi; orden: string; pie: (r: Resumen) => string }[] = [
-  { kpi: "total_eventos_acumulados", orden: "xl:order-1", pie: (r) => (r.desde ? `guardados desde el ${horaLocal(r.desde).split(" · ")[0]}` : "guardados en MongoDB") },
-  { kpi: "eventos_procesados", orden: "xl:order-5", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
-  { kpi: "volumen_neto_bytes", orden: "xl:order-2", pie: () => "bytes agregados − eliminados" },
-  { kpi: "tasa_creacion_pct", orden: "xl:order-6", pie: () => "páginas nuevas / ediciones" },
-  { kpi: "tasa_automatizacion_pct", orden: "xl:order-3", pie: () => "eventos hechos por bots" },
-  { kpi: "actividad_por_editor", orden: "xl:order-7", pie: () => "eventos por editor humano" },
-  { kpi: "calidad_datos_pct", orden: "xl:order-4", pie: () => "eventos válidos / extraídos" },
-  { kpi: "tasa_reversion_pct", orden: "xl:order-8", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
+// Todas estas tarjetas describen la misma hora consolidada.
+const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
+  { kpi: "eventos_procesados", pie: () => "Eventos válidos de esta hora" },
+  { kpi: "crecimiento_pct", pie: () => "Variación frente a la hora anterior" },
+  { kpi: "volumen_neto_bytes", pie: () => "Bytes añadidos menos eliminados" },
+  { kpi: "tasa_creacion_pct", pie: () => "Entre las ediciones y creaciones" },
+  { kpi: "tasa_automatizacion_pct", pie: () => "Eventos hechos por bots" },
+  { kpi: "actividad_por_editor", pie: () => "Eventos por editor humano distinto" },
+  { kpi: "tasa_reversion_pct", pie: (r) => `Entre las ediciones de la hora · ${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"}` },
+  { kpi: "calidad_datos_pct", pie: () => "Eventos válidos / eventos extraídos" },
 ]
 
 /** Un punto del gráfico de evolución: una hora procesada por el DAG. */
 interface PuntoHora { ventana: string; valor: number; previo: number | null; ultima: boolean }
 
+const PRINCIPALES = new Set<Kpi>(["eventos_procesados", "volumen_neto_bytes", "tasa_creacion_pct", "tasa_automatizacion_pct"])
 const HORAS_EVOLUCION = 72
 
 function TooltipEvolucion({ active, payload, kpi }: { active?: boolean; payload?: { payload: PuntoHora }[]; kpi: Kpi }) {
   const p = payload?.[0]?.payload
   if (!active || !p) return null
-  const d = p.previo != null ? cambio(kpi, [{ ventana: p.ventana, valor: p.valor, detalle: null }, { ventana: "", valor: p.previo, detalle: null }]) : null
+  const d = p.previo != null ? cambio(kpi, [{ ventana: p.ventana, valor: p.valor, detalle: null }, { ventana: new Date(new Date(p.ventana).getTime() - 3_600_000).toISOString(), valor: p.previo, detalle: null }]) : null
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
       <div className="mb-1 font-medium">{horaLocal(p.ventana)} UTC−5{p.ultima ? " · última hora" : ""}</div>
@@ -56,12 +54,21 @@ function TooltipEvolucion({ active, payload, kpi }: { active?: boolean; payload?
   )
 }
 
-export default function ResumenPage() {
+export default function ResumenPage({ vistaInicial = "hora" }: { vistaInicial?: VistaResumen }) {
+  const [vista, setVista] = useState<VistaResumen>(vistaInicial)
+  const [detalleAcum, setDetalleAcum] = useState<string | null>(null)
   const { wiki, wikis, etiqueta } = useWiki()
   const [kpiElegido, setKpiElegido] = useState<Kpi>("eventos_procesados")
   const [kpiAbierto, setKpiAbierto] = useState<Kpi | null>(null)
-  const { data, cargando } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
+  const { data, cargando, error, recargar } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
   const ultima = data?.kpis.eventos_procesados[0]?.ventana
+  const fin = data?.corte
+  const acumulado = data?.acumulado
+  const protagonistasAcum = useApi<ProtagonistasAcumulados>(vista === "acumulado" && fin ? `/api/resumen/acumulado/protagonistas?wiki=${wiki}&corte=${encodeURIComponent(fin)}` : null)
+  const tarjetasAcum = metricasAcumuladas(data)
+  const periodoAcum = fin ? `Hasta ${horaLocal(fin)} UTC−5` : "Pendiente de consolidación"
+  const cambiarVista = (value: string) => { setVista(value as VistaResumen); setKpiAbierto(null); setDetalleAcum(null) }
+  const periodo = ultima && fin ? intervaloLocal(ultima, fin) : "Pendiente de consolidación"
   const porHora = useMemo(() => {
     if (!data) return []
     const m = new Map<string, { hora: string; eventos: number }>()
@@ -81,7 +88,7 @@ export default function ResumenPage() {
   const evolucion = useMemo<PuntoHora[]>(() => {
     const serie = (data?.kpis[kpiElegido] ?? []).filter((p) => p.valor != null).slice(0, HORAS_EVOLUCION).reverse()
     return serie.map((p, i) => ({ ventana: p.ventana, valor: p.valor as number,
-      previo: i > 0 ? (serie[i - 1].valor as number) : null, ultima: i === serie.length - 1 }))
+      previo: i > 0 && new Date(p.ventana).getTime() - new Date(serie[i - 1].ventana).getTime() === 3_600_000 ? (serie[i - 1].valor as number) : null, ultima: i === serie.length - 1 }))
   }, [data, kpiElegido])
   const ejeY = (v: number) => {
     const u = KPIS[kpiElegido].unidad
@@ -90,22 +97,78 @@ export default function ResumenPage() {
     return Math.abs(v) >= 1000 ? `${v / 1000}k` : String(v)
   }
 
+  const tarjetaAbierta = tarjetasAcum.find((t) => t.id === detalleAcum)
+  const protagonistaAbierto = (Object.keys(DEFINICION_PROTAGONISTA) as (keyof typeof DEFINICION_PROTAGONISTA)[]).find((id) => id === detalleAcum)
+  let modalAcum: MetricaModal | null = null
+  const contextoAcum = { etiqueta, momento: periodoAcum, datos: [["Horas consolidadas", entero(acumulado?.horas)]] as [string, string][], lectura: "Respeta la wiki y el corte mostrados. Solo incluye horas consolidadas." }
+  if (tarjetaAbierta) modalAcum = {
+    ...contextoAcum, titulo: tarjetaAbierta.nombre, valor: tarjetaAbierta.valor, nota: tarjetaAbierta.pie,
+    definicion: tarjetaAbierta.definicion, calculo: { texto: tarjetaAbierta.formula },
+    lectura: contextoAcum.lectura,
+    origen: <Base base={tarjetaAbierta.fuente} />,
+  }
+  if (protagonistaAbierto) {
+    const p = protagonistasAcum.data?.protagonistas[protagonistaAbierto]
+    const unidad = protagonistaAbierto === "editor_mas_conectado" ? "coeditores humanos" : "reversiones"
+    const pendiente = Boolean(fin && !protagonistasAcum.data && !protagonistasAcum.error)
+    modalAcum = { ...contextoAcum, titulo: KPIS[protagonistaAbierto].nombre,
+      valor: p?.detalle?.split(" (")[0].replace(/^(en|es)wiki:/, "") ?? (pendiente ? "Consultando…" : protagonistasAcum.error ? "No disponible" : "Sin actividad"), valorEsTexto: true,
+      nota: pendiente ? "Consultando el historial consolidado" : p?.valor == null ? "Sin datos disponibles para este período" : `${entero(p.valor)} ${unidad}`,
+      definicion: DEFINICION_PROTAGONISTA[protagonistaAbierto], calculo: { texto: DEFINICION_PROTAGONISTA[protagonistaAbierto] },
+      origen: <Base base={protagonistaAbierto === "pagina_mas_disputada" ? "mongo" : "neo4j"} /> }
+  }
+  const ordenAcum = [...tarjetasAcum.map((t) => ({ id: t.id, nombre: t.nombre })), ...Object.keys(DEFINICION_PROTAGONISTA).map((id) => ({ id, nombre: KPIS[id as keyof typeof DEFINICION_PROTAGONISTA].nombre }))]
+  const indiceAcum = ordenAcum.findIndex((t) => t.id === detalleAcum)
+  const anteriorAcum = ordenAcum[(indiceAcum - 1 + ordenAcum.length) % ordenAcum.length]
+  const siguienteAcum = ordenAcum[(indiceAcum + 1) % ordenAcum.length]
+
   return (
     <>
       <Header ruta={["Panel", "Resumen"]} />
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaLocal(ultima)}–${horaLocal(ultima, false).slice(0, 2)}:59 UTC−5) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {cargando || !data
-            ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
-            : TARJETAS.map(({ kpi, orden, pie }) => (
-                <TarjetaKpi key={kpi} className={orden} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
-                  cambio={kpi === "total_eventos_acumulados" ? null : cambio(kpi, data.kpis[kpi])}
-                  pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
-              ))}
+      <Pagina titulo="Resumen" descripcion={`${etiqueta} · actividad por hora y acumulada. Abre una métrica para ver cómo se calcula.`}>
+        {error && <div role="alert" className="rounded-lg border border-destructive p-3 text-sm">{error} <button type="button" className="underline" onClick={recargar}>Reintentar</button></div>}
+        <div className="space-y-3">
+          <Tabs value={vista} onValueChange={cambiarVista} className="gap-5">
+            <TabsList aria-label="Período de las métricas">
+              <TabsTrigger value="hora">Por hora</TabsTrigger>
+              <TabsTrigger value="acumulado">Acumulado</TabsTrigger>
+            </TabsList>
+            <TabsContent value="hora" className="space-y-5">
+              <div className="space-y-1"><h2 className="text-base font-semibold">Última hora consolidada</h2><p className="text-sm text-muted-foreground">{periodo}</p></div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {cargando || !data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={150} />)
+                  : TARJETAS.filter(({ kpi }) => PRINCIPALES.has(kpi)).map(({ kpi, pie }) => (
+                    <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
+                      tonoValor={kpi === "volumen_neto_bytes" ? compararValores(data.kpis[kpi][0]?.valor, 0) : undefined}
+                      cambio={cambio(kpi, data.kpis[kpi])} pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
+                  ))}
+              </div>
+            </TabsContent>
+            <TabsContent value="acumulado" className="space-y-5">
+              <div className="space-y-1"><h2 className="text-base font-semibold">Acumulado</h2><p className="text-sm text-muted-foreground">{periodoAcum}</p></div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {cargando || !data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={150} />)
+                  : tarjetasAcum.filter((t) => t.principal).map((t) => <TarjetaKpi key={t.id} etiqueta={t.nombre} valor={t.valor} tonoValor={t.tonoValor} pie={t.pie} onAbrir={() => setDetalleAcum(t.id)} />)}
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <details key={vista} className="rounded-xl border bg-card shadow-xs">
+            <summary className="cursor-pointer rounded-xl px-6 py-4 text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring">Más detalles {vista === "hora" ? "de la hora" : "del acumulado"}</summary>
+            <div className="grid grid-cols-1 gap-4 border-t p-5 sm:grid-cols-2 xl:grid-cols-4">
+              {cargando || !data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={150} />)
+                : vista === "acumulado" ? tarjetasAcum.filter((t) => !t.principal).map((t) => <TarjetaKpi key={t.id} etiqueta={t.nombre} valor={t.valor} tonoValor={t.tonoValor} pie={t.pie} onAbrir={() => setDetalleAcum(t.id)} />)
+                : TARJETAS.filter(({ kpi }) => !PRINCIPALES.has(kpi)).map(({ kpi, pie }) => (
+                  <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
+                    cambio={kpi === "crecimiento_pct" ? null : cambio(kpi, data.kpis[kpi])} pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
+                ))}
+            </div>
+          </details>
+
         </div>
 
         <Seccion titulo={`Evolución por hora · ${etiqueta}`}
-          descripcion={`${KPIS[kpiElegido].formula} · últimas ${evolucion.length || HORAS_EVOLUCION} horas procesadas por el DAG; la última, resaltada · ${KPIS[kpiElegido].fuente}`}
+          descripcion={`Valor de cada hora consolidada · últimas ${evolucion.length || HORAS_EVOLUCION} horas disponibles · ${etiqueta}`}
           accion={
             <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
               <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
@@ -118,14 +181,14 @@ export default function ResumenPage() {
           }>
           {!data ? <Cargando alto={260} /> : evolucion.length < 2 ? <p className="text-sm text-muted-foreground">Hace falta más de una hora con este KPI para ver su evolución.</p> : (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={evolucion} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap={2}>
+              <BarChart data={evolucion} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="22%" maxBarSize={72}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="ventana" tickFormatter={(t) => horaLocal(t)} tickLine={false} axisLine={false} minTickGap={60} fontSize={11} stroke="var(--muted-foreground)" />
                 <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
-                <Bar dataKey="valor" fill={colorWiki(wiki)} radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                  {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.45} />)}
+                <Bar dataKey="valor" fill={COLOR.enwiki} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                  {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.85} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -133,19 +196,23 @@ export default function ResumenPage() {
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${etiqueta} · la página, en Cassandra; los editores, en Neo4j sobre la red acumulada`}>
-            {!data ? <Cargando alto={200} /> : (
+          <Seccion className="lg:col-span-2" titulo={vista === "hora" ? "Protagonistas de la hora" : "Protagonistas del acumulado"} descripcion={vista === "hora" ? periodo : periodoAcum}>
+            {vista === "acumulado" && protagonistasAcum.error ? <p role="alert" className="text-sm text-muted-foreground">No se pudo cargar el acumulado. <button className="underline" onClick={protagonistasAcum.recargar}>Reintentar</button></p>
+              : vista === "acumulado" && protagonistasAcum.data?.actualizando ? <p className="text-sm text-muted-foreground">Actualizando las horas consolidadas… <button className="underline" onClick={protagonistasAcum.recargar}>Actualizar</button></p>
+              : vista === "acumulado" && data && !fin ? <p className="text-sm text-muted-foreground">Todavía no hay horas consolidadas para este acumulado.</p>
+              : !data || (vista === "acumulado" && !protagonistasAcum.data) ? <Cargando alto={200} /> : (
               <div className="flex flex-col">
                 {([
                   ["pagina_mas_disputada", FileText, "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400", "reversiones"],
                   ["editor_mas_conectado", Share2, "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400", "coeditores"],
                   ["editor_mas_revertido", Undo2, "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400", "reversiones"],
                 ] as const).map(([kpi, Icono, estilo, unidad], i) => {
-                  const p = data.kpis[kpi][0]
-                  const nombre = (p?.detalle ?? "—").split(" (")[0].replace(/^(en|es)wiki:/, "")
+                  const p = vista === "hora" ? data.kpis[kpi][0] : protagonistasAcum.data?.protagonistas[kpi]
+                  const sinActividad = `${kpi === "editor_mas_conectado" ? "Sin coedición humana" : "Sin reversiones"} ${vista === "hora" ? "en esta hora" : "en el acumulado"}`
+                  const nombre = (p?.detalle ?? (vista === "acumulado" || p ? sinActividad : "Pendiente")).split(" (")[0].replace(/^(en|es)wiki:/, "")
                   const extra = p?.detalle?.match(/\((.*)\)/)?.[1]
                   return (
-                    <button type="button" key={kpi} onClick={() => setKpiAbierto(kpi)} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${i < 2 ? "border-b border-border" : ""}`}>
+                    <button type="button" key={kpi} onClick={() => vista === "hora" ? setKpiAbierto(kpi) : setDetalleAcum(kpi)} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${i < 2 ? "border-b border-border" : ""}`}>
                       <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${estilo}`}><Icono className="size-[18px]" aria-hidden /></div>
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-xs text-muted-foreground">{KPIS[kpi].nombre}</span>
@@ -159,7 +226,7 @@ export default function ResumenPage() {
             )}
           </Seccion>
 
-          <Seccion className="lg:col-span-3" titulo="Ejecuciones del pipeline" descripcion={`Una fila por hora procesada por el DAG: sus eventos, de dónde leyó la hora y su calidad · ${etiqueta} · Cassandra resumen_por_hora y ejecuciones`}>
+          <Seccion className="lg:col-span-3" titulo="Ejecuciones del pipeline" descripcion="Una fila por hora procesada por el DAG: sus eventos, de dónde leyó la hora y su calidad.">
             {!data ? <Cargando alto={200} /> : (
               <Table>
                 <TableHeader>
@@ -191,6 +258,7 @@ export default function ResumenPage() {
 
 
       </Pagina>
+      {modalAcum && <ModalMetrica m={modalAcum} anterior={{ nombre: anteriorAcum.nombre, ir: () => setDetalleAcum(anteriorAcum.id) }} siguiente={{ nombre: siguienteAcum.nombre, ir: () => setDetalleAcum(siguienteAcum.id) }} onCerrar={() => setDetalleAcum(null)} />}
       <DetalleKpi kpi={kpiAbierto} series={data?.kpis ?? null} etiqueta={etiqueta} onCambiar={setKpiAbierto} />
     </>
   )

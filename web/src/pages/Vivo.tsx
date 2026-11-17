@@ -12,14 +12,22 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { api } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
 import { BORRADO_GRANDE, cumpleFiltros, FILTROS_EDITOR, SIN_FILTROS, FILTROS_TIPO, NOMBRE_EDITOR, NOMBRE_TIPO, PLURAL_TIPO, tipoEvento, type EventoResumen, type Filtros } from "@/lib/eventos"
-import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
+import { COLOR, colorTipo, variacion, entero, horaLocal, intervaloLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-interface Vivo {
-  ahora: string
-  eventos_ultimo_minuto: number
-  /** Editores distintos de los últimos 30 minutos, por tipo (registrado, temporal, bot). */
+interface VentanaVivo {
+  inicio: string; fin: string; eventos: number; ediciones: number; eventos_bot: number; reversiones: number
   editores: Record<string, number>
+}
+const totalEditores = (v: VentanaVivo) => Object.values(v.editores).reduce((sum, n) => sum + n, 0)
+const proporcionBots = (v: VentanaVivo) => v.eventos ? 100 * v.eventos_bot / v.eventos : null
+
+interface Vivo {
+  metricas: { actual: VentanaVivo; anterior: VentanaVivo }
+  ahora: string
+  inicio: string
+  fin: string
+  provisional: boolean
   por_minuto: { wiki: string; t: string; eventos: number; ediciones: number; eventos_bot: number; reversiones: number }[]
   ultimos: EventoResumen[]
   /** Cambios que borraron más de BORRADO_GRANDE bytes en la ventana. */
@@ -31,68 +39,60 @@ const REFRESCO_MS = 4000
 const MOSTRAR = 25
 
 /** Tarjetas de En vivo que abren su detalle. */
-type MetricaVivo = "eps" | "editores" | "bots" | "rev"
-const ORDEN_VIVO: MetricaVivo[] = ["eps", "editores", "bots", "rev"]
-const NOMBRE_METRICA: Record<MetricaVivo, string> = { eps: "Eventos por segundo", editores: "Editores activos", bots: "Hechos por bots", rev: "Reversiones" }
+type MetricaVivo = "eventos" | "editores" | "bots" | "rev"
+const ORDEN_VIVO: MetricaVivo[] = ["eventos", "editores", "bots", "rev"]
+const NOMBRE_METRICA: Record<MetricaVivo, string> = { eventos: "Eventos registrados", editores: "Editores participantes", bots: "Eventos de bots", rev: "Reversiones detectadas" }
 
-/** Definición y datos de cada tarjeta de En vivo, a partir de la serie por minuto de Cassandra. */
+export function TarjetasVivo({ actual: v, anterior, onAbrir }: { actual?: VentanaVivo; anterior?: VentanaVivo; onAbrir: (id: MetricaVivo) => void }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {!v || !anterior ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={160} />) : (
+        <>
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.eventos} cambio={variacion(v.eventos, anterior.eventos)} valor={entero(v.eventos)} pie={`Promedio: ${(v.eventos / 300).toFixed(1)} eventos/s`} onAbrir={() => onAbrir("eventos")} />
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.editores} cambio={variacion(totalEditores(v), totalEditores(anterior))} valor={entero(totalEditores(v))}
+            pie={`${entero(totalEditores(v) - (v.editores.bot ?? 0))} personas y ${entero(v.editores.bot ?? 0)} bots`} onAbrir={() => onAbrir("editores")} />
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.bots} cambio={variacion(proporcionBots(v), proporcionBots(anterior), "pp")} valor={v.eventos ? `${proporcionBots(v)!.toFixed(1)} %` : "—"}
+            pie={`${entero(v.eventos_bot)} de ${entero(v.eventos)} eventos`} onAbrir={() => onAbrir("bots")} />
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.rev} cambio={variacion(v.reversiones, anterior.reversiones)} valor={entero(v.reversiones)} pie="Deshacen cambios de otro editor" onAbrir={() => onAbrir("rev")} />
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Las cuatro tarjetas comparten exactamente la misma ventana móvil de cinco minutos. */
 function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
-  const porMinuto = new Map<string, { eventos: number; bots: number; rev: number; ediciones: number }>()
-  for (const p of d.por_minuto) {
-    const f = porMinuto.get(p.t) ?? { eventos: 0, bots: 0, rev: 0, ediciones: 0 }
-    f.eventos += p.eventos; f.bots += p.eventos_bot; f.rev += p.reversiones; f.ediciones += p.ediciones
-    porMinuto.set(p.t, f)
+  const v = d.metricas.actual, anterior = d.metricas.anterior
+  const comun = { etiqueta, momento: `${intervaloLocal(v.inicio, v.fin)} · últimos 5 minutos`,
+    origen: <>Eventos guardados en <Base base="mongo" /> durante ese intervalo. Comparación con los cinco minutos inmediatamente anteriores.</> }
+  if (k === "eventos") return {
+    ...comun, titulo: NOMBRE_METRICA.eventos, valor: entero(v.eventos), nota: `Promedio: ${(v.eventos / 300).toFixed(1)} eventos/s`,
+    datos: [["5 minutos anteriores", entero(anterior.eventos)]],
+    definicion: "Cantidad de eventos de Wikipedia guardados durante los últimos cinco minutos.",
+    calculo: { texto: "Se cuenta cada evento guardado entre el inicio y el fin del intervalo." },
+    lectura: "El promedio por segundo divide ese total entre 300 segundos. La pastilla compara los totales de ambos intervalos.",
   }
-  const minutos = [...porMinuto.entries()].sort(([a], [b]) => a.localeCompare(b))
-  const sum = (c: "eventos" | "bots" | "rev" | "ediciones") => minutos.reduce((s, [, f]) => s + f[c], 0)
-  const ev = sum("eventos"), bots = sum("bots"), rev = sum("rev"), ediciones = sum("ediciones")
-  const pico = (c: "eventos" | "rev") => minutos.reduce((a, b) => (b[1][c] > a[1][c] ? b : a), minutos[0])
-  const hora = (t: string) => horaLocal(t, false)
-  const desde = `hace ${minutos.length} min`
-  const enCassandra = <>El servicio de streaming suma cada evento por minuto en <Base base="cassandra" /> (tabla eventos_por_minuto) y aquí se suman los últimos 30 minutos.</>
-  const comun = { etiqueta, momento: "Últimos 30 minutos · se actualiza cada 4 s" }
-
-  if (k === "eps") return {
-    ...comun, titulo: NOMBRE_METRICA.eps, momento: "Último minuto · se actualiza cada 4 s",
-    valor: (d.eventos_ultimo_minuto / 60).toFixed(1), nota: `${entero(d.eventos_ultimo_minuto)} eventos en el último minuto`,
-    serie: { valores: minutos.map(([, f]) => f.eventos / 60), desde },
-    datos: [["Promedio 30 min", `${minutos.length ? (ev / (minutos.length * 60)).toFixed(1) : "—"} por segundo`],
-      ["Minuto más activo", minutos.length ? `${entero(pico("eventos")[1].eventos)} · ${hora(pico("eventos")[0])}` : "—"]],
-    definicion: "Ritmo actual del stream: cuántos eventos de Wikipedia se guardan por segundo.",
-    calculo: { fraccion: ["eventos guardados en el último minuto", "60 segundos"] },
-    lectura: "Muestra qué tan activa está Wikipedia en este momento. Varía con la hora del día y sube con noticias o con bots que trabajan en lote.",
-    origen: <>Se cuenta en <Base base="mongo" /> (colección events) cada vez que se actualiza la página.</>,
-  }
-  if (k === "editores") {
-    const e = d.editores, total = Object.values(e).reduce((s, n) => s + n, 0)
-    return {
-      ...comun, titulo: NOMBRE_METRICA.editores, valor: entero(total), nota: `${entero(ev)} eventos de ${etiqueta}`,
-      datos: [["Cuentas registradas", entero(e.registrado ?? 0)], ["Cuentas temporales", entero(e.temporal ?? 0)], ["Bots", entero(e.bot ?? 0)],
-        ["Eventos por editor", total ? (ev / total).toFixed(1) : "—"]],
-      definicion: "Editores distintos que hicieron al menos un cambio en los últimos 30 minutos.",
-      calculo: { codigo: "events.aggregate([{ $match: últimos 30 min }, { $group: { _id: \"$user\" } }, { $count }])" },
-      lectura: "Cuánta gente está trabajando ahora. Junto con los eventos dice si un pico viene de muchos editores o de pocos muy activos, como un bot en ráfaga o un ataque.",
-      origen: <>Se cuenta en <Base base="mongo" /> (colección events) cada vez que se actualiza la página.</>,
-    }
+  if (k === "editores") return {
+    ...comun, titulo: NOMBRE_METRICA.editores, valor: entero(totalEditores(v)), nota: "Editores distintos en 5 min",
+    datos: [["Personas", entero(totalEditores(v) - (v.editores.bot ?? 0))], ["Bots", entero(v.editores.bot ?? 0)],
+      ["5 minutos anteriores", entero(totalEditores(anterior))]],
+    definicion: "Editores distintos que hicieron al menos un cambio durante los últimos cinco minutos.",
+    calculo: { texto: "Usuarios distintos entre el inicio y el fin del intervalo; cada usuario se cuenta una vez." },
+    lectura: "Cuenta a quienes realizaron cambios, no a todos los usuarios conectados. Cada editor puede generar varios eventos.",
   }
   if (k === "bots") return {
-    ...comun, titulo: NOMBRE_METRICA.bots, valor: ev ? `${((bots / ev) * 100).toFixed(1)} %` : "—", nota: `${entero(bots)} eventos en 30 min`,
-    serie: { valores: minutos.map(([, f]) => (f.eventos ? (f.bots / f.eventos) * 100 : 0)), desde },
-    datos: [["Eventos de bots", entero(bots)], ["Eventos humanos", entero(ev - bots)]],
-    definicion: "Porcentaje de los eventos de los últimos 30 minutos hechos por bots.",
-    calculo: { fraccion: ["eventos de bots", "total de eventos", "× 100"] },
-    lectura: "Cuánto del trabajo reciente hacen bots (marca bot=true o «bot» en el nombre). Sube cuando un bot procesa muchas páginas seguidas.",
-    origen: enCassandra,
+    ...comun, titulo: NOMBRE_METRICA.bots, valor: v.eventos ? `${proporcionBots(v)!.toFixed(1)} %` : "—", nota: `${entero(v.eventos_bot)} eventos de bots en 5 min`,
+    datos: [["Eventos humanos", entero(v.eventos - v.eventos_bot)], ["5 minutos anteriores", anterior.eventos ? `${proporcionBots(anterior)!.toFixed(1)} %` : "—"]],
+    definicion: "Parte de los eventos de los últimos cinco minutos realizada por bots.",
+    calculo: { fraccion: ["eventos de bots", "eventos del intervalo", "× 100"] },
+    lectura: "La variación se expresa en puntos porcentuales (pp), para comparar ambas proporciones.",
   }
   return {
-    ...comun, titulo: NOMBRE_METRICA.rev, valor: entero(rev), nota: "en los últimos 30 minutos",
-    serie: { valores: minutos.map(([, f]) => f.rev), desde },
-    datos: [["Por cada 100 ediciones", ediciones ? ((rev / ediciones) * 100).toFixed(2) : "—"],
-      ["Minuto con más", minutos.length ? `${entero(pico("rev")[1].rev)} · ${hora(pico("rev")[0])}` : "—"]],
-    definicion: "Ediciones de los últimos 30 minutos que deshacen el trabajo de otro editor.",
-    calculo: { texto: "Σ reversiones por minuto de los últimos 30 minutos" },
-    lectura: "Señal de vandalismo o de conflicto entre editores. Los picos suelen ser patrulleros o bots antivandalismo revirtiendo varias ediciones seguidas.",
-    origen: enCassandra,
+    ...comun, titulo: NOMBRE_METRICA.rev, valor: entero(v.reversiones), nota: "Reversiones en los últimos 5 min",
+    datos: [["5 minutos anteriores", entero(anterior.reversiones)]],
+    definicion: "Ediciones que deshacen el trabajo de otro editor durante los últimos cinco minutos.",
+    calculo: { texto: "Eventos del intervalo cuyo comentario identifica una reversión a otro editor." },
+    lectura: "Muestra actividad de revisión; un aumento por sí solo no determina su causa.",
   }
 }
 
@@ -176,15 +176,22 @@ export default function VivoPage() {
 
   // Consulta la API cada pocos segundos mientras la página está abierta.
   useEffect(() => {
+    setData(null)
+    setError(null)
     let vigente = true
-    const cargar = () =>
-      api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
+    let enCurso = false
+    const cargar = () => {
+      if (enCurso) return
+      enCurso = true
+      return api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
         .then((d) => {
           if (!vigente) return
           setData(d)
           setError(null)
         })
         .catch((e: Error) => vigente && setError(e.message))
+        .finally(() => { enCurso = false })
+    }
     cargar()
     const t = setInterval(cargar, REFRESCO_MS)
     const r = setInterval(() => setReloj(Date.now()), 1000)
@@ -211,28 +218,16 @@ export default function VivoPage() {
   const [listaModal, setListaModal] = useState<EventoResumen[]>([])
   const abrir = (id: string) => { setListaModal(visibles); setAbierto(id) }
 
-  const tot = useMemo(() => {
-    const p = data?.por_minuto ?? []
-    const ev = p.reduce((s, x) => s + x.eventos, 0)
-    return { ev, bots: p.reduce((s, x) => s + x.eventos_bot, 0), rev: p.reduce((s, x) => s + x.reversiones, 0) }
-  }, [data])
+  const reciente = data?.metricas.actual
+  const previo = data?.metricas.anterior
 
   return (
     <>
       <Header ruta={["Panel", "En vivo"]} />
-      <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada evento de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
+      <Pagina titulo="En vivo" descripcion={`${etiqueta} · cambios recientes de Wikipedia. Se actualiza cada 4 segundos.`}>
         {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
-            <>
-              <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
-              <TarjetaKpi etiqueta="Editores activos" valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
-                pie={`${entero((data.editores?.registrado ?? 0) + (data.editores?.temporal ?? 0))} personas · ${entero(data.editores?.bot ?? 0)} bots en 30 min`} onAbrir={() => setMetrica("editores")} />
-              <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
-            </>
-          )}
-        </div>
+        <div className="space-y-1"><h2 className="text-base font-semibold">Últimos 5 minutos</h2><p className="text-sm text-muted-foreground">Comparado con los 5 min anteriores · datos provisionales.</p></div>
+        <TarjetasVivo actual={reciente} anterior={previo} onAbrir={setMetrica} />
 
         <Seccion titulo="Eventos por minuto" descripcion="Últimos 30 minutos · barras apiladas por wiki · el minuto en curso todavía se está llenando" accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
           {!data ? <Cargando alto={240} /> : (

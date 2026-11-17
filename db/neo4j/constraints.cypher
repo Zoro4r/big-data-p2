@@ -9,3 +9,9 @@ CREATE CONSTRAINT categoria_key IF NOT EXISTS FOR (c:Categoria) REQUIRE c.key IS
 CREATE INDEX pagina_ultima_edicion IF NOT EXISTS FOR (p:Pagina) ON (p.ultima_edicion);
 CREATE INDEX editor_ultima_actividad IF NOT EXISTS FOR (e:Editor) ON (e.ultima_actividad);
 CREATE INDEX editor_tipo IF NOT EXISTS FOR (e:Editor) ON (e.tipo);
+
+// Modelo temporal y mutex transaccional de reconstrucción.
+CREATE CONSTRAINT pipeline_modelo IF NOT EXISTS FOR (m:PipelineModelo) REQUIRE m.id IS UNIQUE;
+CREATE INDEX edito_ventana IF NOT EXISTS FOR ()-[r:EDITO]-() ON (r.ventana);
+CREATE INDEX revirtio_ventana IF NOT EXISTS FOR ()-[r:REVIRTIO]-() ON (r.ventana);
+CREATE INDEX actividad_ventana IF NOT EXISTS FOR ()-[r:ACTIVO_EN]-() ON (r.ventana);

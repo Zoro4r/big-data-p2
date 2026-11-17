@@ -1,7 +1,7 @@
 """Operaciones CRUD de las tres bases (sección 4 de las instrucciones) y una demo para la exposición.
 
 MongoDB   : crear, consultar, actualizar y eliminar un documento de la colección `events`.
-Cassandra : insertar, consultar, actualizar y eliminar filas de la tabla `actividad_editor`.
+Cassandra : insertar, consultar, actualizar y eliminar filas de la tabla `kpis`.
 Neo4j     : crear nodos, crear una relación, actualizar propiedades y eliminar relaciones y nodos.
 
 Las funciones las reutiliza la página de CRUD del dashboard. La demo usa entidades marcadas
@@ -72,6 +72,8 @@ def preparar_evento(documento: dict) -> tuple[dict, list[str]]:
         faltan.append("meta.dt")
     else:
         meta.setdefault("id", doc.get("_id"))
+        if meta["id"] != doc.get("_id"):
+            faltan.append("meta.id (debe coincidir con _id)")
     if faltan:
         return mongo.sanitize(doc), faltan
     try:
@@ -94,7 +96,7 @@ def preparar_actualizacion(actual: dict, cambios: dict) -> tuple[dict, dict, lis
     import copy
 
     for ruta in cambios:
-        if ruta in PROTEGIDOS or ruta.startswith("derived.") or ruta.startswith("$"):
+        if any(ruta == field or ruta.startswith(field + ".") for field in PROTEGIDOS) or ruta.startswith("$"):
             raise ValueError(f"El campo «{ruta}» no se puede modificar")
     nuevo = copy.deepcopy(actual)
     for ruta, valor in cambios.items():
@@ -182,7 +184,7 @@ def kpi_ultimas(session, n: int = 5) -> list:
     """Las n filas más recientes de la tabla: la última de cada partición (KPI), de la más nueva a la más antigua."""
     filas = []
     for kpi in kpi_nombres(session):
-        filas += kpi_consultar(session, kpi, limite=1)
+        filas += kpi_consultar(session, kpi, limite=n)
     return sorted(filas, key=lambda r: r.ventana, reverse=True)[:n]
 
 
@@ -190,6 +192,13 @@ def kpi_actualizar(session, kpi: str, ventana: datetime, cambios: dict) -> None:
     """UPDATE solo de las columnas que cambian (la clave no se puede cambiar: sería otra fila)."""
     if not cambios or any(c not in ("valor", "detalle") for c in cambios):
         raise ValueError("Solo se pueden cambiar el valor y el detalle")
+    if "valor" in cambios and cambios["valor"] is not None:
+        import math
+        value = cambios["valor"]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("El valor debe ser un número finito o null")
+    if "detalle" in cambios and cambios["detalle"] is not None and not isinstance(cambios["detalle"], str):
+        raise ValueError("El detalle debe ser texto o null")
     # Los nombres de columna se validan contra una lista fija antes de entrar a la consulta.
     sets = ", ".join(f"{c} = %s" for c in cambios)
     session.execute(f"UPDATE kpis SET {sets} WHERE kpi = %s AND ventana = %s", (*cambios.values(), kpi, ventana))
@@ -260,14 +269,30 @@ def _plano(v):
 
 
 def neo4j_detalle_editor(driver, user: str, limite: int = 40) -> dict | None:
-    """Propiedades del editor, sus relaciones (salientes y entrantes, hasta `limite` de cada lado) y los totales."""
-    with driver.session() as s:
-        rec = s.run(
-            "MATCH (e:Editor {user: $u}) "
-            "RETURN properties(e) AS editor, COUNT { (e)-->() } AS n_salientes, COUNT { (e)<--() } AS n_entrantes, "
-            "  [(e)-[r]->(x) | {tipo: type(r), con: coalesce(x.user, x.titulo, x.key, x.nombre), etiqueta: labels(x)[0], props: properties(r)}][..$l] AS salientes, "
-            "  [(e)<-[r]-(x) | {tipo: type(r), con: coalesce(x.user, x.titulo, x.key, x.nombre), etiqueta: labels(x)[0], props: properties(r)}][..$l] AS entrantes",
-            u=user, l=limite).single()
+    """Detalle con relaciones manuales y editables primero, seguido del contenido."""
+    query = """
+    MATCH (e:Editor {user: $u})
+    CALL (e) {
+      OPTIONAL MATCH (e)-[r]->(x)
+      WHERE type(r) <> 'ACTIVO_EN'
+      WITH r,x ORDER BY CASE WHEN r.manual THEN 0 WHEN type(r) IN $editables THEN 1 ELSE 2 END,
+                        coalesce(r.ultima_vez,r.fecha) DESC
+      RETURN collect(CASE WHEN r IS NULL THEN null ELSE {
+        id:elementId(r), tipo:type(r), con:coalesce(x.user,x.titulo,x.key,x.nombre),
+        etiqueta:labels(x)[0], props:properties(r)} END)[..$l] AS salientes
+    }
+    CALL (e) {
+      OPTIONAL MATCH (e)<-[r]-(x)
+      WITH r,x ORDER BY CASE WHEN r.manual THEN 0 ELSE 1 END, coalesce(r.ultima_vez,r.fecha) DESC
+      RETURN collect(CASE WHEN r IS NULL THEN null ELSE {
+        id:elementId(r), tipo:type(r), con:coalesce(x.user,x.titulo,x.key,x.nombre),
+        etiqueta:labels(x)[0], props:properties(r)} END)[..$l] AS entrantes
+    }
+    RETURN properties(e) AS editor, COUNT { (e)-->() } AS n_salientes,
+           COUNT { (e)<--() } AS n_entrantes, salientes, entrantes
+    """
+    with driver.session() as session:
+        rec = session.run(query, u=user, l=limite, editables=sorted(RELACIONES_EDITOR)).single()
     return _plano(dict(rec)) if rec else None
 
 
@@ -280,9 +305,9 @@ def neo4j_crear_relacion(driver, origen: str, destino: str, tipo: str, props: di
     else:
         raise ValueError(f"Tipo de relación no permitido: {tipo}")
     # El tipo se valida contra una lista fija antes de insertarlo en la consulta.
-    query = f"{match} MERGE (a)-[r:{tipo}]->(b) SET r += $props RETURN properties(r) AS r"
+    query = f"{match} MERGE (a)-[r:{tipo} {{manual: true, wiki: $wiki}}]->(b) SET r += $props RETURN properties(r) AS r"
     with driver.session() as s:
-        rec = s.run(query, origen=origen, destino=destino, props=props or {}).single()
+        rec = s.run(query, origen=origen, destino=destino, props=props or {}, wiki=(props or {}).get("wiki") or "enwiki").single()
         return rec["r"] if rec else None
 
 
@@ -304,13 +329,20 @@ def neo4j_actualizar_editor(driver, user: str, props: dict) -> dict | None:
         return _plano(rec["e"]) if rec else None
 
 
-def neo4j_eliminar_relacion(driver, origen: str, destino: str, tipo: str) -> int:
+def neo4j_eliminar_relacion(driver, origen: str, destino: str, tipo: str, relacion_id: str | None = None) -> int:
     if tipo not in RELACIONES_EDITOR | {"EDITO"}:
         raise ValueError(f"Tipo de relación no permitido: {tipo}")
     with driver.session() as s:
-        # La etiqueta :Editor permite usar el índice único de user (sin ella, Neo4j recorre todos los nodos).
-        return s.run(f"MATCH (a:Editor {{user: $origen}})-[r:{tipo}]->(b) WHERE b.user = $destino OR b.key = $destino "
-                     "DELETE r", origen=origen, destino=destino).consume().counters.relationships_deleted
+        match = f"MATCH (a:Editor {{user: $origen}})-[r:{tipo}]->(b) "
+        where = "WHERE (b.user = $destino OR b.key = $destino) AND ($id IS NULL OR elementId(r) = $id) "
+        params = {"origen": origen, "destino": destino, "id": relacion_id}
+        def remove(tx):
+            count = tx.run(match + where + "RETURN count(r) AS n", **params).single()["n"]
+            if relacion_id is None and count > 1:
+                raise ValueError("Hay varias relaciones. Selecciona su identificador para eliminar una sola")
+            return tx.run(match + where + "DELETE r", **params).consume().counters.relationships_deleted
+        return s.execute_write(remove)
+
 
 
 def neo4j_eliminar_nodo(driver, label: str, clave: str, valor: str) -> int:
@@ -367,10 +399,10 @@ def demo_mongo() -> None:
 
 
 def demo_cassandra() -> None:
-    from wikipipe import cassandra_store
+    from wikipipe import cassandra_store, config
 
     cluster, session = cassandra_store.connect()
-    session.set_keyspace("wikipipe")
+    session.set_keyspace(config.CASSANDRA_KEYSPACE)
     try:
         _titulo("CRUD en Cassandra · tabla kpis (partición = kpi)")
         _paso("Consulta real · últimas 3 horas de eventos_procesados:",

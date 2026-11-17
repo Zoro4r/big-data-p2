@@ -31,6 +31,7 @@ import logging
 import signal
 import time
 from collections import defaultdict
+from itertools import groupby
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -67,7 +68,7 @@ class Contadores:
         c["reversiones"] += 1 if d.get("revert_target") else 0
         self.tocados.add(clave)
 
-    def filas_para_escribir(self) -> list[tuple]:
+    def filas_para_escribir(self, confirmar: bool = True) -> list[tuple]:
         """Filas (wiki, fecha, minuto, eventos, ediciones, bots, reversiones) de los minutos tocados."""
         filas = []
         for clave in sorted(self.tocados):
@@ -76,7 +77,8 @@ class Contadores:
             filas.append((wiki, datetime.fromisoformat(fecha).date(),
                           datetime.fromisoformat(minuto).replace(tzinfo=timezone.utc),
                           c["eventos"], c["ediciones"], c["eventos_bot"], c["reversiones"]))
-        self.tocados.clear()
+        if confirmar:
+            self.tocados.clear()
         return filas
 
     def podar(self, ahora: datetime) -> None:
@@ -87,8 +89,11 @@ class Contadores:
 
 def preparar(evento: dict) -> dict | None:
     """Filtra, valida y enriquece un evento crudo con las mismas reglas que el DAG."""
-    meta = evento.get("meta") or {}
-    if meta.get("domain") == "canary" or evento.get("wiki") not in config.WIKIS:
+    if not isinstance(evento, dict):
+        return None
+    meta = evento.get("meta")
+    meta = meta if isinstance(meta, dict) else {}
+    if meta.get("domain") == "canary" or not isinstance(evento.get("wiki"), str) or evento["wiki"] not in config.WIKIS:
         return None
     if validate(evento) is not None:
         return None
@@ -104,8 +109,11 @@ def rechazo(evento: dict) -> dict | None:
     evento, para encontrarlo por hora. Sin una fecha legible no se guarda: el extractor del stream
     tampoco lo habría considerado.
     """
-    meta = evento.get("meta") or {}
-    if meta.get("domain") == "canary" or evento.get("wiki") not in config.WIKIS:
+    if not isinstance(evento, dict):
+        return None
+    meta = evento.get("meta")
+    meta = meta if isinstance(meta, dict) else {}
+    if meta.get("domain") == "canary" or not isinstance(evento.get("wiki"), str) or evento["wiki"] not in config.WIKIS:
         return None
     motivo = validate(evento)
     if motivo is None:
@@ -121,7 +129,7 @@ def rechazo(evento: dict) -> dict | None:
 
 def rango_en_vivo(eventos: list[dict], ahora: datetime) -> tuple[datetime, datetime] | None:
     """Fechas mínima y máxima de los eventos que llegaron en vivo (retraso < EN_VIVO)."""
-    fechas = [e["derived"]["event_dt"] for e in eventos if ahora - e["derived"]["event_dt"] < EN_VIVO]
+    fechas = [e["derived"]["event_dt"] for e in eventos if timedelta(0) <= ahora - e["derived"]["event_dt"] < EN_VIVO]
     return (min(fechas), max(fechas)) if fechas else None
 
 
@@ -133,7 +141,7 @@ class Streaming:
         cassandra_store.ensure_schema(self.cass)
         self.stmt_minuto = self.cass.prepare(
             "INSERT INTO eventos_por_minuto (wiki, fecha, minuto, eventos, ediciones, eventos_bot, reversiones) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)")
+            "VALUES (?, ?, ?, ?, ?, ?, ?) USING TIMESTAMP ?")
         self.contadores = Contadores()
         self.buffer: list[dict] = []
         self.rechazados: list[dict] = []
@@ -183,8 +191,7 @@ class Streaming:
                 [ReplaceOne({"_id": r["_id"]}, r, upsert=True) for r in self.rechazados], ordered=False)
             self.stats["rechazados"] = self.stats.get("rechazados", 0) + len(self.rechazados)
             self.rechazados.clear()
-        for fila in self.contadores.filas_para_escribir():
-            self.cass.execute(self.stmt_minuto, fila)
+        self.guardar_minutos()
         if self.ultimo_id:
             self.db.stream_state.replace_one(
                 {"_id": MARCADOR_ID},
@@ -195,6 +202,27 @@ class Streaming:
         if time.monotonic() - self.ultimo_log > 300:
             log.info("Estado: %s · último evento %s", self.stats, self.ultimo_dt)
             self.ultimo_log = time.monotonic()
+
+    def guardar_minutos(self) -> None:
+        """Recuenta desde MongoDB: funciona también después de reinicios y replays."""
+        from wikipipe.windows import lock_hour
+
+        keys = sorted(self.contadores.tocados, key=lambda k: (k[2][:13], k[0], k[2]))
+        for hour, minute_keys in groupby(keys, key=lambda k: k[2][:13]):
+            start = datetime.fromisoformat(hour + ":00:00").replace(tzinfo=timezone.utc)
+            with lock_hour(self.db, start) as lease:
+                for wiki, fecha, minute in minute_keys:
+                    dt = datetime.fromisoformat(minute).replace(tzinfo=timezone.utc)
+                    events = self.db.events.find({"wiki": wiki, "derived.event_dt": {
+                        "$gte": dt, "$lt": dt + timedelta(minutes=1)}},
+                        {"wiki": 1, "user": 1, "type": 1, "title": 1, "derived": 1})
+                    agg = cassandra_store.aggregate(events)
+                    counts = agg["minutos"].get((wiki, fecha, minute), {})
+                    row = (wiki, dt.date(), dt, *(counts.get(k, 0) for k in
+                           ("eventos", "ediciones", "eventos_bot", "reversiones")))
+                    lease.check()
+                    self.cass.execute(self.stmt_minuto, (*row, lease.timestamp + 1))
+                    self.contadores.tocados.discard((wiki, fecha, minute))
 
     def leer(self, ultimo_id: str | None) -> None:
         headers = {"User-Agent": config.USER_AGENT, "Accept": "text/event-stream"}

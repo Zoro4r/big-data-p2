@@ -89,6 +89,7 @@ El `.env` tiene contraseñas: **no lo subas al repositorio**. Ya está excluido 
 | `NEO4J_HEAP` / `NEO4J_PAGECACHE` | `512m` / `256m` | Memoria de Neo4j. Ver [modo liviano](#modo-liviano-poca-memoria). |
 | `CASSANDRA_HEAP` / `CASSANDRA_HEAP_NEW` | `512M` / `128M` | Memoria de Cassandra. Ver [modo liviano](#modo-liviano-poca-memoria). |
 | `AIRFLOW_PARALLELISM` | `4` | Cuántas tareas corre Airflow a la vez. Con poca memoria, `2`. |
+| `AIRFLOW_WEB_PORT` | `8080` | Puerto de Airflow en el equipo. Por ejemplo, `18080` si el 8080 está ocupado. |
 | `DAGS_PAUSED` | `true` | Con `false` el DAG arranca activo. `./local.sh` igual lo activa la primera vez. |
 
 ### Modo liviano (poca memoria)
@@ -187,3 +188,7 @@ docker compose logs -f --tail 50 airflow    # o: stream, api, mongo, cassandra, 
 | Datos | Empiezan de cero | Los del grupo |
 
 El código es el mismo. Para actualizar tu copia: `git pull` y luego `./local.sh`.
+
+## Pruebas de las correcciones
+
+La rama `dev-ian` se verifica con una muestra sintética y pruebas de regresión contra las tres bases. Consulta [el procedimiento y la reconstrucción del modelo 2](correcciones-dev-ian.md).

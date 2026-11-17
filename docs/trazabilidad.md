@@ -1495,6 +1495,20 @@ En la misma sección se reescribió «Por qué dos caminos»:
 
 ---
 
+## 16 de noviembre de 2026 · correcciones en dev-ian
+
+- Se mantiene la capa rápida con MongoDB y Cassandra. Los minutos se reconstruyen desde eventos persistidos, con bloqueo renovable por hora y marcas de escritura monotónicas.
+- Cassandra reemplaza la ventana completa y conserva sus manifiestos. Neo4j conserva contribuciones por hora y wiki, con reemplazo transaccional y reconstrucción del estado acumulado afectado.
+- Los protagonistas del Resumen miden exclusivamente la hora indicada. Los editores humanos se cuentan de forma distinta entre ambas wikis. Una corrección también actualiza acumulados posteriores y el crecimiento de la siguiente hora.
+- Se organiza el dashboard por períodos. Cada bloque indica su corte, unidades y alcance. Se explicita el denominador de páginas nuevas y se actualizan las etiquetas de las tarjetas.
+- Se aclara el diagrama del flujo. Se verifica el CRUD mediante la API, la eliminación exacta de relaciones, la paginación con fechas repetidas y las últimas filas de Cassandra.
+- Se ejecutan tres intervalos completos de Airflow con una muestra de 55,000 eventos sintéticos. También se comprueba en local la detección y reconstrucción del grafo anterior, con respaldo previo.
+- Se incorporan regresiones contra las tres bases reales y pruebas de renderizado React. La revisión interactiva de Chrome queda pendiente por el bloqueo de la herramienta al identificar la URL.
+- Airflow admite `AIRFLOW_WEB_PORT`, con 8080 como valor por defecto. Las pruebas de este equipo utilizan 18080 en el `.env` local.
+- El procedimiento de pruebas y la actualización de instalaciones existentes están en [correcciones-dev-ian.md](correcciones-dev-ian.md).
+
+---
+
 ## Pendientes
 
 - [x] `docker-compose` local con MongoDB, Cassandra, Neo4j y Airflow.
