@@ -1405,6 +1405,20 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - los KPIs de la Fundación se dicen con precisión;
     - las frases largas se partieron.
   - Guion y notas de las diapositivas iguales en ambos decks.
+- **Integración de `dev-ian` en `main` y recorte del historial (17 nov):**
+  - **Qué pasó:** a las 12:58 UTC Ian integró su rama completa en `main` (merge `846ac7f`) y el despliegue automático la llevó a la VM. Desde entonces fallaba `cargar_neo4j` en cada corrida: `RuntimeError: El grafo usa el modelo anterior. Reconstruye con python -m wikipipe.rebuild --reset-graph`. El Resumen quedó en «Pendiente de consolidación».
+  - **Decisión del usuario:** quedarse con el modelo de Ian. En vez de reconstruir los 17 días (unas 400 horas, de 8 a 12 horas de proceso), se borró el historial y se conservó solo el 17 de noviembre. Un día tiene entre 260.000 y 400.000 eventos, muy por encima del mínimo de 50.000 que pide el enunciado ([requerimientos.md, línea 25](requerimientos.md)).
+  - **Pasos:**
+    1. Snapshot `wikipipe-vm-antes-recorte-20261117`.
+    2. Se detuvieron el autodeploy, el DAG y el streaming.
+    3. En MongoDB se borraron 6.463.782 eventos anteriores al 17 de noviembre, 389 corridas y sus manifiestos.
+    4. Se vaciaron las 8 tablas de Cassandra.
+    5. Neo4j se vació borrando su volumen, porque el respaldo y borrado por lotes de `--reset-graph` sobre 2,18 millones de nodos iba a tardar más de una hora; el snapshot lo respalda.
+    6. Se corrió `python -m wikipipe.rebuild`.
+  - **Hora 00:00 UTC excluida:** tenía un pico de bots con 57.669 eventos. Un solo editor con decenas de miles de relaciones dejó trabada la carga de Neo4j del modelo 2 durante más de 20 minutos, en una sola transacción. Se borró esa hora; las demás se reconstruyeron a unos 20 segundos cada una.
+  - **Resultado:** 206.762 eventos desde el 17 de noviembre a las 01:00 UTC. Se reconstruyeron 14 horas (01:00 a 14:00). La hora de las 15:00, sin cobertura completa del streaming, se reprocesó con el DAG. Luego se reactivaron el streaming, el DAG y el autodeploy, y el Resumen volvió a mostrar datos.
+  - **Pendiente en los materiales:** las cifras del dataset («5.2 M eventos desde el 31 de octubre», «más de cinco millones») en la diapositiva, el guion y el informe, además de las capturas y los pasos de la demo que cambian con el dashboard de Ian.
+  - **Mejora pendiente para Ian:** la carga horaria de Neo4j en una sola transacción no escala con horas de muchos eventos de un mismo bot.
 - **Despliegue continuo desde `main` (17 nov):**
   - **Qué se pidió:** que la VM revise `main` cada minuto y, si hay cambios, actualice lo que muestra el dashboard. El usuario eligió actualizar todo el código, no solo la web.
   - **Cómo funciona:** [infra/autodeploy.sh](../infra/autodeploy.sh) corre con un timer de systemd que instala [infra/startup.sh](../infra/startup.sh), sección 6. Cuando hay un commit nuevo:
