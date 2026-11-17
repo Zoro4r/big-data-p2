@@ -1418,6 +1418,21 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Hora 00:00 UTC excluida:** tenía un pico de bots con 57.669 eventos. Un solo editor con decenas de miles de relaciones dejó trabada la carga de Neo4j del modelo 2 durante más de 20 minutos, en una sola transacción. Se borró esa hora; las demás se reconstruyeron a unos 20 segundos cada una.
   - **Resultado:** 206.762 eventos desde el 17 de noviembre a las 01:00 UTC. Se reconstruyeron 14 horas (01:00 a 14:00). La hora de las 15:00, sin cobertura completa del streaming, se reprocesó con el DAG. Luego se reactivaron el streaming, el DAG y el autodeploy, y el Resumen volvió a mostrar datos.
   - **Pendiente en los materiales:** las cifras del dataset («5.2 M eventos desde el 31 de octubre», «más de cinco millones») en la diapositiva, el guion y el informe, además de las capturas y los pasos de la demo que cambian con el dashboard de Ian.
+  - **Materiales actualizados al dashboard de Ian:**
+    - **Guion:**
+      - La cifra del dataset pasó a «más de doscientos mil desde el 17 de noviembre».
+      - Demo de Brayan: En vivo compara 5 minutos contra los 5 anteriores, y eswiki va en rosa.
+      - Demo de Ariana: el Resumen se recorre con «Más detalles» y la pestaña «Acumulado», el clic va a «Eventos de bots» y en Red ya no aparecen las páginas disputadas.
+    - **Presentación:** la diapositiva del dataset dice «200 mil · eventos desde el 17 nov» en ambos decks.
+    - **Informe, criterio:** las cifras del 31 de octubre al 12 de noviembre quedan como período de medición, con una nota sobre el reproceso.
+    - **Informe, sección 8:** capturas numeradas nuevas (tarjetas y «Más detalles», Protagonistas y Acumulado) y los 12 «En la captura» con valores del 17 de noviembre, de 11:00 a 11:59 (UTC−5). Las partes llevan letras A a F; la F son las pestañas.
+    - **Informe, sección 9:**
+      - Capturas nuevas de En vivo, Actividad, Explorador, Red y Arquitectura.
+      - Etiquetas al día: «Eventos registrados», «Editores participantes», «Eventos consolidados», «Reversiones detectadas».
+      - El Explorador cuenta desde MongoDB.
+      - En Red se quitó «Páginas más disputadas».
+      - Arquitectura muestra el diagrama de Ian y sus dos pestañas.
+    - **Informe, texto:** sin referencias a «desde el 31 de octubre» como estado actual, y colores azul y rosa.
   - **Mejora pendiente para Ian:** la carga horaria de Neo4j en una sola transacción no escala con horas de muchos eventos de un mismo bot.
 - **Despliegue continuo desde `main` (17 nov):**
   - **Qué se pidió:** que la VM revise `main` cada minuto y, si hay cambios, actualice lo que muestra el dashboard. El usuario eligió actualizar todo el código, no solo la web.
