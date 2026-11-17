@@ -20,17 +20,20 @@ await build({
       import { renderToStaticMarkup } from "react-dom/server"
       import { MemoryRouter } from "react-router-dom"
       import Resumen from "./src/pages/Resumen"
+      import Actividad from "./src/pages/Actividad"
+      import Explorador from "./src/pages/Explorador"
+      export { totalesActividad } from "./src/lib/actividad"
       import { TarjetasVivo } from "./src/pages/Vivo"
       import { TarjetaKpi } from "./src/components/common"
       import Arquitectura, { Diagrama } from "./src/pages/Arquitectura"
       export { KPIS, cambio } from "./src/lib/kpis"
       export { intervaloLocal, compararValores, variacion, COLOR } from "./src/lib/format"
-      export { fixture } from "@/lib/api"
+      export { fixture, actividadFixture, exploradorFixture } from "@/lib/api"
       export function renderVivo(actual, anterior) { return renderToStaticMarkup(React.createElement(TarjetasVivo, {actual, anterior, onAbrir() {}})) }
       export function renderKpi(props) { return renderToStaticMarkup(React.createElement(TarjetaKpi, props)) }
       export function render(page) {
         return renderToStaticMarkup(React.createElement(MemoryRouter, null,
-          React.createElement(page === "flujo" ? Diagrama : page === "arquitectura" ? Arquitectura : Resumen, { onAbrir() {}, vistaInicial: page === "resumen-acumulado" ? "acumulado" : "hora" })))
+          React.createElement(page === "flujo" ? Diagrama : page === "arquitectura" ? Arquitectura : page === "actividad" ? Actividad : page === "explorador" ? Explorador : Resumen, { onAbrir() {}, vistaInicial: page === "resumen-acumulado" ? "acumulado" : "hora" })))
       }
     `,
   },
@@ -56,8 +59,17 @@ await build({
             editor_mas_conectado: { valor: 88, detalle: "EditorHistorico" },
             editor_mas_revertido: { valor: 77, detalle: "RevertidoHistorico (revertido por 3 editores)" },
           }
+          export const actividadFixture = { fecha: "2026-11-16", fechas: ["2026-11-16"], corte: "2026-11-17T02:00:00Z",
+            pendientes: {eventos: 29653, horas: 3}, top: [],
+            minutos: [{t: "2026-11-16T23:00:00Z", eventos: 333, eventos_bot: 20, reversiones: 1}],
+            horas: [{hora: 18, eventos: 20000, eventos_bot: 2858, eventos_humanos: 17142, reversiones: 1000},
+              {hora: 19, eventos: 20000, eventos_bot: 2858, eventos_humanos: 17142, reversiones: 1000},
+              {hora: 20, eventos: 15000, eventos_bot: 2142, eventos_humanos: 12858, reversiones: 895}] }
+          export const exploradorFixture = {total: 100, corte: "2026-11-17T02:00:00Z", eventos: [], tipos: [
+            {wiki: "enwiki", tipo: "edit", eventos: 80}, {wiki: "enwiki", tipo: "new", eventos: 12},
+            {wiki: "eswiki", tipo: "categorize", eventos: 5}, {wiki: "eswiki", tipo: "log", eventos: 3}]}
           export function useApi(ruta) {
-            return { data: ruta?.startsWith("/api/resumen/acumulado/protagonistas") ? { protagonistas, actualizando: false } : ruta?.startsWith("/api/resumen") ? fixture : null,
+            return { data: ruta?.startsWith("/api/actividad") ? actividadFixture : ruta?.startsWith("/api/eventos?") ? exploradorFixture : ruta?.startsWith("/api/resumen/acumulado/protagonistas") ? { protagonistas, actualizando: false } : ruta?.startsWith("/api/resumen") ? fixture : null,
               cargando: false, error: null, recargar() {} }
           }
           export async function api() { return {} }
@@ -68,7 +80,7 @@ await build({
   }],
 })
 
-const { render, renderKpi, renderVivo, fixture, KPIS, cambio, intervaloLocal, compararValores, variacion, COLOR } = requireWeb(output)
+const { render, renderKpi, renderVivo, totalesActividad, actividadFixture, exploradorFixture, fixture, KPIS, cambio, intervaloLocal, compararValores, variacion, COLOR } = requireWeb(output)
 for (const name of Object.keys(KPIS)) {
   fixture.kpis[name] = [
     { ventana: "2026-11-17T01:00:00Z", valor: 9.09, detalle: null },
@@ -162,4 +174,21 @@ assert.ok(!live.includes("Eventos por segundo"))
 assert.ok(!live.includes("Editores activos"))
 const emptyLive = renderVivo({eventos: 0, eventos_bot: 0, reversiones: 0, editores: {}}, {eventos: 0, eventos_bot: 0, reversiones: 0, editores: {}})
 assert.ok(!emptyLive.includes("NaN"))
-console.log("React: resumen por período, comparaciones de En vivo, contexto, arquitectura y estados sin datos verificados")
+
+
+const dailyTotals = totalesActividad(actividadFixture)
+assert.equal(dailyTotals.ev, 55000)
+assert.equal(dailyTotals.min, 180)
+assert.equal(Math.round(dailyTotals.ev / dailyTotals.min), 306)
+const activity = render("actividad")
+assert.ok(activity.includes("55,000") && activity.includes("29,653"))
+assert.ok(activity.includes("306"))
+assert.ok(activity.includes("Cierre: 16 nov · 21:00"))
+const explorer = render("explorador")
+for (const text of ["Dataset almacenado", "100 eventos de", "80.0 % del total almacenado", "Cambios en páginas existentes", "Entradas y salidas de categorías"]) assert.ok(explorer.includes(text), text)
+assert.ok(!explorer.includes("últimas 24 h"))
+exploradorFixture.total = 0; exploradorFixture.tipos = []
+assert.equal((render("explorador").match(/Ver definición/g) ?? []).length, 4)
+actividadFixture.horas = []; actividadFixture.minutos = []; actividadFixture.corte = null
+assert.ok(render("actividad").includes("Sin horas consolidadas"))
+console.log("React: períodos, sumas consolidadas, dataset del Explorador, En vivo y estados sin datos verificados")

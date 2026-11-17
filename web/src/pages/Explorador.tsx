@@ -16,9 +16,13 @@ import { COLOR, colorTipo, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface Evento { _id: string; fecha: string; wiki: string; tipo: string; titulo: string; editor: string; tipo_editor: string; delta_bytes: number | null; revierte_a: string | null; comentario: string | null }
-interface Respuesta { total: number; tipos: { wiki: string; tipo: string; eventos: number }[]; eventos: Evento[] }
+interface Respuesta { corte: string; total: number; tipos: { wiki: string; tipo: string; eventos: number }[]; eventos: Evento[] }
 
-const NOMBRE_TIPO: Record<string, string> = { edit: "Ediciones", categorize: "Categorizaciones", log: "Acciones de registro", new: "Páginas nuevas" }
+const NOMBRE_TIPO: Record<string, string> = { edit: "Ediciones", new: "Páginas creadas", categorize: "Cambios de categoría", log: "Acciones registradas" }
+const PIE_TIPO: Record<string, string> = {
+  edit: "Cambios en páginas existentes", new: "Creación de páginas nuevas",
+  categorize: "Entradas y salidas de categorías", log: "Bloqueos, traslados y otras acciones",
+}
 const DEF_TIPO: Record<string, [string, string]> = {
   edit: ["Cambios al contenido de una página que ya existía (type = edit).", "Es el grueso del trabajo diario: correcciones, ampliaciones y mantenimiento."],
   categorize: ["Una página se agregó a una categoría o se quitó de ella (type = categorize).", "Muchas vienen de bots o herramientas que reordenan categorías en lote."],
@@ -34,16 +38,16 @@ function vecinos<T>(lista: T[], actual: T, nombre: (x: T) => string, ir: (x: T) 
   return { anterior: { nombre: nombre(a), ir: () => ir(a) }, siguiente: { nombre: nombre(s), ir: () => ir(s) } }
 }
 
-function metricaTipo(t: FilaTipo, total24: number, wikis: string[], etiqueta: string): MetricaModal {
+function metricaTipo(t: FilaTipo, totalDataset: number, wikis: string[], etiqueta: string, corte?: string): MetricaModal {
   const [definicion, lectura] = DEF_TIPO[t.clave] ?? [`Eventos de tipo ${t.clave}.`, "Peso de este tipo de evento en la actividad reciente."]
   const datos: [string, React.ReactNode][] = wikis.map((w) => [w, entero(t[w as "enwiki" | "eswiki"])])
-  datos.push(["Total 24 h (todos los tipos)", entero(total24)])
+  datos.push(["Total almacenado (todos los tipos)", entero(totalDataset)])
   return {
-    titulo: t.tipo, etiqueta, momento: "Últimas 24 horas", valor: entero(t.total),
-    nota: `${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de los eventos de las últimas 24 h`,
+    titulo: t.tipo, etiqueta, momento: corte ? `Dataset hasta ${horaLocal(corte)} UTC−5` : "Dataset almacenado", valor: entero(t.total),
+    nota: totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % del total almacenado` : "Sin eventos almacenados",
     datos, definicion, lectura,
-    calculo: { codigo: `SELECT hora, wiki, ediciones, creaciones, categorizaciones, logs\nFROM resumen_por_hora WHERE fecha IN (hoy, ayer)\n-- se suman las últimas 24 horas cerradas` },
-    origen: <>Se lee de <Base base="cassandra" /> (tabla resumen_por_hora), que el proceso de cada hora ya dejó agregada por hora y wiki: se suman las últimas 24 horas cerradas.</>,
+    calculo: { texto: "Se cuentan los documentos de MongoDB por tipo de evento, dentro de las wikis seleccionadas." },
+    origen: <>Documentos originales de <Base base="mongo" />, incluidos los eventos recientes que todavía no se consolidan.</>,
   }
 }
 
@@ -59,17 +63,17 @@ export default function ExploradorPage() {
   const doc = useApi<Record<string, unknown>>(elegido ? `/api/eventos/${encodeURIComponent(elegido)}` : null)
 
   const porTipo = useMemo(() => {
-    const m = new Map<string, FilaTipo>()
+    const m = new Map<string, FilaTipo>(Object.entries(NOMBRE_TIPO).map(([clave, tipo]) => [clave, { clave, tipo, enwiki: 0, eswiki: 0, total: 0 }]))
     for (const t of data?.tipos ?? []) {
-      const f = m.get(t.tipo) ?? { clave: t.tipo, tipo: NOMBRE_TIPO[t.tipo] ?? t.tipo, enwiki: 0, eswiki: 0, total: 0 }
-      if (!wikis.includes(t.wiki)) continue
+      const f = m.get(t.tipo)
+      if (!f || !wikis.includes(t.wiki)) continue
       if (t.wiki === "enwiki" || t.wiki === "eswiki") f[t.wiki] += t.eventos
       f.total += t.eventos
       m.set(t.tipo, f)
     }
-    return [...m.values()].sort((a, b) => b.total - a.total)
+    return [...m.values()]
   }, [data, wikis])
-  const total24 = porTipo.reduce((s, t) => s + t.total, 0)
+  const totalDataset = data?.total ?? 0
 
   const aplicar = (e: FormEvent) => {
     e.preventDefault()
@@ -80,15 +84,16 @@ export default function ExploradorPage() {
   return (
     <>
       <Header ruta={["Panel", "Explorador de eventos"]} />
-      <Pagina titulo="Explorador de eventos" descripcion={`Cada cambio de Wikipedia se guarda completo en MongoDB como documento JSON, con sus campos originales y los campos derivados que agrega la limpieza.${data ? ` La colección events tiene ${entero(data.total)} documentos.` : ""}`}>
+      <Pagina titulo="Explorador de eventos" descripcion="Busca cambios de Wikipedia guardados y abre un evento para ver su documento completo.">
+        <div className="space-y-1"><h2 className="text-base font-semibold">Dataset almacenado</h2><p className="text-sm text-muted-foreground">{data ? `${entero(data.total)} eventos de ${etiqueta}. Incluye los recientes pendientes de consolidar.` : "Cargando el dataset…"}</p></div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : porTipo.map((t) => (
-            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={`${((t.total / Math.max(total24, 1)) * 100).toFixed(1)} % de las últimas 24 h`} onAbrir={() => setTipoAbierto(t.clave)} />
+          {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={160} />) : porTipo.map((t) => (
+            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={<><span className="block">{totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % del total almacenado` : "Sin eventos almacenados"}</span><span className="block">{PIE_TIPO[t.clave]}</span></>} onAbrir={() => setTipoAbierto(t.clave)} />
           ))}
         </div>
 
 
-        <Seccion titulo="Buscar eventos" descripcion="find() con filtros, ordenado por fecha descendente (índice por_wiki_tipo_fecha)">
+        <Seccion titulo="Buscar eventos" descripcion="Filtra por tipo, editor o título. Los más recientes aparecen primero.">
           <form onSubmit={aplicar} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
             <div className="flex flex-col gap-1.5">
               <Label>Tipo</Label>
@@ -145,7 +150,7 @@ export default function ExploradorPage() {
       </Pagina>
       {tipoAbierto && porTipo.some((t) => t.clave === tipoAbierto) && (() => {
         const fila = porTipo.find((t) => t.clave === tipoAbierto)!
-        return <ModalMetrica m={metricaTipo(fila, total24, wikis, etiqueta)}
+        return <ModalMetrica m={metricaTipo(fila, totalDataset, wikis, etiqueta, data?.corte)}
           {...vecinos(porTipo, fila, (t) => t.tipo, (t) => setTipoAbierto(t.clave))} onCerrar={() => setTipoAbierto(null)} />
       })()}
     </>

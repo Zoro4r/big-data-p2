@@ -104,7 +104,7 @@ export default function ResumenPage({ vistaInicial = "hora" }: { vistaInicial?: 
   if (tarjetaAbierta) modalAcum = {
     ...contextoAcum, titulo: tarjetaAbierta.nombre, valor: tarjetaAbierta.valor, nota: tarjetaAbierta.pie,
     definicion: tarjetaAbierta.definicion, calculo: { texto: tarjetaAbierta.formula },
-    lectura: tarjetaAbierta.id === "eventos" ? "Cuenta los documentos guardados hasta el corte, incluso si alguna hora todavía no se consolidó." : contextoAcum.lectura,
+    lectura: contextoAcum.lectura,
     origen: <Base base={tarjetaAbierta.fuente} />,
   }
   if (protagonistaAbierto) {
@@ -188,7 +188,7 @@ export default function ResumenPage({ vistaInicial = "hora" }: { vistaInicial?: 
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
                 <Bar dataKey="valor" fill={COLOR.enwiki} radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                  {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.65} />)}
+                  {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.85} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

@@ -28,10 +28,10 @@ export function metricasAcumuladas(data: Resumen | null): MetricaAcumulada[] {
   const a = data?.acumulado
   const creacion = a && a.ediciones + a.creaciones > 0 ? 100 * a.creaciones / (a.ediciones + a.creaciones) : null
   return [
-    { id: "eventos", nombre: "Eventos almacenados", principal: true,
-      valor: entero(data?.kpis.total_eventos_acumulados[0]?.valor), pie: data?.desde ? `Desde ${horaLocal(data.desde)}` : "Hasta el corte mostrado",
-      definicion: "Eventos guardados desde el inicio de la recolección hasta el corte mostrado.",
-      formula: "Documentos en events con fecha anterior al corte.", fuente: "mongo" },
+    { id: "eventos", nombre: "Eventos consolidados", principal: true,
+      valor: entero(a?.eventos), pie: a?.inicio ? `Desde ${horaLocal(a.inicio)}` : "Hasta el último cierre",
+      definicion: "Eventos de todas las horas consolidadas hasta el corte mostrado. Los eventos recientes pendientes de consolidación se consultan en En vivo y el Explorador.",
+      formula: "Suma de eventos de las horas consolidadas hasta el corte.", fuente: "cassandra" },
     { id: "contenido", nombre: "Variación de contenido", principal: true,
       valor: bytes(a?.delta_bytes), tonoValor: compararValores(a?.delta_bytes, 0), pie: "Bytes añadidos menos eliminados",
       definicion: "Cambio neto de contenido en todas las horas consolidadas hasta el corte.",
