@@ -49,7 +49,7 @@ variable "neo4j_heap" {
 variable "neo4j_pagecache" {
   description = "Caché de páginas de Neo4j en la VM: cuánto del grafo se mantiene en memoria."
   type        = string
-  default     = "1536m"
+  default     = "1g"
 }
 
 variable "wikis" {
