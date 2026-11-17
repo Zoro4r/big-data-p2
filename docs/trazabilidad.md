@@ -1412,6 +1412,7 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - Tiene las pestañas «Arquitectura» y «Cómo funciona», la VM y Docker Compose como contenedor, una leyenda de flechas y el logo oficial de Airflow.
     - Son 3 archivos: [Arquitectura.tsx](../web/src/pages/Arquitectura.tsx), [fuente.tsx](../web/src/components/fuente.tsx) y `web/public/img/airflow.svg`.
     - Usa los mismos datos de `/api/arquitectura` que la versión anterior. Se verificó con datos reales antes de integrarla.
+  - **Presentación y guion:** después del despliegue, la diapositiva 4 de ambos decks muestra una captura del diagrama nuevo tomada de la VM, que trae su propia leyenda de flechas. En la demo de Ian, el paso «Hacer clic en "Capa por lotes"» pasó a «Hacer clic en "Airflow" dentro del diagrama»: ese recuadro abre los seis pasos y las corridas registradas.
   - **El resto de la rama** queda para después de la entrega.
 - **Incidente en la VM (17 nov, 05:00–11:42 UTC):** la VM dejó de responder (Airflow, SSH y los registros) justo cuando arrancaba la corrida de las 05:00.
   - **Causa:**
