@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useApi } from "@/lib/api"
-import { COLOR, entero, horaLocal } from "@/lib/format"
+import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Arquitectura del proyecto: el diagrama del flujo es la página y cada componente abre un modal con su detalle
@@ -107,46 +107,44 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
 }
 
 const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
-  { id: "fuente", x: 10, y: 205, w: 120, detalle: "Eventos JSON · SSE" },
-  { id: "rapida", x: 155, y: 205, w: 120, detalle: "Servicio de streaming" },
-  { id: "mongo", x: 300, y: 205, w: 120, detalle: "Documentos completos" },
-  { id: "lotes", x: 445, y: 205, w: 120, detalle: "Apache Airflow" },
-  { id: "cassandra", x: 590, y: 145, w: 135, detalle: "Series de tiempo y KPIs" },
-  { id: "neo4j", x: 590, y: 285, w: 135, detalle: "Relaciones y contribuciones" },
-  { id: "api", x: 750, y: 205, w: 120, detalle: "Consultas a las tres bases" },
-  { id: "dashboard", x: 895, y: 205, w: 145, detalle: "React · navegador" },
+  { id: "fuente", x: 10, y: 225, w: 120, detalle: "Eventos JSON · SSE" },
+  { id: "rapida", x: 155, y: 225, w: 120, detalle: "Servicio de streaming" },
+  { id: "mongo", x: 300, y: 225, w: 120, detalle: "Documentos completos" },
+  { id: "lotes", x: 445, y: 225, w: 120, detalle: "Apache Airflow" },
+  { id: "cassandra", x: 590, y: 155, w: 135, detalle: "Series de tiempo y KPIs" },
+  { id: "neo4j", x: 590, y: 345, w: 135, detalle: "Relaciones y contribuciones" },
+  { id: "api", x: 750, y: 225, w: 120, detalle: "Consultas a las tres bases" },
+  { id: "dashboard", x: 895, y: 225, w: 145, detalle: "React · navegador" },
 ]
 
+const COLOR_CONEXION = { flujo: "#94a3b8", conteos: "#5b8fd1", recuperacion: "#9671c6" }
 const LEYENDAS_ARQUITECTURA = [
-  ["Capa rápida → MongoDB", "Guarda el documento completo de cada evento."],
-  ["Capa rápida → Cassandra", "Publica conteos por minuto, todavía provisionales."],
-  ["MongoDB → Capa por lotes", "Airflow lee los eventos de la hora completa para consolidarlos."],
-  ["Wikimedia → Capa por lotes", "La línea discontinua recupera los eventos de una hora incompleta."],
-  ["MongoDB → API", "La API consulta directamente los documentos cuando la vista lo requiere."],
-  ["PostgreSQL · Servicio auxiliar", "Almacena los metadatos de Airflow: ejecuciones, tareas y estados."],
+  { texto: "Flujo y consultas", color: COLOR_CONEXION.flujo, discontinua: false },
+  { texto: "Conteos por minuto", color: COLOR_CONEXION.conteos, discontinua: false },
+  { texto: "Recuperación de horas incompletas", color: COLOR_CONEXION.recuperacion, discontinua: true },
 ]
 
 export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) {
   return (
     <div className="overflow-hidden rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
       <div className="overflow-x-auto">
-        <div className="relative h-[440px] min-w-[1060px]">
+        <div className="relative h-[520px] min-w-[1060px]">
           <div className="absolute left-[13.5%] right-[16.5%] top-10 bottom-6 rounded-2xl border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/10" />
           <span className="absolute left-[15%] top-14 text-xs font-semibold text-blue-700 dark:text-blue-400">Google Cloud · Máquina virtual · Docker Compose</span>
-          <span className="absolute left-[85%] top-[170px] text-xs font-medium text-muted-foreground">Cliente web</span>
-          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 440" preserveAspectRatio="none" aria-hidden>
+          <span className="absolute left-[85%] top-[190px] text-xs font-medium text-muted-foreground">Cliente web</span>
+          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 520" preserveAspectRatio="none" aria-hidden>
             <defs>
-              <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" /></marker>
+              <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
             </defs>
             <g className="text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arquitectura-flecha)">
-              <path d="M130 245 H155" /><path d="M275 245 H300" /><path d="M420 245 H445" />
-              <path d="M565 230 C580 230 575 185 590 185" /><path d="M565 260 C580 260 575 325 590 325" />
-              <path d="M725 185 C740 185 735 230 750 230" /><path d="M725 325 C740 325 735 260 750 260" />
-              <path d="M870 245 H895" />
-              <path d="M360 285 V390 H810 V285" />
+              <path d="M130 265 H155" /><path d="M275 265 H300" /><path d="M420 265 H445" />
+              <path d="M565 250 C580 250 575 195 590 195" /><path d="M565 280 C580 280 575 385 590 385" />
+              <path d="M725 195 C740 195 735 250 750 250" /><path d="M725 385 C740 385 735 280 750 280" />
+              <path d="M870 265 H895" />
+              <path d="M360 305 V465 H810 V305" />
             </g>
-            <path d="M215 205 V115 H657 V145" fill="none" stroke="currentColor" strokeWidth="1.7" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR.enwiki }} />
-            <path d="M70 285 V355 H505 V285" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR.eswiki }} />
+            <path d="M215 225 V115 H657 V155" fill="none" stroke="currentColor" strokeWidth="2.3" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
+            <path d="M70 305 V415 H505 V305" fill="none" stroke="currentColor" strokeWidth="2.3" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
           </svg>
           {POSICIONES.map((node) => (
             <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
@@ -155,17 +153,17 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
           ))}
         </div>
       </div>
-      <section className="border-t px-6 py-5" aria-labelledby="leyenda-arquitectura">
-        <h2 id="leyenda-arquitectura" className="text-sm font-semibold">Lectura de las conexiones</h2>
-        <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-          {LEYENDAS_ARQUITECTURA.map(([titulo, texto]) => (
-            <div key={titulo}>
-              <dt className="text-xs font-medium">{titulo}</dt>
-              <dd className="mt-1 text-xs leading-relaxed text-muted-foreground">{texto}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      <ul className="flex flex-wrap gap-x-8 gap-y-3 border-t px-6 py-5 text-xs font-semibold text-foreground" aria-label="Leyenda de conexiones">
+        {LEYENDAS_ARQUITECTURA.map(({ texto, color, discontinua }) => (
+          <li key={texto} className="flex items-center gap-2">
+            <svg width="32" height="12" viewBox="0 0 32 12" fill="none" style={{ color }} aria-hidden>
+              <path d="M1 6H30" stroke="currentColor" strokeWidth="2" strokeDasharray={discontinua ? "4 3" : undefined} />
+              <path d="M26 2L30 6L26 10" stroke="currentColor" strokeWidth="2" />
+            </svg>
+            {texto}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
