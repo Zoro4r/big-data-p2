@@ -19,10 +19,6 @@ interface Evento { _id: string; fecha: string; wiki: string; tipo: string; titul
 interface Respuesta { corte: string; total: number; tipos: { wiki: string; tipo: string; eventos: number }[]; eventos: Evento[] }
 
 const NOMBRE_TIPO: Record<string, string> = { edit: "Ediciones", new: "Páginas creadas", categorize: "Cambios de categoría", log: "Acciones registradas" }
-const PIE_TIPO: Record<string, string> = {
-  edit: "Cambios en páginas existentes", new: "Creación de páginas nuevas",
-  categorize: "Entradas y salidas de categorías", log: "Bloqueos, traslados y otras acciones",
-}
 const DEF_TIPO: Record<string, [string, string]> = {
   edit: ["Cambios al contenido de una página que ya existía (type = edit).", "Es el grueso del trabajo diario: correcciones, ampliaciones y mantenimiento."],
   categorize: ["Una página se agregó a una categoría o se quitó de ella (type = categorize).", "Muchas vienen de bots o herramientas que reordenan categorías en lote."],
@@ -85,10 +81,10 @@ export default function ExploradorPage() {
     <>
       <Header ruta={["Panel", "Explorador de eventos"]} />
       <Pagina titulo="Explorador de eventos" descripcion="Busca cambios de Wikipedia guardados y abre un evento para ver su documento completo.">
-        <div className="space-y-1"><h2 className="text-base font-semibold">Dataset almacenado</h2><p className="text-sm text-muted-foreground">{data ? `${entero(data.total)} eventos de ${etiqueta}. Incluye los recientes pendientes de consolidar.` : "Cargando el dataset…"}</p></div>
+        <div className="space-y-1"><h2 className="text-base font-semibold">Eventos almacenados por tipo</h2><p className="text-sm text-muted-foreground">{data ? `${entero(data.total)} eventos de ${etiqueta}. Incluye los recientes pendientes de consolidar.` : "Cargando el dataset…"}</p></div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={160} />) : porTipo.map((t) => (
-            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={<><span className="block">{totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % del total almacenado` : "Sin eventos almacenados"}</span><span className="block">{PIE_TIPO[t.clave]}</span></>} onAbrir={() => setTipoAbierto(t.clave)} />
+            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % del total` : "Sin eventos almacenados"} onAbrir={() => setTipoAbierto(t.clave)} />
           ))}
         </div>
 
