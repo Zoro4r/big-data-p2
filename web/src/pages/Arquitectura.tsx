@@ -54,12 +54,12 @@ const hace = (iso?: string | null) => {
 function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbrir: (id: Id) => void }) {
   const c = CAJAS.find((caja) => caja.id === id)!
   const accion = { type: "button" as const, onClick: () => onAbrir(id), "aria-label": `${c.titulo}: ver detalle` }
-  const foco = "group relative h-28 w-full text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  const foco = "group relative h-28 w-full text-center transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
   if (id === "fuente") return (
     <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-2 rounded-xl text-center hover:bg-muted/40")}>
       <span className="flex size-9 items-center justify-center rounded-full border bg-card"><Radio className="size-5" strokeWidth={1.5} aria-hidden /></span>
-      <span className="text-xs font-semibold leading-4">Wikimedia<br />EventStreams</span>
-      <span className="text-[10px] text-muted-foreground">{detalle}</span>
+      <span className="text-[13px] font-semibold leading-[18px]">Wikimedia<br />EventStreams</span>
+      <span className="text-[13px] text-muted-foreground">{detalle}</span>
     </button>
   )
   if (c.logo) return (
@@ -69,8 +69,8 @@ function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbri
         <ellipse cx="72" cy="16" rx="71" ry="14" fill="var(--muted)" fillOpacity="0.55" stroke="var(--border)" />
       </svg>
       <span className="relative flex h-full flex-col items-center justify-center gap-2 px-2 pt-5">
-        <span className="flex items-center gap-1.5 text-xs font-semibold"><LogoBase base={c.logo} className="size-3.5" />{c.titulo}</span>
-        <span className="text-center text-[10px] leading-4 text-muted-foreground">{detalle}</span>
+        <span className="flex items-center justify-center gap-1.5 text-sm font-semibold"><LogoBase base={c.logo} className="size-3.5" />{c.titulo}</span>
+        <span className="text-center text-[13px] leading-4 text-muted-foreground">{detalle}</span>
       </span>
     </button>
   )
@@ -78,7 +78,7 @@ function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbri
     <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-2 rounded-2xl bg-foreground text-background shadow-sm hover:shadow-md")}>
       <Braces className="size-5 opacity-80" strokeWidth={1.6} aria-hidden />
       <span className="text-sm font-semibold">API</span>
-      <span className="text-[10px] opacity-65">FastAPI</span>
+      <span className="text-[13px] opacity-65">FastAPI</span>
     </button>
   )
   if (id === "dashboard") return (
@@ -88,18 +88,18 @@ function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbri
         <span className="ml-1 h-2 flex-1 rounded-sm bg-foreground/5" />
       </span>
       <span className="flex flex-col items-center justify-center gap-2 py-4">
-        <span className="flex items-center gap-1.5 text-xs font-semibold"><PanelsTopLeft className="size-3.5 text-muted-foreground" aria-hidden />Dashboard</span>
-        <span className="text-[10px] text-muted-foreground">{detalle}</span>
+        <span className="flex items-center justify-center gap-1.5 text-sm font-semibold"><PanelsTopLeft className="size-3.5 text-muted-foreground" aria-hidden />Dashboard</span>
+        <span className="text-[13px] text-muted-foreground">{detalle}</span>
       </span>
     </button>
   )
   return (
-    <button {...accion} className={cn(foco, "flex flex-col justify-center gap-3 rounded-xl border bg-card p-3 shadow-xs hover:shadow-md")}>
-      <span className="flex items-center gap-2 text-xs font-semibold">
+    <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-3 rounded-xl border bg-card p-3 shadow-xs hover:shadow-md")}>
+      <span className="flex items-center justify-center gap-2 text-sm font-semibold">
         {id === "rapida" ? <Zap className="size-4 text-blue-600 dark:text-blue-400" strokeWidth={1.7} aria-hidden /> : <LogoBase base="airflow" className="size-4" />}
         {id === "rapida" ? "Streaming" : "Airflow"}
       </span>
-      <span className="text-[10px] text-muted-foreground">{detalle}</span>
+      <span className="text-[13px] text-muted-foreground">{detalle}</span>
     </button>
   )
 }
@@ -109,11 +109,11 @@ function NodoArquitectura({ id, detalle, onAbrir, compact = false }: { id: Id; d
     if (compact) return <NodoSistema id={id} detalle={detalle} onAbrir={onAbrir} />
     return (
       <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
-        className={cn("relative flex w-full flex-col justify-center gap-1 rounded-xl border text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+        className={cn("relative flex w-full flex-col items-center justify-center gap-1 rounded-xl border text-center transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
           "min-h-20 p-4", c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
         <ArrowUpRight className="absolute right-3 top-3 size-3 opacity-40" aria-hidden />
-        <span className="flex items-center gap-2 pr-3 text-sm font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
-        <span className={cn("text-xs", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
+        <span className="flex items-center justify-center gap-2 text-sm font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
+        <span className={cn("text-[13px]", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
       </button>
     )
 }
@@ -153,11 +153,10 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
         <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
           <div className="grid gap-1.5">
             {([ ["mongo", "MongoDB", "Eventos"], ["cassandra", "Cassandra", "Métricas"], ["neo4j", "Neo4j", "Relaciones"] ] as const).map(([id, nombre, descripcion]) => (
-              <button key={id} type="button" onClick={() => onAbrir(id)} aria-label={`${nombre}: ver detalle`}
-                className="flex min-h-8 items-center justify-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button key={id} type="button" onClick={() => onAbrir(id)} aria-label={`${nombre} · ${descripcion}: ver detalle`} title={nombre}
+                className="flex min-h-8 items-center justify-center gap-2 rounded-md border bg-card px-3 py-1.5 text-[13px] transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <LogoBase base={id} className="size-3.5" />
-                <span className="font-semibold">{nombre}</span>
-                <span className="text-muted-foreground">· {descripcion}</span>
+                <span className="font-semibold">{descripcion}</span>
               </button>
             ))}
           </div>
@@ -171,10 +170,10 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
 const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
   { id: "fuente", x: 12, y: 244, w: 120, detalle: "JSON · SSE" },
   { id: "rapida", x: 166, y: 244, w: 126, detalle: "Cada ~2 segundos" },
-  { id: "mongo", x: 324, y: 244, w: 126, detalle: "Eventos completos" },
+  { id: "mongo", x: 324, y: 244, w: 126, detalle: "Documentos completos" },
   { id: "lotes", x: 482, y: 244, w: 126, detalle: "Lotes · cada hora" },
   { id: "cassandra", x: 640, y: 144, w: 144, detalle: "Minutos y KPIs" },
-  { id: "neo4j", x: 640, y: 384, w: 144, detalle: "Editores y páginas" },
+  { id: "neo4j", x: 640, y: 392, w: 144, detalle: "Editores y páginas" },
   { id: "api", x: 818, y: 244, w: 100, detalle: "FastAPI" },
   { id: "dashboard", x: 960, y: 244, w: 128, detalle: "React · navegador" },
 ]
@@ -182,7 +181,7 @@ const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[]
 const COLOR_CONEXION = { flujo: "#94a3b8", conteos: "#5b8fd1", recuperacion: "#9671c6" }
 const LEYENDAS_ARQUITECTURA = [
   { texto: "Flujo y consultas", color: COLOR_CONEXION.flujo, discontinua: false },
-  { texto: "Conteos por minuto", color: COLOR_CONEXION.conteos, discontinua: false },
+  { texto: "Conteos agregados/min · provisionales", color: COLOR_CONEXION.conteos, discontinua: false },
   { texto: "Recuperación de horas incompletas", color: COLOR_CONEXION.recuperacion, discontinua: true },
 ]
 
@@ -193,28 +192,29 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
         <div className="relative h-[560px] min-w-[1100px]">
           <div className="absolute left-[13.45%] right-[15.1%] top-7 bottom-6 rounded-2xl border border-blue-200/70 bg-blue-50/35 dark:border-blue-900/60 dark:bg-blue-950/10" />
           <div className="absolute left-[15.25%] right-[17%] top-11 flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2.5"><Cloud className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden /><span className="flex flex-col gap-0.5"><span className="text-xs font-semibold">Google Cloud</span><span className="text-[10px] text-muted-foreground">Máquina virtual</span></span></span>
-            <span className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-100/80 px-3 py-2 text-xs font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+            <span className="flex items-center gap-2.5"><Cloud className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden /><span className="flex flex-col gap-0.5"><span className="text-[13px] font-semibold">Google Cloud</span><span className="text-xs text-muted-foreground">Máquina virtual</span></span></span>
+            <span className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-100/80 px-3 py-2 text-[13px] font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
               <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden><path d={siDocker.path} /></svg>
               Docker Compose
             </span>
           </div>
-          <span className="absolute left-[1.1%] top-[214px] text-[10px] font-medium text-muted-foreground">Fuente de datos</span>
-          <span className="absolute left-[87.3%] top-[214px] text-[10px] font-medium text-muted-foreground">Visualización</span>
+          <span className="absolute left-[1.1%] top-[214px] w-[10.9%] text-xs font-medium text-muted-foreground text-center">Fuente de datos</span>
+          <span className="absolute left-[87.3%] top-[214px] w-[11.64%] text-xs font-medium text-muted-foreground text-center">Visualización</span>
           <svg className="absolute inset-0 size-full" viewBox="0 0 1100 560" preserveAspectRatio="none" aria-hidden>
             <defs>
               <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
             </defs>
             <g style={{ color: COLOR_CONEXION.flujo }} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arquitectura-flecha)">
               <path d="M132 300 H166" /><path d="M292 300 H324" /><path d="M450 300 H482" />
-              <path d="M608 274 C624 274 624 200 640 200" /><path d="M608 326 C624 326 624 440 640 440" />
-              <path d="M784 200 C801 200 801 274 818 274" /><path d="M784 440 C801 440 801 326 818 326" />
+              <path d="M608 274 C624 274 624 200 640 200" /><path d="M608 326 C624 326 624 448 640 448" />
+              <path d="M784 200 C801 200 801 274 818 274" /><path d="M784 448 C801 448 801 326 818 326" />
               <path d="M918 300 H960" />
-              <path d="M387 356 V496 Q387 508 399 508 H856 Q868 508 868 496 V356" />
             </g>
-            <path d="M229 244 V122 Q229 110 241 110 H700 Q712 110 712 122 V144" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
-            <path d="M72 356 V442 Q72 454 84 454 H533 Q545 454 545 442 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
-            <path d="M72 356 V442 Q72 454 84 454 H533 Q545 454 545 442 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
+            <path d="M387 356 V368 Q387 376 395 376 H860 Q868 376 868 368 V356" fill="none" stroke="var(--card)" strokeWidth="6" />
+            <path d="M387 356 V368 Q387 376 395 376 H860 Q868 376 868 368 V356" fill="none" stroke={COLOR_CONEXION.flujo} strokeWidth="1.6" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" />
+            <path d="M229 244 V122 Q229 110 241 110 H700 Q712 110 712 122 V144" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }}><title>Conteos agregados por minuto, provisionales. Los documentos completos se guardan en MongoDB.</title></path>
+            <path d="M72 356 V380 Q72 390 82 390 H535 Q545 390 545 380 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
+            <path d="M72 356 V380 Q72 390 82 390 H535 Q545 390 545 380 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
           </svg>
           {POSICIONES.map((node) => (
             <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1100}%`, top: node.y, width: `${100 * node.w / 1100}%` }}>
@@ -223,7 +223,7 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
           ))}
         </div>
       </div>
-      <ul className="flex flex-wrap justify-between gap-x-6 gap-y-3 border-t bg-muted/10 px-6 py-5 text-xs font-semibold text-foreground" aria-label="Leyenda de conexiones">
+      <ul className="flex flex-wrap justify-between gap-x-6 gap-y-3 border-t bg-muted/10 px-6 py-5 text-[13px] font-semibold text-foreground" aria-label="Leyenda de conexiones">
         {LEYENDAS_ARQUITECTURA.map(({ texto, color, discontinua }) => (
           <li key={texto} className="flex items-center gap-2">
             <svg width="32" height="12" viewBox="0 0 32 12" fill="none" style={{ color }} aria-hidden>
