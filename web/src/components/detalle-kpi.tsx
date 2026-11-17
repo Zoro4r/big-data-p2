@@ -1,6 +1,6 @@
 import { baseDeCalculo } from "@/components/fuente"
 import { Base, ModalMetrica } from "@/components/modal-metrica"
-import { entero, horaLocal } from "@/lib/format"
+import { entero, horaLocal, intervaloLocal } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 const ORDEN = Object.keys(KPIS) as Kpi[]
@@ -28,6 +28,19 @@ export function DetalleKpi(props: {
   const [actual, previa] = serie
   const entidad = meta.unidad === "entidad"
   const c = cambio(kpi, serie)
+  const comparable = actual && previa && new Date(actual.ventana).getTime() - new Date(previa.ventana).getTime() === 3_600_000
+  const fin = actual ? new Date(new Date(actual.ventana).getTime() + 3_600_000).toISOString() : null
+  let momento = "Pendiente de consolidación"
+  if (actual && fin) {
+    momento = meta.periodo === "acumulado" ? `Acumulado hasta ${horaLocal(fin)} UTC−5`
+      : intervaloLocal(actual.ventana, fin)
+  }
+  let nota = "Sin hora anterior comparable"
+  if (actual?.valor == null) nota = actual?.detalle ?? "Sin datos para este período"
+  else if (entidad) nota = `${entero(actual.valor)} ${UNIDAD_ENTIDAD[kpi]}`
+  else if (kpi === "crecimiento_pct") nota = "Variación del número de eventos frente a la hora anterior"
+  else if (c) nota = `${c.sube ? "↗" : "↘"} ${c.texto.replace(/^[+−]/, "")} ${c.sube ? "más" : "menos"} que la hora anterior`
+  else if (comparable) nota = "Sin cambio frente a la hora anterior"
   const valores = serie.slice(0, 24).map((p) => p.valor).filter((v): v is number => v != null).reverse()
   const promedio = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null
   const base = baseDeCalculo(meta.fuente)
@@ -37,19 +50,18 @@ export function DetalleKpi(props: {
 
   const datos: [string, React.ReactNode][] = []
   if (!entidad && actual?.detalle) datos.push(["En la hora", actual.detalle])
-  datos.push(["Hora anterior", entidad ? `${nombreEntidad(previa?.detalle)} (${entero(previa?.valor)})` : formatoKpi(kpi, previa?.valor)])
-  if (!entidad && promedio != null) datos.push([`Promedio ${valores.length} h`, formatoKpi(kpi, promedio)])
+  if (comparable) datos.push(["Hora anterior", entidad ? `${nombreEntidad(previa?.detalle)} (${entero(previa?.valor)})` : formatoKpi(kpi, previa?.valor)])
+  if (!entidad && meta.periodo === "hora" && promedio != null) datos.push([`Promedio ${valores.length} h`, formatoKpi(kpi, promedio)])
 
   return (
     <ModalMetrica
       m={{
         titulo: meta.nombre,
         etiqueta,
-        momento: actual ? `${horaLocal(actual.ventana)}–${horaLocal(actual.ventana, false).slice(0, 2)}:59 UTC−5` : "Sin datos",
+        momento,
         valor: entidad ? nombreEntidad(actual?.detalle) : formatoKpi(kpi, actual?.valor),
         valorEsTexto: entidad,
-        nota: entidad ? `${entero(actual?.valor)} ${UNIDAD_ENTIDAD[kpi]}`
-          : c ? `${c.sube ? "↗" : "↘"} ${c.texto.replace(/^[+−]/, "")} ${c.sube ? "más" : "menos"} que la hora anterior` : "Igual que la hora anterior",
+        nota,
         notaClase: c && !entidad ? TONO[c.tono] : undefined,
         serie: entidad ? undefined : { valores, desde: `hace ${valores.length} h` },
         datos,

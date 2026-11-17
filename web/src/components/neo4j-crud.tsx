@@ -18,14 +18,14 @@ import { cn } from "@/lib/utils"
 /** CRUD del grafo de editores en Neo4j: nodos :Editor y relaciones entre editores.
  *  Los datos de prueba usan editores «demo_…». */
 
-interface Rel { tipo: string; con: string; etiqueta: string; props: Record<string, unknown> }
+interface Rel { id: string; tipo: string; con: string; etiqueta: string; props: Record<string, unknown> }
 interface Detalle { editor: Record<string, unknown>; n_salientes: number; n_entrantes: number; salientes: Rel[]; entrantes: Rel[] }
 interface Encontrado { user: string; tipo: string | null; relaciones: number }
 interface Ultimo extends Encontrado { actividad: string | null }
 
 const RELACIONES: [string, string][] = [["REVIRTIO", "REVIRTIO · revirtió a"], ["MENSAJE_A", "MENSAJE_A · le escribió a"], ["AGRADECIO", "AGRADECIO · agradeció a"], ["BLOQUEO", "BLOQUEO · bloqueó a"]]
 const TIPOS_REL = new Set(RELACIONES.map(([t]) => t))
-const TIPOS_EDITOR: [string, string][] = [["registrado", "Registrado"], ["temporal", "Temporal"], ["bot", "Bot"]]
+const TIPOS_EDITOR: [string, string][] = [["registrado", "Registrado"], ["temporal", "Temporal"], ["ip", "Dirección IP"], ["bot", "Bot"]]
 /** Valor legible: las fechas de Neo4j (ISO con nanosegundos) se muestran en UTC−5: «31 oct · 12:16 UTC−5». */
 const mostrar = (v: unknown) => (v == null ? "—"
   : typeof v === "string" ? (/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v) ? `${horaLocal(v.replace(/\.(\d{3})\d*/, ".$1"))} UTC−5` : v)
@@ -155,7 +155,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
       if (r) { setBorrado(`DETACH DELETE · ${u} · ${nRel(r.relaciones_eliminadas)} borradas`); setCargado(null) }
     } else if (relElegida != null) {
       const x = relacionesBorrables[relElegida]
-      const r = await correr(() => api<{ relaciones_eliminadas: number }>(`/api/crud/neo4j/relacion?${new URLSearchParams({ origen: u, destino: x.con, tipo: x.tipo })}`, { method: "DELETE" }),
+      const r = await correr(() => api<{ relaciones_eliminadas: number }>(`/api/crud/neo4j/relacion?${new URLSearchParams({ origen: u, destino: x.con, tipo: x.tipo, relacion_id: x.id })}`, { method: "DELETE" }),
         () => "Relación eliminada")
       if (r) { setBorrado(`DELETE · (${u})-[:${x.tipo}]->(${x.con})`); await cargar(u); setBorrado(`DELETE · (${u})-[:${x.tipo}]->(${x.con})`) }
     }

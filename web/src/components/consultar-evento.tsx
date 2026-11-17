@@ -46,9 +46,9 @@ export function useConsultaEventos(wikiCabecera: WikiCrud) {
   useEffect(() => setF((x) => ({ ...x, wiki: wikiCabecera })), [wikiCabecera])
 
   /** antes: fecha del último documento mostrado, para pedir los siguientes sin repetir (el stream sigue insertando). */
-  const pedir = (antes?: string | null) => api<Respuesta>(`/api/crud/mongo/buscar?${new URLSearchParams({
+  const pedir = (antes?: string | null, antesId?: string) => api<Respuesta>(`/api/crud/mongo/buscar?${new URLSearchParams({
     wiki: f.wiki, tipo: f.tipo, periodo: f.periodo, editor: f.editor, titulo: f.titulo, demo: String(f.demo), id: f.id,
-    limite: String(LIMITE), ...(antes ? { antes } : {}),
+    limite: String(LIMITE), ...(antes ? { antes, antes_id: antesId ?? "" } : {}),
   })}`)
 
   async function buscar() {
@@ -68,9 +68,17 @@ export function useConsultaEventos(wikiCabecera: WikiCrud) {
 
   async function verMas() {
     if (!res) return
-    const r = await pedir(res.documentos.at(-1)?.fecha)
-    const vistos = new Set(res.documentos.map((d) => d._id))
-    setRes({ ...r, consulta: res.consulta, documentos: [...res.documentos, ...r.documentos.filter((d) => !vistos.has(d._id))] })
+    setCargando(true)
+    try {
+      const last = res.documentos.at(-1)
+      const r = await pedir(last?.fecha, last?._id)
+      const vistos = new Set(res.documentos.map((d) => d._id))
+      setRes({ ...r, consulta: res.consulta, documentos: [...res.documentos, ...r.documentos.filter((d) => !vistos.has(d._id))] })
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setCargando(false)
+    }
   }
 
   const ultimo = useRef<string | null>(null)

@@ -44,6 +44,12 @@ export function horaLocal(iso: string | number, conDia = true, segundos = false)
   return conDia ? `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} · ${hora}` : hora
 }
 
+/** Intervalo con las dos fechas cuando cruza la medianoche en UTC−5. */
+export function intervaloLocal(inicio: string, fin: string): string {
+  const mismoDia = aLocal(inicio).toISOString().slice(0, 10) === aLocal(fin).toISOString().slice(0, 10)
+  return `${horaLocal(inicio)}–${horaLocal(fin, !mismoDia)} UTC−5`
+}
+
 /** Hora y día en UTC−5 de una celda guardada por (fecha, hora) en UTC: ("2026-11-11", 3) → "10 nov · 22:00". */
 export const horaDeCelda = (fecha: string, hora: number, conDia = true) => horaLocal(`${fecha}T${dos(hora)}:00:00Z`, conDia)
 

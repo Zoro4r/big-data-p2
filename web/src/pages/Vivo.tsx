@@ -17,6 +17,9 @@ import { cn } from "@/lib/utils"
 
 interface Vivo {
   ahora: string
+  inicio: string
+  fin: string
+  provisional: boolean
   eventos_ultimo_minuto: number
   /** Editores distintos de los últimos 30 minutos, por tipo (registrado, temporal, bot). */
   editores: Record<string, number>
@@ -176,6 +179,8 @@ export default function VivoPage() {
 
   // Consulta la API cada pocos segundos mientras la página está abierta.
   useEffect(() => {
+    setData(null)
+    setError(null)
     let vigente = true
     const cargar = () =>
       api<Vivo>(`/api/vivo?minutos=30&wiki=${wiki}`)
@@ -222,14 +227,15 @@ export default function VivoPage() {
       <Header ruta={["Panel", "En vivo"]} />
       <Pagina titulo="En vivo" descripcion="Capa rápida del pipeline: el servicio de streaming guarda cada evento de enwiki y eswiki en segundos (MongoDB y Cassandra). Esta página se actualiza sola cada 4 segundos; el grafo, los rankings y los KPIs se consolidan cada hora con Airflow.">
         {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
+        <div className="space-y-1"><h2 className="text-base font-semibold">Actividad reciente · provisional</h2><p className="text-sm text-muted-foreground">Últimos 30 minutos por minuto · el minuto actual está en curso. El ritmo por segundo usa los últimos 60 segundos.</p></div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
               <TarjetaKpi etiqueta="Eventos por segundo" valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
               <TarjetaKpi etiqueta="Editores activos" valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
-                pie={`${entero((data.editores?.registrado ?? 0) + (data.editores?.temporal ?? 0))} personas · ${entero(data.editores?.bot ?? 0)} bots en 30 min`} onAbrir={() => setMetrica("editores")} />
+                pie={`${entero((data.editores?.registrado ?? 0) + (data.editores?.temporal ?? 0) + (data.editores?.ip ?? 0))} personas · ${entero(data.editores?.bot ?? 0)} bots en 30 min`} onAbrir={() => setMetrica("editores")} />
               <TarjetaKpi etiqueta="Hechos por bots" valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones" valor={entero(tot.rev)} pie="en los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
+              <TarjetaKpi etiqueta="Reversiones detectadas" valor={entero(tot.rev)} pie="en los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>

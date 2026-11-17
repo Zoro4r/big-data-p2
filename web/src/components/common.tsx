@@ -29,13 +29,13 @@ export function TarjetaKpi(props: {
   // de una misma fila alinean su valor aunque algún nombre ocupe dos líneas.
   const tarjeta = (
     <Card className={cn("row-span-3 grid grid-rows-subgrid gap-x-0 gap-y-3 py-[18px] shadow-xs", !onAbrir && className, onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
-      <div className="flex items-start justify-between gap-2 px-5">
+      <div className="flex flex-wrap items-start justify-between gap-2 px-5">
         <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
           {etiqueta}
           {onAbrir && <ArrowUpRight className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />}
         </CardDescription>
         {cambio && (
-          <Badge variant="outline" className={cn("gap-1 font-medium", TONO[cambio.tono])}>
+          <Badge variant="outline" className={cn("max-w-full justify-start gap-1 whitespace-normal text-left font-medium", TONO[cambio.tono])}>
             <Icono className="size-3" aria-hidden />
             {cambio.texto}
           </Badge>

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { colorWiki, entero, horaLocal } from "@/lib/format"
+import { colorWiki, entero, horaLocal, intervaloLocal } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
@@ -19,20 +19,18 @@ interface Ejecucion { ventana: string; calidad_pct: number | null; rechazados: n
 /** De dónde leyó la hora el proceso horario; las corridas anteriores a guardar la fuente salieron de EventStreams. */
 const FUENTE: Record<string, string> = { mongodb: "MongoDB", eventstreams: "EventStreams" }
 
-interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number; desde: string | null }
+interface Resumen { kpis: Record<Kpi, PuntoKpi[]>; horas: Hora[]; ejecuciones: Ejecucion[]; total: number; desde: string | null; corte: string | null; intervalo: { inicio: string | null; fin: string | null } }
 
-// Por columnas, cada una un tema (Volumen, Contenido, Editores, Calidad): arriba el dato general, abajo uno
-// más específico. Se listan columna por columna (en pantallas angostas cada tema queda junto) y `orden`
-// las acomoda en la grilla de 4 columnas de pantallas anchas.
-const TARJETAS: { kpi: Kpi; orden: string; pie: (r: Resumen) => string }[] = [
-  { kpi: "total_eventos_acumulados", orden: "xl:order-1", pie: (r) => (r.desde ? `guardados desde el ${horaLocal(r.desde).split(" · ")[0]}` : "guardados en MongoDB") },
-  { kpi: "eventos_procesados", orden: "xl:order-5", pie: (r) => `Crecimiento ${formatoKpi("crecimiento_pct", r.kpis.crecimiento_pct[0]?.valor)}` },
-  { kpi: "volumen_neto_bytes", orden: "xl:order-2", pie: () => "bytes agregados − eliminados" },
-  { kpi: "tasa_creacion_pct", orden: "xl:order-6", pie: () => "páginas nuevas / ediciones" },
-  { kpi: "tasa_automatizacion_pct", orden: "xl:order-3", pie: () => "eventos hechos por bots" },
-  { kpi: "actividad_por_editor", orden: "xl:order-7", pie: () => "eventos por editor humano" },
-  { kpi: "calidad_datos_pct", orden: "xl:order-4", pie: () => "eventos válidos / extraídos" },
-  { kpi: "tasa_reversion_pct", orden: "xl:order-8", pie: (r) => `${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"} en la hora` },
+// Todas estas tarjetas describen la misma hora consolidada.
+const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
+  { kpi: "eventos_procesados", pie: () => "Eventos válidos de esta hora" },
+  { kpi: "crecimiento_pct", pie: () => "Variación frente a la hora anterior" },
+  { kpi: "volumen_neto_bytes", pie: () => "Bytes añadidos menos eliminados" },
+  { kpi: "tasa_creacion_pct", pie: () => "Entre las ediciones y creaciones de la hora" },
+  { kpi: "tasa_automatizacion_pct", pie: () => "Eventos hechos por bots" },
+  { kpi: "actividad_por_editor", pie: () => "Eventos por editor humano distinto" },
+  { kpi: "tasa_reversion_pct", pie: (r) => `Entre las ediciones de la hora · ${r.kpis.tasa_reversion_pct[0]?.detalle ?? "—"}` },
+  { kpi: "calidad_datos_pct", pie: () => "Eventos válidos / eventos extraídos" },
 ]
 
 /** Un punto del gráfico de evolución: una hora procesada por el DAG. */
@@ -43,7 +41,7 @@ const HORAS_EVOLUCION = 72
 function TooltipEvolucion({ active, payload, kpi }: { active?: boolean; payload?: { payload: PuntoHora }[]; kpi: Kpi }) {
   const p = payload?.[0]?.payload
   if (!active || !p) return null
-  const d = p.previo != null ? cambio(kpi, [{ ventana: p.ventana, valor: p.valor, detalle: null }, { ventana: "", valor: p.previo, detalle: null }]) : null
+  const d = p.previo != null ? cambio(kpi, [{ ventana: p.ventana, valor: p.valor, detalle: null }, { ventana: new Date(new Date(p.ventana).getTime() - 3_600_000).toISOString(), valor: p.previo, detalle: null }]) : null
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
       <div className="mb-1 font-medium">{horaLocal(p.ventana)} UTC−5{p.ultima ? " · última hora" : ""}</div>
@@ -60,8 +58,10 @@ export default function ResumenPage() {
   const { wiki, wikis, etiqueta } = useWiki()
   const [kpiElegido, setKpiElegido] = useState<Kpi>("eventos_procesados")
   const [kpiAbierto, setKpiAbierto] = useState<Kpi | null>(null)
-  const { data, cargando } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
+  const { data, cargando, error, recargar } = useApi<Resumen>(`/api/resumen?wiki=${wiki}`)
   const ultima = data?.kpis.eventos_procesados[0]?.ventana
+  const fin = data?.corte
+  const periodo = ultima && fin ? intervaloLocal(ultima, fin) : "Pendiente de consolidación"
   const porHora = useMemo(() => {
     if (!data) return []
     const m = new Map<string, { hora: string; eventos: number }>()
@@ -81,7 +81,7 @@ export default function ResumenPage() {
   const evolucion = useMemo<PuntoHora[]>(() => {
     const serie = (data?.kpis[kpiElegido] ?? []).filter((p) => p.valor != null).slice(0, HORAS_EVOLUCION).reverse()
     return serie.map((p, i) => ({ ventana: p.ventana, valor: p.valor as number,
-      previo: i > 0 ? (serie[i - 1].valor as number) : null, ultima: i === serie.length - 1 }))
+      previo: i > 0 && new Date(p.ventana).getTime() - new Date(serie[i - 1].ventana).getTime() === 3_600_000 ? (serie[i - 1].valor as number) : null, ultima: i === serie.length - 1 }))
   }, [data, kpiElegido])
   const ejeY = (v: number) => {
     const u = KPIS[kpiElegido].unidad
@@ -93,19 +93,31 @@ export default function ResumenPage() {
   return (
     <>
       <Header ruta={["Panel", "Resumen"]} />
-      <Pagina titulo="Resumen" descripcion={ultima ? `Actividad de ${etiqueta} en la última hora procesada (${horaLocal(ultima)}–${horaLocal(ultima, false).slice(0, 2)}:59 UTC−5) y su cambio frente a la hora anterior. Haz clic en un KPI para ver su definición.` : "Cargando…"}>
+      <Pagina titulo="Resumen" descripcion={`${etiqueta} · resultados de horas completas. Abre una métrica para ver cómo se calcula.`}>
+        {error && <div role="alert" className="rounded-lg border border-destructive p-3 text-sm">{error} <button type="button" className="underline" onClick={recargar}>Reintentar</button></div>}
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div><h2 className="text-base font-semibold">Última hora consolidada</h2><p className="text-sm text-muted-foreground">{periodo}</p></div>
+          <span className="text-xs text-muted-foreground">Cambios frente a la hora anterior</span>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
-            : TARJETAS.map(({ kpi, orden, pie }) => (
-                <TarjetaKpi key={kpi} className={orden} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
-                  cambio={kpi === "total_eventos_acumulados" ? null : cambio(kpi, data.kpis[kpi])}
+            : TARJETAS.map(({ kpi, pie }) => (
+                <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
+                  cambio={kpi === "crecimiento_pct" ? null : cambio(kpi, data.kpis[kpi])}
                   pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
               ))}
         </div>
 
+        <Seccion titulo="Acumulado" descripcion={fin ? `${etiqueta} · hasta ${horaLocal(fin)} UTC−5` : "Pendiente de una hora consolidada"}>
+          <button type="button" onClick={() => setKpiAbierto("total_eventos_acumulados")} className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="text-3xl font-semibold tabular-nums">{formatoKpi("total_eventos_acumulados", data?.kpis.total_eventos_acumulados[0]?.valor)}</span>
+            <span className="text-sm text-muted-foreground">Eventos almacenados desde {data?.desde ? horaLocal(data.desde) : "el inicio de la recolección"}</span>
+          </button>
+        </Seccion>
+
         <Seccion titulo={`Evolución por hora · ${etiqueta}`}
-          descripcion={`${KPIS[kpiElegido].formula} · últimas ${evolucion.length || HORAS_EVOLUCION} horas procesadas por el DAG; la última, resaltada · ${KPIS[kpiElegido].fuente}`}
+          descripcion={`Valor de cada hora consolidada · últimas ${evolucion.length || HORAS_EVOLUCION} horas disponibles · ${etiqueta}`}
           accion={
             <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
               <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
@@ -133,7 +145,7 @@ export default function ResumenPage() {
         </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${etiqueta} · la página, en Cassandra; los editores, en Neo4j sobre la red acumulada`}>
+          <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${periodo} · actividad exclusivamente de esta hora`}>
             {!data ? <Cargando alto={200} /> : (
               <div className="flex flex-col">
                 {([
@@ -142,7 +154,8 @@ export default function ResumenPage() {
                   ["editor_mas_revertido", Undo2, "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400", "reversiones"],
                 ] as const).map(([kpi, Icono, estilo, unidad], i) => {
                   const p = data.kpis[kpi][0]
-                  const nombre = (p?.detalle ?? "—").split(" (")[0].replace(/^(en|es)wiki:/, "")
+                  const sinActividad = kpi === "editor_mas_conectado" ? "Sin coedición humana en esta hora" : "Sin reversiones en esta hora"
+                  const nombre = (p?.detalle ?? (p ? sinActividad : "Pendiente")).split(" (")[0].replace(/^(en|es)wiki:/, "")
                   const extra = p?.detalle?.match(/\((.*)\)/)?.[1]
                   return (
                     <button type="button" key={kpi} onClick={() => setKpiAbierto(kpi)} className={`-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${i < 2 ? "border-b border-border" : ""}`}>

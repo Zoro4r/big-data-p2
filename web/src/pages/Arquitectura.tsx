@@ -28,32 +28,18 @@ interface Datos {
 type Id = "fuente" | "rapida" | "lotes" | "mongo" | "cassandra" | "neo4j" | "api" | "dashboard"
 const ORDEN: Id[] = ["fuente", "rapida", "lotes", "mongo", "cassandra", "neo4j", "api", "dashboard"]
 
-interface Caja { id: Id; x: number; y: number; w: number; h: number; titulo: string; lineas: string[]; oscura?: boolean; logo?: Base; etiqueta: string }
+interface Caja { id: Id; titulo: string; oscura?: boolean; logo?: Base; etiqueta: string }
 const CAJAS: Caja[] = [
-  { id: "fuente", x: 16, y: 120, w: 160, h: 100, titulo: "Wikimedia EventStreams", lineas: ["stream recentchange · JSON por SSE"], oscura: true, etiqueta: "Los datos que llegan · origen, estructura y características" },
-  { id: "rapida", x: 214, y: 40, w: 200, h: 80, titulo: "Capa rápida", lineas: ["servicio stream · guarda cada ~2 s"], etiqueta: "Servicio stream · eventos al instante" },
-  { id: "lotes", x: 214, y: 200, w: 200, h: 120, titulo: "Capa por lotes", lineas: ["DAG de Airflow · cada hora", "extraer → validar → cargar → KPIs"], etiqueta: "El flujo de Airflow, paso a paso" },
-  { id: "mongo", x: 470, y: 30, w: 190, h: 70, titulo: "MongoDB", lineas: ["eventos originales"], logo: "mongo", etiqueta: "Almacenamiento · los eventos tal como llegan" },
-  { id: "cassandra", x: 470, y: 145, w: 190, h: 70, titulo: "Cassandra", lineas: ["series de tiempo y KPIs"], logo: "cassandra", etiqueta: "Almacenamiento · series de tiempo y KPIs" },
-  { id: "neo4j", x: 470, y: 260, w: 190, h: 70, titulo: "Neo4j", lineas: ["red de editores y páginas"], logo: "neo4j", etiqueta: "Almacenamiento · la red de colaboración" },
-  { id: "api", x: 720, y: 130, w: 150, h: 100, titulo: "API FastAPI", lineas: ["lee las tres bases"], etiqueta: "Qué base consulta cada vista" },
-  { id: "dashboard", x: 930, y: 130, w: 170, h: 100, titulo: "Dashboard", lineas: ["React + shadcn"], oscura: true, etiqueta: "Lo que estás viendo" },
+  { id: "fuente", titulo: "Wikimedia EventStreams", oscura: true, etiqueta: "Los datos que llegan · origen, estructura y características" },
+  { id: "rapida", titulo: "Capa rápida", etiqueta: "Servicio stream · eventos al instante" },
+  { id: "lotes", titulo: "Capa por lotes", etiqueta: "El flujo de Airflow, paso a paso" },
+  { id: "mongo", titulo: "MongoDB", logo: "mongo", etiqueta: "Almacenamiento · los eventos tal como llegan" },
+  { id: "cassandra", titulo: "Cassandra", logo: "cassandra", etiqueta: "Almacenamiento · series de tiempo y KPIs" },
+  { id: "neo4j", titulo: "Neo4j", logo: "neo4j", etiqueta: "Almacenamiento · la red de colaboración" },
+  { id: "api", titulo: "API FastAPI", etiqueta: "Qué base consulta cada vista" },
+  { id: "dashboard", titulo: "Dashboard", oscura: true, etiqueta: "Lo que estás viendo" },
 ]
 const NOMBRE = Object.fromEntries(CAJAS.map((c) => [c.id, c.titulo])) as Record<Id, string>
-
-/** Flechas del flujo. El lote lee cada hora de MongoDB (lo que guardó el stream); la punteada es el respaldo:
- *  si el stream no cubrió la hora, el lote la pide a EventStreams. */
-const FLECHAS: { d: string; respaldo?: boolean }[] = [
-  { d: "M176 160 C 195 160, 195 75, 214 75" },                       // EventStreams → capa rápida
-  { d: "M176 185 C 195 185, 195 275, 214 275", respaldo: true },     // EventStreams → capa por lotes (respaldo)
-  { d: "M414 58 C 440 58, 440 55, 470 55" },                         // capa rápida → MongoDB
-  { d: "M414 100 C 442 100, 442 168, 470 168" },                     // capa rápida → Cassandra
-  { d: "M470 82 C 440 82, 444 222, 414 222" },                       // MongoDB → capa por lotes (lee la hora)
-  { d: "M414 252 C 442 252, 442 192, 470 192" },                     // capa por lotes → Cassandra
-  { d: "M414 292 C 442 292, 442 295, 470 295" },                     // capa por lotes → Neo4j
-  { d: "M660 65 C 690 65, 690 168, 720 168" }, { d: "M660 180 L 720 180" }, { d: "M660 295 C 690 295, 690 192, 720 192" },
-  { d: "M870 180 L 930 180" },
-]
 
 const gb = (b?: number | null) => (b == null ? "—" : b >= 1e9 ? `${(b / 1e9).toFixed(2)} GB` : `${(b / 1e6).toFixed(0)} MB`)
 const millones = (n?: number | null) => (n == null ? "—" : n >= 1e6 ? `${(n / 1e6).toFixed(2)} M` : entero(n))
@@ -64,31 +50,53 @@ const hace = (iso?: string | null) => {
 }
 
 function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
+  function nodo(id: Id, detalle: string) {
+    const c = CAJAS.find((caja) => caja.id === id)!
+    return (
+      <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
+        className={cn("relative flex min-h-20 w-full flex-col justify-center gap-1 rounded-xl border p-4 text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+          c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
+        <ArrowUpRight className="absolute right-3 top-3 size-3 opacity-40" aria-hidden />
+        <span className="flex items-center gap-2 pr-3 text-sm font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
+        <span className={cn("text-xs", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
+      </button>
+    )
+  }
+  const flecha = <ChevronRight className="mx-auto size-5 shrink-0 rotate-90 text-muted-foreground sm:rotate-0" aria-hidden />
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
-      <div className="relative mx-auto h-[372px] w-[1120px]">
-        <svg aria-hidden className="absolute inset-0 size-full text-muted-foreground/50">
-          <defs>
-            <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" /></marker>
-          </defs>
-          <g stroke="currentColor" strokeWidth={1.5} fill="none" markerEnd="url(#flecha)">
-            {FLECHAS.map((f) => <path key={f.d} d={f.d} strokeDasharray={f.respaldo ? "5 4" : undefined} />)}
-          </g>
-        </svg>
-        {CAJAS.map((c) => (
-          <button key={c.id} type="button" onClick={() => onAbrir(c.id)} aria-label={`${c.titulo}: ver detalle`}
-            style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
-            className={cn("group absolute flex flex-col justify-center gap-1 rounded-xl border px-3 py-2.5 text-left transition-[border-color,box-shadow] outline-none hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              c.oscura ? "border-foreground bg-foreground text-background" : "bg-card hover:border-foreground/40")}>
-            <ArrowUpRight className="absolute top-2 right-2 size-3.5 opacity-40 transition-opacity group-hover:opacity-100" aria-hidden />
-            <span className="flex items-center gap-1.5 pr-4 text-[13.5px] leading-tight font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
-            {c.lineas.map((l) => <span key={l} className={cn("text-xs leading-snug", c.oscura ? "opacity-75" : "text-muted-foreground")}>{l}</span>)}
-          </button>
-        ))}
-        <p className="absolute bottom-3 left-4 text-xs text-muted-foreground">
-          El lote lee cada hora de MongoDB, donde ya la guardó el stream. La línea punteada es el respaldo: si el stream no cubrió la hora, el lote la pide a EventStreams.
+    <div className="space-y-6 rounded-xl border bg-card p-5 shadow-xs sm:p-6">
+      <section className="space-y-3" aria-label="Flujo en vivo">
+        <h2 className="text-sm font-semibold">En vivo · cada ~2 segundos</h2>
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
+          {nodo("fuente", "Envía eventos JSON")}{flecha}
+          {nodo("rapida", "Valida los eventos y escribe dos resultados")}{flecha}
+          <div className="space-y-2">
+            {nodo("mongo", "Documento completo de cada evento")}
+            {nodo("cassandra", "Conteos por minuto · provisionales")}
+          </div>
+        </div>
+      </section>
+      <section className="space-y-3 border-t pt-5" aria-label="Consolidación horaria">
+        <h2 className="text-sm font-semibold">Consolidación · cada hora</h2>
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
+          {nodo("mongo", "Airflow lee los eventos de la hora completa")}{flecha}
+          {nodo("lotes", "Valida, transforma y calcula indicadores")}{flecha}
+          <div className="space-y-2">
+            {nodo("cassandra", "Resúmenes y KPIs · corrige los minutos")}
+            {nodo("neo4j", "Relaciones de esa hora entre editores y páginas")}
+          </div>
+        </div>
+        <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Recuperación de una hora incompleta · Airflow la solicita a Wikimedia y guarda los eventos faltantes en MongoDB antes de consolidar.
         </p>
-      </div>
+      </section>
+      <section className="space-y-3 border-t pt-5" aria-label="Consulta del dashboard">
+        <h2 className="text-sm font-semibold">Consulta y visualización</h2>
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
+          <p className="text-sm text-muted-foreground">MongoDB · eventos<br />Cassandra · métricas<br />Neo4j · relaciones</p>
+          {flecha}{nodo("api", "Consulta cada base según la vista")}{flecha}{nodo("dashboard", "En vivo, horas consolidadas e historial")}
+        </div>
+      </section>
     </div>
   )
 }
@@ -298,7 +306,7 @@ function CapaRapida({ d }: { d: Datos }) {
       </Bloque>
       <Bloque titulo="Por qué existe, si ya está el DAG">
         El DAG corre una vez por hora: sin esta capa, el dashboard mostraría datos con hasta una hora de atraso. Es una arquitectura Lambda: la capa rápida da
-        inmediatez y la capa por lotes da exactitud (cada hora recalcula y corrige los conteos). Las dos usan el mismo <Codigo>_id</Codigo>, así que no hay duplicados.
+        inmediatez y la capa por lotes da exactitud (cada hora recalcula y corrige los conteos). Los eventos se identifican por <Codigo>meta.id</Codigo>. Los conteos se reconstruyen desde MongoDB y las escrituras se coordinan por hora.
       </Bloque>
     </>
   )
@@ -312,7 +320,7 @@ const PASOS: [string, string, string][] = [
   ["validar_y_limpiar", "Descarta eventos sin meta, sin campos obligatorios, de tipo desconocido o con fecha mal formada, y agrega el bloque derived. Los rechazados se guardan con su motivo.", "Archivo limpio + rechazados"],
   ["cargar_mongo", "Inserta o reemplaza los eventos limpios en la colección events. Si la hora se leyó de MongoDB no escribe nada: ya está ahí completa.", "MongoDB"],
   ["cargar_cassandra", "Agrega la hora: totales, serie por minuto, actividad por editor y páginas más editadas.", "Cassandra"],
-  ["cargar_neo4j", "Crea o actualiza con MERGE los editores, páginas y categorías, y sus relaciones.", "Neo4j"],
+  ["cargar_neo4j", "Reemplaza las contribuciones de la hora y de cada wiki, y actualiza las relaciones acumuladas afectadas.", "Neo4j"],
   ["calcular_kpis", "Calcula los 12 KPIs de la hora (global y por wiki) con las tres bases y los guarda.", "Cassandra"],
 ]
 
@@ -369,7 +377,7 @@ function Mongo({ d }: { d: Datos }) {
       <TresBloques
         que="Cada evento completo, tal como llega del stream, más el bloque derived que agrega la limpieza. Un documento por evento en la colección events."
         porque="Los 4 tipos de evento tienen campos distintos y objetos anidados; un esquema flexible los guarda sin forzar columnas vacías y permite consultar campos anidados (length.new, log_params…)."
-        quien="El servicio stream (cada ~2 s) y la tarea cargar_mongo del DAG (cada hora). Las dos usan el mismo _id, que es el meta.id del evento." />
+        quien="El servicio stream guarda cada evento. Airflow completa los eventos de horas sin cobertura. Ambos identifican el evento mediante meta.id." />
       <div className="grid gap-3 sm:grid-cols-3">
         <Cifra titulo="Documentos" valor={millones(d.mongo.eventos)} texto={`Desde el ${d.mongo.desde ? horaLocal(d.mongo.desde) : "—"} UTC−5.`} />
         <Cifra titulo="Tamaño de los datos" valor={gb(d.mongo.tamano_bytes)} texto={`${gb(d.mongo.disco_bytes)} en disco, comprimido.`} />
@@ -434,10 +442,10 @@ function Neo4j({ d }: { d: Datos }) {
       <TresBloques
         que="Editores, páginas, categorías y wikis, unidos por lo que hacen: editar, crear, revertir, agradecer, bloquear, compartir páginas…"
         porque="Las preguntas son de conexiones: quién revierte a quién, qué editores comparten páginas, qué página atrae a más editores. En un grafo se responden recorriendo vecinos, sin joins costosos."
-        quien="La tarea cargar_neo4j del DAG, cada hora, con MERGE (si el nodo o la relación ya existe, se actualiza)." />
+        quien="La tarea cargar_neo4j del DAG reemplaza las contribuciones de cada hora y wiki mediante una transacción." />
       <div className="grid gap-3 sm:grid-cols-2">
         <Cifra titulo="Nodos" valor={millones(nodos)} texto={Object.entries(d.grafo.nodos).map(([k, v]) => `${k} ${millones(v)}`).join(" · ")} />
-        <Cifra titulo="Relaciones" valor={millones(rels)} texto="De 11 tipos: con el contenido y entre editores." />
+        <Cifra titulo="Relaciones almacenadas" valor={millones(rels)} texto="Contribuciones de cada hora y wiki, junto con las relaciones acumuladas del grafo." />
       </div>
       <Imagen src="/img/esquema-grafo.png" alt="Esquema del grafo: nodos Editor, Página, Wiki y Categoría con sus 11 relaciones"
         pie="Esquema del grafo · 4 tipos de nodo y 11 tipos de relación. Arriba, la capa entre editores; abajo, la que los une con el contenido." />
@@ -455,11 +463,11 @@ function Neo4j({ d }: { d: Datos }) {
 }
 
 const VISTAS: [string, Base[], string][] = [
-  ["Resumen y KPIs", ["cassandra", "neo4j"], "KPIs y resumen por hora (Cassandra) y protagonistas del grafo (Neo4j)."],
+  ["Resumen y KPIs", ["cassandra", "mongo"], "KPIs y protagonistas de una hora, calculados por el DAG y almacenados en Cassandra."],
   ["En vivo", ["mongo", "cassandra"], "Últimos eventos (MongoDB) y conteos por minuto (Cassandra)."],
   ["Actividad en el tiempo", ["cassandra"], "Serie por minuto e historial de cada editor."],
   ["Explorador de eventos", ["mongo"], "Búsqueda y conteos sobre los eventos."],
-  ["Red de editores", ["neo4j"], "Rankings, páginas disputadas y la red alrededor de un editor."],
+  ["Red de editores", ["neo4j", "cassandra"], "Rankings, páginas disputadas y la red alrededor de un editor."],
   ["Operaciones CRUD", ["mongo", "cassandra", "neo4j"], "Crear, consultar, actualizar y eliminar en las tres bases."],
   ["Arquitectura", ["mongo", "cassandra", "neo4j"], "Cifras de esta página."],
 ]

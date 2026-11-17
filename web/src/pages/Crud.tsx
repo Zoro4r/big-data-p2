@@ -176,7 +176,7 @@ export default function CrudPage() {
             </TabsList>
 
             <TabsContent value="mongo">
-              <Seccion titulo="Colección events" className="h-full" contenidoClassName="flex flex-1 flex-col">
+              <Seccion titulo="Colección events" descripcion="Los cambios de horas ya consolidadas se reflejan en métricas y relaciones al reprocesar su hora en Airflow." className="h-full" contenidoClassName="flex flex-1 flex-col">
                 <form onSubmit={enviarMongo} className="flex flex-1 flex-col gap-4">
                   <Operaciones valor={mOp} onChange={cambiarMOp} opciones={["Crear", "Consultar", "Actualizar", "Eliminar"]} />
                   <BotonPrueba onClick={pruebaMongo} ultimos={mOp !== "Crear" && "los últimos eventos"} />
