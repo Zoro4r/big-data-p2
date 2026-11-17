@@ -73,13 +73,13 @@ export const horaMs = (ms: number | string) => horaLocal(Number(ms), false)
  * Cada categoría conserva su color entre vistas; los valores de KPI son neutros.
  */
 export const COLOR = {
-  enwiki: "#93b5dd",
-  eswiki: "#c2b0df",
-  humano: "#93b5dd",
-  registrado: "#93b5dd",
-  temporal: "#b2c7df",
-  ip: "#b2c7df",
-  bot: "#c2b0df",
+  enwiki: "#809fcb",
+  eswiki: "#d99bb1",
+  humano: "#809fcb",
+  registrado: "#809fcb",
+  temporal: "#afc1da",
+  ip: "#afc1da",
+  bot: "#d99bb1",
   otro: "#bcc3cf",
 } as const
 

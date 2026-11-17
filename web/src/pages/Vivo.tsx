@@ -226,7 +226,7 @@ export default function VivoPage() {
       <Header ruta={["Panel", "En vivo"]} />
       <Pagina titulo="En vivo" descripcion={`${etiqueta} · cambios recientes de Wikipedia. Se actualiza cada 4 segundos.`}>
         {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
-        <div className="space-y-1"><h2 className="text-base font-semibold">Últimos 5 minutos</h2><p className="text-sm text-muted-foreground">Comparado con los 5 min anteriores · pp = puntos porcentuales · datos provisionales.</p></div>
+        <div className="space-y-1"><h2 className="text-base font-semibold">Últimos 5 minutos</h2><p className="text-sm text-muted-foreground">Comparado con los 5 min anteriores · datos provisionales.</p></div>
         <TarjetasVivo actual={reciente} anterior={previo} onAbrir={setMetrica} />
 
         <Seccion titulo="Eventos por minuto" descripcion="Últimos 30 minutos · barras apiladas por wiki · el minuto en curso todavía se está llenando" accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
