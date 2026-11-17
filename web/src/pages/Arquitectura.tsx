@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useApi } from "@/lib/api"
-import { entero, horaLocal } from "@/lib/format"
+import { COLOR, entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Arquitectura del proyecto: el diagrama del flujo es la página y cada componente abre un modal con su detalle
@@ -117,40 +117,55 @@ const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[]
   { id: "dashboard", x: 895, y: 205, w: 145, detalle: "React · navegador" },
 ]
 
+const LEYENDAS_ARQUITECTURA = [
+  ["Capa rápida → MongoDB", "Guarda el documento completo de cada evento."],
+  ["Capa rápida → Cassandra", "Publica conteos por minuto, todavía provisionales."],
+  ["MongoDB → Capa por lotes", "Airflow lee los eventos de la hora completa para consolidarlos."],
+  ["Wikimedia → Capa por lotes", "La línea discontinua recupera los eventos de una hora incompleta."],
+  ["MongoDB → API", "La API consulta directamente los documentos cuando la vista lo requiere."],
+  ["PostgreSQL · Servicio auxiliar", "Almacena los metadatos de Airflow: ejecuciones, tareas y estados."],
+]
+
 export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) {
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
-      <div className="relative h-[440px] min-w-[1060px]">
-        <div className="absolute left-[13.5%] right-[16.5%] top-10 bottom-6 rounded-2xl border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/10" />
-        <span className="absolute left-[15%] top-14 text-xs font-semibold text-blue-700 dark:text-blue-400">Google Cloud · Máquina virtual · Docker Compose</span>
-        <span className="absolute left-[85%] top-[170px] text-xs font-medium text-muted-foreground">Cliente web</span>
-        <svg className="absolute inset-0 size-full" viewBox="0 0 1060 440" preserveAspectRatio="none" aria-hidden>
-          <defs>
-            <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" /></marker>
-          </defs>
-          <g className="text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arquitectura-flecha)">
-            <path d="M130 245 H155" /><path d="M275 245 H300" /><path d="M420 245 H445" />
-            <path d="M565 230 C580 230 575 185 590 185" /><path d="M565 260 C580 260 575 325 590 325" />
-            <path d="M725 185 C740 185 735 230 750 230" /><path d="M725 325 C740 325 735 260 750 260" />
-            <path d="M870 245 H895" />
-            <path d="M360 285 V390 H810 V285" />
-          </g>
-          <path d="M215 205 V115 H657 V145" fill="none" stroke="#10b981" strokeWidth="1.7" markerEnd="url(#arquitectura-flecha)" className="text-emerald-500" />
-          <path d="M70 285 V355 H505 V285" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" className="text-amber-500" />
-          <g className="fill-muted-foreground" fontSize="11" textAnchor="middle">
-            <text x="430" y="103">Conteos por minuto · provisionales</text>
-            <text x="285" y="303">Guarda eventos</text><text x="435" y="195">Lee la hora</text>
-            <text x="275" y="343">Recuperación de una hora incompleta</text>
-            <text x="585" y="407">La API también consulta los documentos de MongoDB</text>
-          </g>
-        </svg>
-        {POSICIONES.map((node) => (
-          <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
-            <NodoArquitectura id={node.id} detalle={node.detalle} onAbrir={onAbrir} compact />
-          </div>
-        ))}
-        <span className="absolute left-[42%] top-[300px] max-w-32 text-center text-[11px] leading-snug text-muted-foreground">PostgreSQL<br />Metadatos de Airflow</span>
+    <div className="overflow-hidden rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
+      <div className="overflow-x-auto">
+        <div className="relative h-[440px] min-w-[1060px]">
+          <div className="absolute left-[13.5%] right-[16.5%] top-10 bottom-6 rounded-2xl border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/10" />
+          <span className="absolute left-[15%] top-14 text-xs font-semibold text-blue-700 dark:text-blue-400">Google Cloud · Máquina virtual · Docker Compose</span>
+          <span className="absolute left-[85%] top-[170px] text-xs font-medium text-muted-foreground">Cliente web</span>
+          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 440" preserveAspectRatio="none" aria-hidden>
+            <defs>
+              <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" /></marker>
+            </defs>
+            <g className="text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arquitectura-flecha)">
+              <path d="M130 245 H155" /><path d="M275 245 H300" /><path d="M420 245 H445" />
+              <path d="M565 230 C580 230 575 185 590 185" /><path d="M565 260 C580 260 575 325 590 325" />
+              <path d="M725 185 C740 185 735 230 750 230" /><path d="M725 325 C740 325 735 260 750 260" />
+              <path d="M870 245 H895" />
+              <path d="M360 285 V390 H810 V285" />
+            </g>
+            <path d="M215 205 V115 H657 V145" fill="none" stroke="currentColor" strokeWidth="1.7" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR.enwiki }} />
+            <path d="M70 285 V355 H505 V285" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR.eswiki }} />
+          </svg>
+          {POSICIONES.map((node) => (
+            <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
+              <NodoArquitectura id={node.id} detalle={node.detalle} onAbrir={onAbrir} compact />
+            </div>
+          ))}
+        </div>
       </div>
+      <section className="border-t px-6 py-5" aria-labelledby="leyenda-arquitectura">
+        <h2 id="leyenda-arquitectura" className="text-sm font-semibold">Lectura de las conexiones</h2>
+        <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+          {LEYENDAS_ARQUITECTURA.map(([titulo, texto]) => (
+            <div key={titulo}>
+              <dt className="text-xs font-medium">{titulo}</dt>
+              <dd className="mt-1 text-xs leading-relaxed text-muted-foreground">{texto}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </div>
   )
 }
