@@ -336,3 +336,64 @@ def test_cumulative_protagonists_respect_wiki_completed_windows_and_cut(stores):
     assert latest["editor_mas_revertido"]["valor"] == 10
     assert latest["editor_mas_revertido"]["detalle"].startswith(prefix + "A ")
     assert queries.protagonistas_acumulados(future.isoformat(), "enwiki")["protagonistas"] == en
+
+
+def test_activity_uses_completed_hours_and_reports_pending_separately(stores):
+    import main
+    import queries
+    db, _, _, prefix = stores
+    closed = datetime(2026, 11, 15, 3, tzinfo=timezone.utc)  # 14 nov, 22:00 UTC-5
+    pending, next_day = closed + timedelta(hours=1), closed + timedelta(hours=2)
+    db.events.insert_many([
+        event(prefix, "a", start=closed), event(prefix, "b", user="B", start=closed),
+        event(prefix, "revert", start=closed, revert="B"), event(prefix, "es", wiki="eswiki", start=closed),
+        event(prefix, "p1", start=pending), event(prefix, "p2", start=pending),
+        event(prefix, "p-es", wiki="eswiki", start=pending), event(prefix, "tomorrow", start=next_day),
+    ])
+    for start in (closed, pending, next_day):
+        load(stores, start)
+    mongo.record_run(db, {"window_start": closed.isoformat(), "window_end": pending.isoformat()})
+    queries.limpiar_cache()
+    client = TestClient(main.app)
+    both = client.get("/api/actividad", params={"fecha": "2026-11-14"}).json()
+    assert [h["hora"] for h in both["horas"]] == [22]
+    assert sum(h["eventos"] for h in both["horas"]) == sum(m["eventos"] for m in both["minutos"]) == 4
+    assert both["pendientes"] == {"eventos": 3, "horas": 1}
+    assert datetime.fromisoformat(both["corte"]) == pending
+    assert all(datetime.fromisoformat(m["t"]).hour == 3 for m in both["minutos"])
+    assert all(t["hora"] == 22 for t in both["top"])
+    assert client.get("/api/actividad").json()["fecha"] == "2026-11-14"
+    en = client.get("/api/actividad", params={"fecha": "2026-11-14", "wiki": "enwiki"}).json()
+    es = client.get("/api/actividad", params={"fecha": "2026-11-14", "wiki": "eswiki"}).json()
+    assert sum(h["eventos"] for h in en["horas"]) == 3
+    assert en["pendientes"]["eventos"] == 2
+    assert sum(h["eventos"] for h in es["horas"]) == 1
+    assert es["pendientes"]["eventos"] == 1
+    db.pipeline_runs.update_one({"_id": closed.isoformat()}, {"$set": {"reprocessing": True}})
+    queries.limpiar_cache()
+    changing = client.get("/api/actividad", params={"fecha": "2026-11-14"}).json()
+    assert changing["horas"] == changing["minutos"] == changing["top"] == []
+    assert changing["pendientes"]["eventos"] == 7 and changing["corte"] is None
+
+
+def test_explorer_counts_actual_mongo_dataset_and_selected_wiki(stores):
+    import main
+    import queries
+    db, _, _, prefix = stores
+    assert queries.dataset_eventos()["total"] == 0
+    docs = [event(prefix, "old", start=START - timedelta(days=3)), event(prefix, "new"),
+            event(prefix, "category"), event(prefix, "log", wiki="eswiki"), event(prefix, "es-edit", wiki="eswiki")]
+    for doc, tipo in zip(docs, ["edit", "new", "categorize", "log", "edit"]):
+        doc["type"] = tipo
+        doc["derived"] = clean.derive(doc)
+    db.events.insert_many([mongo.to_document(doc) for doc in docs])
+    queries.limpiar_cache()
+    client = TestClient(main.app)
+    both = client.get("/api/eventos").json()
+    assert both["total"] == sum(t["eventos"] for t in both["tipos"]) == 5
+    en = client.get("/api/eventos", params={"wiki": "enwiki", "tipo": "new"}).json()
+    assert en["total"] == sum(t["eventos"] for t in en["tipos"]) == 3
+    assert len(en["eventos"]) == 1 and en["eventos"][0]["tipo"] == "new"
+    assert {t["tipo"] for t in en["tipos"]} == {"edit", "new", "categorize"}
+    es = client.get("/api/eventos", params={"wiki": "eswiki"}).json()
+    assert es["total"] == 2 and {t["tipo"] for t in es["tipos"]} == {"edit", "log"}

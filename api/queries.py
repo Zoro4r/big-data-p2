@@ -274,6 +274,18 @@ def total_eventos() -> int:
     return mongo_db().events.estimated_document_count()
 
 
+@cacheado
+def dataset_eventos(wiki: str | None = None) -> dict:
+    """Total y composición del mismo dataset de MongoDB, incluida la ingesta reciente."""
+    rows = list(mongo_db().events.aggregate([
+        {"$match": {"wiki": {"$in": [wiki] if wiki else sorted(config.WIKIS)}}},
+        {"$group": {"_id": {"wiki": "$wiki", "tipo": "$type"}, "eventos": {"$sum": 1}}},
+    ], hint="por_wiki_tipo_fecha"))
+    return {"total": sum(row["eventos"] for row in rows),
+            "tipos": [{**row["_id"], "eventos": row["eventos"]} for row in rows],
+            "corte": datetime.now(timezone.utc).isoformat()}
+
+
 CAMPO_TIPO = (("ediciones", "edit"), ("creaciones", "new"), ("categorizaciones", "categorize"), ("logs", "log"))
 
 

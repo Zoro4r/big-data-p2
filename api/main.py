@@ -131,7 +131,10 @@ def serie10(wiki: str = "ambas", fecha: date | None = None):
 def actividad(wiki: str = "ambas", fecha: date | None = None):
     wikis = wikis_de(wiki)
     fechas = q.fechas_con_datos()
-    fecha = fecha or (date.fromisoformat(fechas[0]) if fechas else datetime.now(timezone.utc).date())
+    completed = q.completed_runs(0)
+    fecha = fecha or (datetime.fromisoformat(completed[0]["window_start"]).astimezone(q.ZONA).date() if completed
+                      else date.fromisoformat(fechas[0]) if fechas else datetime.now(q.ZONA).date())
+    fechas = sorted(set([*fechas, fecha.isoformat()]), reverse=True)
     # `fecha` es un día en UTC−5: se leen las dos fechas UTC que lo cubren, se quedan las filas de ese día
     # y la hora se devuelve en UTC−5.
     def del_dia(f: date, h: int):
@@ -140,13 +143,25 @@ def actividad(wiki: str = "ambas", fecha: date | None = None):
 
     horas = [{**h, "hora": hl} for h in q.resumen_por_hora(30)
              if h["wiki"] in wikis and (hl := del_dia(h["fecha"], h["hora"])) is not None]
-    minutos = [m for w in wikis for d in q.fechas_utc(fecha) for m in q.serie_minuto(w, d)
+    minutos = [{**m, "wiki": w} for w in wikis for d in q.fechas_utc(fecha) for m in q.serie_minuto(w, d)
                if datetime.fromisoformat(m["t"]).astimezone(q.ZONA).date() == fecha]
+    runs = [run for run in completed
+            if datetime.fromisoformat(run["window_start"]).astimezone(q.ZONA).date() == fecha]
+    stable = q.stable_windows(runs)
+
+    def hour_key(iso: str) -> str:
+        return datetime.fromisoformat(iso).astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0).isoformat()
+
+    horas = [h for h in horas if hour_key(h["hora_utc"]) in stable]
+    covered = {(h["wiki"], hour_key(h["hora_utc"])) for h in horas}
+    pending = [m for m in minutos if (m["wiki"], hour_key(m["t"])) not in covered]
+    minutos = [m for m in minutos if (m["wiki"], hour_key(m["t"])) in covered]
     # Top de páginas: con "ambas" se juntan los dos rankings de cada hora y se vuelve a ordenar.
     top = []
     por_hora: dict = {}
     for t in (t for w in wikis for d in q.fechas_utc(fecha) for t in q.paginas_top(w, d)):
-        if (hl := del_dia(t["fecha"], t["hora"])) is not None:
+        start = datetime.combine(t["fecha"], datetime.min.time(), timezone.utc).replace(hour=t["hora"])
+        if (t["wiki"], start.isoformat()) in covered and (hl := del_dia(t["fecha"], t["hora"])) is not None:
             por_hora.setdefault(hl, []).append({**t, "hora": hl})
     for hora, filas in por_hora.items():
         filas.sort(key=lambda t: (-t["editores"], -t["ediciones"]))
@@ -154,7 +169,9 @@ def actividad(wiki: str = "ambas", fecha: date | None = None):
     return {"fecha": fecha.isoformat(), "fechas": fechas,
             "minutos": sumar_por(minutos, "t", ("eventos", "eventos_bot", "reversiones")),
             "horas": sumar_por(horas, "hora", ("eventos", "eventos_bot", "eventos_humanos", "reversiones")),
-            "top": top}
+            "top": top, "alcance": "consolidado",
+            "corte": (max(datetime.fromisoformat(start) for _, start in covered) + timedelta(hours=1)).isoformat() if covered else None,
+            "pendientes": {"eventos": sum(m["eventos"] or 0 for m in pending), "horas": len({hour_key(m["t"]) for m in pending})}}
 
 
 @app.get("/api/editor/{nombre}")
@@ -165,8 +182,9 @@ def editor(nombre: str):
 @app.get("/api/eventos")
 def eventos(wiki: str = "ambas", tipo: str = "todos", editor: str = "", titulo: str = "",
             limite: int = 50):
-    return {"total": q.total_eventos(), "tipos": q.tipos_por_wiki(24),
-            "eventos": q.buscar_eventos("todas" if wiki == "ambas" else wikis_de(wiki)[0], tipo, editor.strip(), titulo.strip(), min(limite, 500))}
+    w = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return {**q.dataset_eventos(w),
+            "eventos": q.buscar_eventos("todas" if w is None else w, tipo, editor.strip(), titulo.strip(), min(limite, 500))}
 
 
 @app.get("/api/eventos/{event_id}")
