@@ -1377,6 +1377,21 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
       - Dashboard: miniaturas de las vistas, en lugar de la tabla.
       - Portada, arquitectura, demo y cierre no cambian.
     - **Guion:** «más de cinco millones» pasó a «más de seis millones», para coincidir con la diapositiva.
+    - **Revertido:** al usuario le pareció denso y feo: capturas con letra chica y varias imágenes por diapositiva. Se restauró el deck original, también el «5.2 M», y el guion volvió a «más de cinco millones». Los cambios siguen en otro artifact.
+  - **Presentación v2 (17 nov):** un artifact aparte, «Wikipedia en vivo · Presentación v2»; el original no se tocó.
+    - **Skills:** se usó `presentation-creator` (mblode/agent-skills): una idea por diapositiva, prueba de 3 segundos, variar el diseño según la función de la diapositiva y QA renderizando cada una. Se complementó con `presentation-design` y `presentation-content` (aaronvanston/skills-presentations): titulares grandes de peso medio y nada de párrafos.
+    - **Íconos vectoriales:** sin skill ni clave de API, desde [Lucide](https://lucide.dev) (licencia ISC; escudo, edificio, personas, reloj, rayo, etc.) y [Simple Icons](https://simpleicons.org) (CC0; logos de Wikipedia, MongoDB, Cassandra, Neo4j y Airflow). Van como SVG dentro de cada diapositiva.
+    - **Diseños:**
+      - Problema: frase grande, con los cuatro públicos en una franja.
+      - Dataset: tres cifras y un JSON resaltado.
+      - Arquitectura: el diagrama, con una leyenda de dos líneas.
+      - Airflow: un flujo de seis íconos.
+      - Modelos: logo y una pregunta por base.
+      - CRUD: un verbo por base (Rechaza, Reemplaza, Fusiona).
+      - KPIs: un «12» grande y la cuenta por público.
+      - Dashboard: una sola captura.
+      - Cierre: tres conclusiones numeradas.
+    - **Notas:** el texto del guion aprobado, sin cambios.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
