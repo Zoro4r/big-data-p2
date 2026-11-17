@@ -96,7 +96,7 @@ function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbri
   return (
     <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-3 rounded-xl border bg-card p-3 shadow-xs hover:shadow-md")}>
       <span className="flex items-center justify-center gap-2 text-sm font-semibold">
-        {id === "rapida" ? <Zap className="size-4 text-blue-600 dark:text-blue-400" strokeWidth={1.7} aria-hidden /> : <LogoBase base="airflow" className="size-5" />}
+        {id === "rapida" ? <Zap className="size-4 text-blue-600 dark:text-blue-400" strokeWidth={1.7} aria-hidden /> : <LogoBase base="airflow" className="size-4" />}
         {id === "rapida" ? "Streaming" : "Airflow"}
       </span>
       <span className="text-[13px] text-muted-foreground">{detalle}</span>
