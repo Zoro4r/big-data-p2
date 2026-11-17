@@ -16,6 +16,19 @@ fi
 # Cassandra recomienda más áreas de memoria mapeada que el valor por defecto.
 sysctl -w vm.max_map_count=1048575
 
+# Swap de 4 GB como respaldo: sin swap, un pico de memoria (corrida horaria, arranque de las bases)
+# congela la VM entera. Con swappiness bajo solo se usa en esos picos.
+if ! swapon --show | grep -q /swapfile; then
+  if [ ! -f /swapfile ]; then
+    fallocate -l 4G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+  fi
+  swapon /swapfile
+fi
+grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+sysctl -w vm.swappiness=10
+
 # 2. Código: se descarga la versión subida por deploy.sh.
 mkdir -p "$APP"
 gcloud storage cp "gs://$BUCKET/code/app.tar.gz" /tmp/app.tar.gz
