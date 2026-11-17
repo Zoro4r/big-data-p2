@@ -1405,6 +1405,16 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - los KPIs de la Fundación se dicen con precisión;
     - las frases largas se partieron.
   - Guion y notas de las diapositivas iguales en ambos decks.
+- **Despliegue continuo desde `main` (17 nov):**
+  - **Qué se pidió:** que la VM revise `main` cada minuto y, si hay cambios, actualice lo que muestra el dashboard. El usuario eligió actualizar todo el código, no solo la web.
+  - **Cómo funciona:** [infra/autodeploy.sh](../infra/autodeploy.sh) corre con un timer de systemd que instala [infra/startup.sh](../infra/startup.sh), sección 6. Cuando hay un commit nuevo:
+    1. compila las imágenes en una carpeta aparte; si falla, deja corriendo la versión anterior;
+    2. sincroniza el código en `/opt/wikipipe` sin tocar `.env` ni `data/`;
+    3. recrea los contenedores cuya imagen cambió y reinicia la API y el streaming. Airflow toma el código nuevo en su siguiente tarea.
+  - **Registro:** `/var/log/wikipipe-autodeploy.log` en la VM.
+  - **Acceso:** el repo es privado. La VM generó su propia deploy key de solo lectura, «wikipipe-vm (solo lectura, autodeploy)», y se registró en GitHub; la clave privada no sale de la VM.
+  - **Consecuencia:** `main` pasa a ser lo que corre en producción. Lo que se despliegue con `deploy.sh` y no esté en `main` se reemplaza en el siguiente minuto. Cada arranque de la VM vuelve también a la última versión de `main`.
+  - **Primera prueba:** a las 12:29 UTC la VM desplegó `f3c0487` sola.
 - **Rama `dev-ian` (17 nov):**
   - **Qué es:** 32 commits de Ian que no están en `main`, hechos el 16 y 17 de noviembre sobre `main` del 13. Traen un «modelo 2» de datos: contribuciones de Neo4j por hora y wiki, coordinación entre el streaming y Airflow mediante `pipeline_windows`, y `rebuild.py`, que vacía y reconstruye Neo4j. También rediseñan el dashboard (Resumen por hora y acumulado, paleta pastel) y suman pruebas.
   - **Decisión:** por la entrega no se integra entera. Exigiría reconstruir los datos en producción y choca con los cambios del dashboard posteriores al 13. Se trajo solo la página de Arquitectura de Ian (commit `feat: bring architecture diagram from dev-ian`).
