@@ -89,6 +89,8 @@ export function useCassandraCrud() {
     return () => clearTimeout(t)
   }, [op, nueva.kpi, nueva.fecha, nueva.hora])
   const [insertada, setInsertada] = useState<{ fila: Fila; reemplazo: boolean } | null>(null)
+  // Tocar el formulario (o volver a completarlo) es un intento nuevo: vuelve el aviso de clave existente.
+  useEffect(() => { setInsertada(null) }, [nueva])
   async function insertar() {
     const r = await correr(() => api<{ reemplazo: boolean; fila: Fila }>("/api/crud/cassandra", { method: "POST", body: JSON.stringify(filaNueva) }),
       (x) => (x.reemplazo ? "Fila reemplazada (la clave ya existía)" : "Fila insertada"))
