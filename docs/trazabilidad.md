@@ -1394,6 +1394,17 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - **Notas:** el texto del guion aprobado, sin cambios.
     - **Dashboard:** la captura no se veía bien. Se reemplazó por las siete vistas, cada una con ícono, nombre y pregunta; CRUD y Arquitectura llevan el ícono oscuro, por ser las de operación. También se corrigió un error del script que les quitaba el tamaño a los `<rect>` de los íconos.
     - **Reemplazo del original:** a pedido del usuario, el deck original («Presentación del video», el enlace ya compartido) pasó a tener el contenido de la v2. Se mantuvieron su título y su enlace, y quedó una copia local del anterior. La v2 queda como borrador.
+- **Cohesión del guion (17 nov):** a pedido del usuario, cada diapositiva abre con su tema («Ahora vamos a hablar de…»). Se quitaron las referencias a lo dicho en otra diapositiva: «esas dos Wikipedias», «estos datos», «estas tres bases», «todo esto».
+  - **Segunda prueba de lector:** con la etapa «Reader Testing» de `doc-coauthoring`, un lector sin contexto revisó todo el texto hablado y encontró 19 puntos. Se aplicaron 18; no se aplicó el de variar las aperturas, que pidió el usuario. Entre ellos:
+    - se nombran los seis pasos del DAG;
+    - «si el servicio se cortó» pasa a «si la capa rápida se desconectó»;
+    - Neo4j se menciona en la arquitectura antes de usar «las tres bases»;
+    - en la demo, el aviso de Cassandra se aclara como propio;
+    - las cifras de las diapositivas 1 y 2 cuadran (solo enwiki y eswiki);
+    - se definen Airflow, API, clave, agradecimientos y derived;
+    - los KPIs de la Fundación se dicen con precisión;
+    - las frases largas se partieron.
+  - Guion y notas de las diapositivas iguales en ambos decks.
 - **Demo de Cassandra (17 nov):** después de insertar, la página ocultaba el aviso «Ya hay una fila con esta clave», y el paso 4 de la demo de Jhon no se podía mostrar. Ahora cualquier cambio en el formulario, incluido «Completar con datos de prueba», borra el estado de fila insertada, y el aviso vuelve ([cassandra-crud.tsx, `insertada`](../web/src/components/cassandra-crud.tsx)). Commit `fix: show existing key warning again after inserting a row`.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
