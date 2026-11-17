@@ -57,18 +57,16 @@ function NodoArquitectura({ id, detalle, onAbrir, compact = false }: { id: Id; d
       const Icono = ICONOS_NODO[id]
       return (
         <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
-          className={cn("group flex h-[120px] w-full flex-col gap-3 rounded-xl border p-3 text-left shadow-xs transition-[border-color,box-shadow] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            c.oscura ? "border-foreground bg-foreground text-background" : "border-border bg-card hover:border-foreground/25")}>
-          <span className="flex w-full items-center justify-between">
-            <span className={cn("flex size-7 items-center justify-center rounded-lg", c.oscura ? "bg-background/10" : "bg-muted/70")}>
-              {c.logo ? <LogoBase base={c.logo} className="size-4" /> : Icono && <Icono className="size-4" strokeWidth={1.7} aria-hidden />}
+          className={cn("group relative flex h-[88px] w-full flex-col justify-center gap-1.5 rounded-xl border p-3 text-left transition-[border-color,box-shadow] hover:border-foreground/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            c.oscura ? "border-border bg-muted/40" : "border-border bg-card shadow-xs")}>
+          <ArrowUpRight className="absolute right-2 top-2 size-2.5 text-muted-foreground/50 transition-colors group-hover:text-foreground" aria-hidden />
+          <span className="flex items-center gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted/70">
+              {c.logo ? <LogoBase base={c.logo} className="size-4" /> : Icono && <Icono className="size-4 text-foreground/75" strokeWidth={1.7} aria-hidden />}
             </span>
-            <ArrowUpRight className="size-3 opacity-35 transition-opacity group-hover:opacity-80" aria-hidden />
+            <span className="text-[13px] font-semibold leading-4">{c.titulo}</span>
           </span>
-          <span className="flex flex-col gap-1">
-            <span className="text-xs font-semibold leading-4">{c.titulo}</span>
-            <span className={cn("text-[11px] leading-4", c.oscura ? "opacity-65" : "text-muted-foreground")}>{detalle}</span>
-          </span>
+          <span className="pl-[38px] text-[11px] leading-4 text-muted-foreground">{detalle}</span>
         </button>
       )
     }
@@ -116,8 +114,15 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
       <section className="space-y-3 border-t pt-5" aria-label="Consulta del dashboard">
         <h2 className="text-sm font-semibold">Consulta y visualización</h2>
         <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
-          <div className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border bg-muted/20 px-4 text-center text-sm text-muted-foreground">
-            <span>MongoDB · eventos</span><span>Cassandra · métricas</span><span>Neo4j · relaciones</span>
+          <div className="grid gap-1.5">
+            {([ ["mongo", "MongoDB", "Eventos"], ["cassandra", "Cassandra", "Métricas"], ["neo4j", "Neo4j", "Relaciones"] ] as const).map(([id, nombre, descripcion]) => (
+              <button key={id} type="button" onClick={() => onAbrir(id)} aria-label={`${nombre}: ver detalle`}
+                className="flex min-h-8 items-center justify-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <LogoBase base={id} className="size-3.5" />
+                <span className="font-semibold">{nombre}</span>
+                <span className="text-muted-foreground">· {descripcion}</span>
+              </button>
+            ))}
           </div>
           {flecha}{nodo("api", "Consulta cada base según la vista")}{flecha}{nodo("dashboard", "En vivo, horas consolidadas e historial")}
         </div>
@@ -127,14 +132,14 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
 }
 
 const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
-  { id: "fuente", x: 10, y: 225, w: 120, detalle: "Eventos JSON · SSE" },
-  { id: "rapida", x: 155, y: 225, w: 120, detalle: "Ingesta continua" },
-  { id: "mongo", x: 300, y: 225, w: 120, detalle: "Eventos originales" },
-  { id: "lotes", x: 445, y: 225, w: 120, detalle: "Apache Airflow" },
-  { id: "cassandra", x: 590, y: 125, w: 135, detalle: "Minutos y KPIs" },
-  { id: "neo4j", x: 590, y: 365, w: 135, detalle: "Editores y páginas" },
-  { id: "api", x: 750, y: 225, w: 120, detalle: "Consultas a las bases" },
-  { id: "dashboard", x: 895, y: 225, w: 145, detalle: "React · navegador" },
+  { id: "fuente", x: 24, y: 286, w: 144, detalle: "JSON · SSE" },
+  { id: "rapida", x: 216, y: 176, w: 168, detalle: "Ingesta continua" },
+  { id: "lotes", x: 216, y: 396, w: 168, detalle: "Apache Airflow" },
+  { id: "mongo", x: 448, y: 176, w: 168, detalle: "Eventos originales" },
+  { id: "cassandra", x: 448, y: 356, w: 168, detalle: "Minutos y KPIs" },
+  { id: "neo4j", x: 448, y: 496, w: 168, detalle: "Editores y páginas" },
+  { id: "api", x: 696, y: 356, w: 152, detalle: "API de consultas" },
+  { id: "dashboard", x: 896, y: 356, w: 144, detalle: "Interfaz web" },
 ]
 
 const COLOR_CONEXION = { flujo: "#94a3b8", conteos: "#5b8fd1", recuperacion: "#9671c6" }
@@ -148,27 +153,35 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
   return (
     <div className="overflow-hidden rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
       <div className="overflow-x-auto">
-        <div className="relative h-[560px] min-w-[1060px] bg-muted/10">
-          <div className="absolute left-[13.5%] right-[16.5%] top-8 bottom-6 rounded-2xl border border-border bg-card/70 shadow-xs" />
-          <div className="absolute left-[15%] right-[18%] top-12 flex items-center justify-between gap-3">
+        <div className="relative h-[640px] min-w-[1060px]">
+          <div className="absolute left-[18.1%] right-[17.7%] top-6 bottom-6 rounded-2xl border bg-muted/15" />
+          <div className="absolute left-[20.4%] right-[20%] top-11 flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-xs font-semibold"><Cloud className="size-4 text-muted-foreground" strokeWidth={1.7} aria-hidden />Google Cloud<span className="font-normal text-muted-foreground">· Máquina virtual</span></span>
-            <span className="rounded-md border bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground">Docker Compose</span>
+            <span className="rounded-md border bg-card px-2 py-1 text-[10px] font-medium text-muted-foreground">Docker Compose</span>
           </div>
-          <span className="absolute left-[1%] top-[190px] text-[11px] font-medium text-muted-foreground">Origen</span>
-          <span className="absolute left-[85%] top-[190px] text-[11px] font-medium text-muted-foreground">Cliente web</span>
-          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 560" preserveAspectRatio="none" aria-hidden>
+          {([ [216, "Procesamiento"], [448, "Almacenamiento"], [696, "Consultas"] ] as const).map(([x, nombre]) => (
+            <span key={nombre} className="absolute top-[116px] text-[11px] font-semibold tracking-wide text-muted-foreground" style={{ left: `${100 * x / 1060}%` }}>{nombre}</span>
+          ))}
+          <span className="absolute left-[2.3%] top-[254px] text-[11px] font-medium text-muted-foreground">Origen</span>
+          <span className="absolute left-[84.5%] top-[324px] text-[11px] font-medium text-muted-foreground">Cliente web</span>
+          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 640" preserveAspectRatio="none" aria-hidden>
             <defs>
-              <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
+              <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
             </defs>
-            <g style={{ color: COLOR_CONEXION.flujo }} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arquitectura-flecha)">
-              <path d="M130 285 H155" /><path d="M275 285 H300" /><path d="M420 285 H445" />
-              <path d="M565 255 C580 255 575 185 590 185" /><path d="M565 315 C580 315 575 425 590 425" />
-              <path d="M725 185 C740 185 735 255 750 255" /><path d="M725 425 C740 425 735 315 750 315" />
-              <path d="M870 285 H895" />
-              <path d="M360 345 V513 Q360 525 372 525 H798 Q810 525 810 513 V345" />
+            <g style={{ color: COLOR_CONEXION.flujo }} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arquitectura-flecha)">
+              <path d="M168 316 H176 Q184 316 184 308 V228 Q184 220 192 220 H216" />
+              <path d="M384 220 H448" />
+              <path d="M532 264 V288 Q532 300 520 300 H420 Q408 300 408 312 V428 Q408 440 396 440 H384" />
+              <path d="M384 412 H416 Q428 412 428 400 H448" />
+              <path d="M384 464 H404 Q416 464 416 476 V528 Q416 540 428 540 H448" />
+              <path d="M616 220 H644 Q656 220 656 232 V368 Q656 380 668 380 H696" />
+              <path d="M616 400 H696" />
+              <path d="M616 540 H644 Q656 540 656 528 V432 Q656 420 668 420 H696" />
+              <path d="M848 400 H896" />
             </g>
-            <path d="M215 225 V120 Q215 108 227 108 H645 Q657 108 657 120 V125" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
-            <path d="M70 345 V463 Q70 475 82 475 H493 Q505 475 505 463 V345" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
+            <path d="M300 264 V324 Q300 336 312 336 H520 Q532 336 532 348 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
+            <path d="M300 264 V324 Q300 336 312 336 H520 Q532 336 532 348 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
+            <path d="M168 348 H184 Q196 348 196 360 V428 Q196 440 208 440 H216" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
           </svg>
           {POSICIONES.map((node) => (
             <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
