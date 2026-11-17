@@ -41,7 +41,7 @@ export function metricasAcumuladas(data: Resumen | null): MetricaAcumulada[] {
       definicion: "Creaciones de páginas registradas en todas las horas consolidadas hasta el corte.",
       formula: "Suma de eventos new de las horas consolidadas.", fuente: "cassandra" },
     { id: "bots", nombre: "Eventos de bots", principal: true,
-      valor: porcentaje(a?.eventos ? 100 * a.eventos_bot / a.eventos : null), pie: `${entero(a?.eventos_bot)} de ${entero(a?.eventos)} eventos consolidados`,
+      valor: porcentaje(a?.eventos ? 100 * a.eventos_bot / a.eventos : null), pie: `${entero(a?.eventos_bot)} del total de eventos`,
       definicion: "Participación de los bots entre los eventos de todas las horas consolidadas.",
       formula: "Eventos de bots acumulados / eventos consolidados acumulados × 100.", fuente: "cassandra" },
     { id: "ediciones", nombre: "Ediciones consolidadas", principal: false,
