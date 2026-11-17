@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api } from "@/lib/api"
 import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { useCreados } from "@/lib/crud-creados"
 
 /** CRUD del grafo de editores en Neo4j: nodos :Editor y relaciones entre editores.
  *  Los datos de prueba usan editores «demo_…». */
@@ -44,6 +45,8 @@ const Selector = ({ id, valor, opciones, onChange }: { id: string; valor: string
 const pedirDetalle = (user: string) => api<Detalle>(`/api/crud/neo4j/editor/${encodeURIComponent(user)}`).catch(() => null)
 
 export function useNeo4jCrud(wikiCabecera: WikiCrud) {
+  const creados = useCreados("neo4j")
+  const [editoresCreados, setEditoresCreados] = useState<Ultimo[]>([])
   const [op, setOp] = useState<Operacion>("Crear")
   const [ocupado, setOcupado] = useState(false)
 
@@ -80,13 +83,19 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   }, [op, modoCrear, nodo.user, rel.origen, rel.destino])
   async function crear() {
     if (modoCrear === "nodo") {
-      const r = await correr(() => api<{ creado: boolean }>("/api/crud/neo4j/editor", { method: "POST", body: JSON.stringify(nodo) }),
+      const r = await correr(() => api<{ creado: boolean; editor: { user: string } }>("/api/crud/neo4j/editor", { method: "POST", body: JSON.stringify(nodo) }),
         (x) => (x.creado ? "Nodo creado" : "El nodo ya existía: se actualizó su tipo"))
-      if (r) setExiste({ [nodo.user]: await pedirDetalle(nodo.user) })
+      if (r) {
+        creados.agregar(r.editor.user)
+        setExiste({ [nodo.user]: await pedirDetalle(r.editor.user) })
+      }
     } else {
       const r = await correr(() => api<{ nodos_nuevos: string[] }>("/api/crud/neo4j/relacion", { method: "POST", body: JSON.stringify({ ...rel, veces: Number(rel.veces) || 1 }) }),
         (x) => `Relación creada${x.nodos_nuevos.length ? ` · ${x.nodos_nuevos.length} ${x.nodos_nuevos.length === 1 ? "nodo nuevo" : "nodos nuevos"}` : ""}`)
-      if (r) setExiste({ [rel.origen]: await pedirDetalle(rel.origen), [rel.destino]: await pedirDetalle(rel.destino) })
+      if (r) {
+        creados.agregar(rel.origen, rel.destino)
+        setExiste({ [rel.origen]: await pedirDetalle(rel.origen), [rel.destino]: await pedirDetalle(rel.destino) })
+      }
     }
   }
 
@@ -95,12 +104,12 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
   const [encontrados, setEncontrados] = useState<Encontrado[] | null>(null)
   const [elegido, setElegido] = useState(0)
   const [detalle, setDetalle] = useState<Detalle | null>(null)
-  async function buscar(f = filtro) {
+  async function buscar(f = filtro, exacto?: string) {
     if (!f.prefijo.trim()) { toast.error("Escribe el comienzo del nombre del editor"); return }
     const params = new URLSearchParams({ prefijo: f.prefijo.trim(), ...(f.tipo !== "todos" ? { tipo: f.tipo } : {}) })
     const r = await correr(() => api<Encontrado[]>(`/api/crud/neo4j/editores?${params}`),
       (x) => `${x.length} ${x.length === 1 ? "editor" : "editores"}`)
-    if (r) { setEncontrados(r); elegir(r, 0) }
+    if (r) { setEncontrados(r); elegir(r, Math.max(0, r.findIndex((e) => e.user === exacto))) }
   }
   async function elegir(lista: Encontrado[], i: number) {
     setElegido(i)
@@ -152,7 +161,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     if (modoBorrar === "nodo") {
       const r = await correr(() => api<{ nodos_eliminados: number; relaciones_eliminadas: number }>(`/api/crud/neo4j/editor/${encodeURIComponent(u)}`, { method: "DELETE" }),
         (x) => `Nodo eliminado con sus ${x.relaciones_eliminadas} relaciones`)
-      if (r) { setBorrado(`DETACH DELETE · ${u} · ${nRel(r.relaciones_eliminadas)} borradas`); setCargado(null) }
+      if (r) { creados.quitar(u); setBorrado(`DETACH DELETE · ${u} · ${nRel(r.relaciones_eliminadas)} borradas`); setCargado(null) }
     } else if (relElegida != null) {
       const x = relacionesBorrables[relElegida]
       const r = await correr(() => api<{ relaciones_eliminadas: number }>(`/api/crud/neo4j/relacion?${new URLSearchParams({ origen: u, destino: x.con, tipo: x.tipo, relacion_id: x.id })}`, { method: "DELETE" }),
@@ -171,15 +180,28 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     }
     // Consultar, Actualizar y Eliminar: se elige entre los 5 editores con actividad más reciente.
     setUltimos({ abierto: true, filas: null })
-    const filas = await api<Ultimo[]>("/api/crud/neo4j/ultimos").catch((e) => { toast.error((e as Error).message); return [] })
-    setUltimos({ abierto: true, filas })
+    try {
+      const [filas, propias] = await Promise.all([
+        api<Ultimo[]>("/api/crud/neo4j/ultimos"),
+        creados.cargar(async (user): Promise<Ultimo> => {
+          const d = await api<Detalle>(`/api/crud/neo4j/editor/${encodeURIComponent(user)}`)
+          return { user: String(d.editor.user), tipo: String(d.editor.tipo ?? "registrado"),
+            relaciones: d.n_salientes + d.n_entrantes, actividad: d.editor.ultima_actividad ? String(d.editor.ultima_actividad) : null }
+        }),
+      ])
+      setEditoresCreados(propias)
+      setUltimos({ abierto: true, filas })
+    } catch (e) {
+      setUltimos({ abierto: false, filas: null })
+      toast.error((e as Error).message)
+    }
   }
   const [ultimos, setUltimos] = useState<{ abierto: boolean; filas: Ultimo[] | null }>({ abierto: false, filas: null })
   function elegirUltimo(u: string) {
     setUltimos({ abierto: false, filas: null })
     if (op === "Consultar") {
       const f = { prefijo: u, tipo: "todos" }
-      setFiltro(f); buscar(f); return
+      setFiltro(f); buscar(f, u); return
     }
     setUser(u); setModoBorrar("nodo")
     cargar(u)
@@ -204,7 +226,7 @@ export function useNeo4jCrud(wikiCabecera: WikiCrud) {
     filtro, setFiltro, encontrados, elegido, elegir, detalle, buscar,
     user, setUser, cargado, cargar, cambios, valor, original, poner, deshacer, descartar, nuevaProp, setNuevaProp, agregarProp, guardar,
     modoBorrar, setModoBorrar, relElegida, setRelElegida, relacionesBorrables, confirmacion, setConfirmacion, dialogo, setDialogo, borrado, listoParaBorrar, eliminar, irA,
-    completarPrueba, ultimos, setUltimos, elegirUltimo,
+    completarPrueba, ultimos, setUltimos, elegirUltimo, editoresCreados,
   }
 }
 export type Neo4jCrud = ReturnType<typeof useNeo4jCrud>
@@ -246,6 +268,8 @@ export function Neo4jIzquierda({ n }: { n: Neo4jCrud }) {
       <ModalElegir abierto={n.ultimos.abierto} onCerrar={() => n.setUltimos({ abierto: false, filas: null })} onElegir={n.elegirUltimo}
         titulo="Últimos 5 editores" descripcion={`Elige uno y confírmalo para usarlo en ${n.op}.`} columnas={["Editor", "Tipo", "Actividad"]}
         filas={n.ultimos.filas && n.ultimos.filas.map((e) => ({ id: e.user, titulo: e.user, subtitulo: nRel(e.relaciones),
+          medio: e.tipo ?? "—", derecha: haceTiempo(e.actividad) }))}
+        creadas={n.editoresCreados.map((e) => ({ id: e.user, titulo: e.user, subtitulo: nRel(e.relaciones),
           medio: e.tipo ?? "—", derecha: haceTiempo(e.actividad) }))}
         vacio="No hay editores con actividad."
         pie={(id) => id} accion="Usar este editor" />

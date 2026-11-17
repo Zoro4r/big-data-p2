@@ -274,13 +274,14 @@ export function FichaDocumento({ c, onActualizar, onEliminar }: { c: ConsultaEve
 }
 
 /** Modal de «Elegir entre los últimos eventos»: los últimos 5 eventos guardados; se marca uno y se confirma. */
-export function ModalUltimos({ abierto, onCerrar, docs, onElegir, operacion }: {
-  abierto: boolean; onCerrar: () => void; docs: Coincidencia[] | null; onElegir: (id: string) => void; operacion: string
+export function ModalUltimos({ abierto, onCerrar, docs, creados, onElegir, operacion }: {
+  abierto: boolean; onCerrar: () => void; docs: Coincidencia[] | null; creados?: Coincidencia[]; onElegir: (id: string) => void; operacion: string
 }) {
   return (
     <ModalElegir abierto={abierto} onCerrar={onCerrar} onElegir={onElegir} titulo="Últimos 5 eventos"
       descripcion={`Elige uno y confírmalo para usarlo en ${operacion}.`} columnas={["Página", "Tipo", "Llegó"]}
       filas={docs && docs.map((d) => ({ id: d._id, titulo: d.titulo, subtitulo: d.editor, medio: nombreTipo(d), derecha: hace(d.fecha) }))}
+      creadas={creados?.map((d) => ({ id: d._id, titulo: d.titulo, subtitulo: d.editor, medio: nombreTipo(d), derecha: hace(d.fecha) }))}
       vacio="No hay eventos guardados en esta wiki." pie={(id) => `_id ${id}`} accion="Usar este evento" />
   )
 }

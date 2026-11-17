@@ -230,55 +230,68 @@ export function haceTiempo(f: string | null | undefined) {
 }
 
 export interface OpcionModal { id: string; titulo: string; subtitulo?: string; medio: string; derecha: string }
+const SIN_CREADOS: OpcionModal[] = []
 
 /** Modal para elegir un registro reciente: tabla con selección y confirmación (el mismo en las tres bases). */
-export function ModalElegir({ abierto, onCerrar, titulo, descripcion, columnas, filas, vacio, pie, accion, onElegir }: {
+export function ModalElegir({ abierto, onCerrar, titulo, descripcion, columnas, filas, creadas = SIN_CREADOS, vacio, pie, accion, onElegir }: {
   abierto: boolean; onCerrar: () => void; titulo: string; descripcion: ReactNode; columnas: [string, string, string]
-  filas: OpcionModal[] | null; vacio: string; pie: (id: string) => string; accion: string; onElegir: (id: string) => void
+  filas: OpcionModal[] | null; creadas?: OpcionModal[]; vacio: string; pie: (id: string) => string; accion: string; onElegir: (id: string) => void
 }) {
+  // La clave de selección distingue las secciones aunque un registro también esté entre los últimos cinco.
+  const opciones = [...creadas.map((f) => ({ ...f, seleccion: `creado:${f.id}` })),
+    ...(filas ?? []).map((f) => ({ ...f, seleccion: `reciente:${f.id}` }))]
   const [marcado, setMarcado] = useState<string | null>(null)
-  useEffect(() => setMarcado(filas?.[0]?.id ?? null), [filas])
+  const primero = opciones[0]?.seleccion ?? null
+  useEffect(() => setMarcado(primero), [abierto, primero])
+  const seleccionado = opciones.find((f) => f.seleccion === marcado)
   const grid = "grid grid-cols-[20px_minmax(0,1fr)_120px_88px] items-center gap-3"
   return (
     <Dialog open={abierto} onOpenChange={(a) => !a && onCerrar()}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[600px]">
+      <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>{titulo}</DialogTitle>
+          <DialogTitle>{creadas.length ? "Elegir un registro" : titulo}</DialogTitle>
           <DialogDescription>{descripcion}</DialogDescription>
         </DialogHeader>
         <div className={cn(grid, "border-y bg-muted/40 px-6 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase")}>
           <span /><span>{columnas[0]}</span><span>{columnas[1]}</span><span className="text-right">{columnas[2]}</span>
         </div>
-        {!filas ? <p className="py-10 text-center text-sm text-muted-foreground">Cargando…</p> : filas.length === 0 ? (
+        {!filas ? <p className="py-10 text-center text-sm text-muted-foreground">Cargando…</p> : opciones.length === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-muted-foreground">{vacio}</p>
         ) : (
-          <div role="radiogroup" aria-label={titulo} className="flex flex-col">
-            {filas.map((f) => {
-              const activo = marcado === f.id
+          <div role="radiogroup" aria-label={titulo} className="flex min-h-0 flex-col overflow-y-auto">
+            {opciones.map((f, i) => {
+              const activo = marcado === f.seleccion
               return (
-                <button key={f.id} type="button" role="radio" aria-checked={activo} onClick={() => setMarcado(f.id)}
-                  onDoubleClick={() => onElegir(f.id)}
-                  className={cn(grid, "border-b px-6 py-2.5 text-left transition-colors outline-none last:border-b-0 hover:bg-accent/50 focus-visible:bg-accent/60",
-                    activo && "bg-accent/70")}>
-                  <span className={cn("flex size-4 items-center justify-center rounded-full border-[1.5px]", activo ? "border-foreground" : "border-muted-foreground/50")}>
-                    {activo && <span className="size-2 rounded-full bg-foreground" />}
-                  </span>
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-[13.5px] font-medium">{f.titulo}</span>
-                    {f.subtitulo && <span className="truncate text-xs text-muted-foreground">{f.subtitulo}</span>}
-                  </span>
-                  <span className="truncate text-[12.5px] text-foreground/80">{f.medio}</span>
-                  <span className="text-right text-xs whitespace-nowrap text-muted-foreground">{f.derecha}</span>
-                </button>
+                <div key={f.seleccion}>
+                  {creadas.length > 0 && (i === 0 || i === creadas.length) && (
+                    <p className={cn("border-b px-6 py-2 text-xs font-semibold", i === 0 ? "bg-blue-50/60 dark:bg-blue-950/20" : "border-t bg-muted/30")}>
+                      {i === 0 ? "Tus registros · más recientes primero" : titulo}
+                    </p>
+                  )}
+                  <button type="button" role="radio" aria-checked={activo} onClick={() => setMarcado(f.seleccion)}
+                    onDoubleClick={() => onElegir(f.id)}
+                    className={cn(grid, "w-full border-b px-6 py-2.5 text-left transition-colors outline-none hover:bg-accent/50 focus-visible:bg-accent/60",
+                      activo && "bg-accent/70")}>
+                    <span className={cn("flex size-4 items-center justify-center rounded-full border-[1.5px]", activo ? "border-foreground" : "border-muted-foreground/50")}>
+                      {activo && <span className="size-2 rounded-full bg-foreground" />}
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-[13.5px] font-medium">{f.titulo}</span>
+                      {f.subtitulo && <span className="truncate text-xs text-muted-foreground">{f.subtitulo}</span>}
+                    </span>
+                    <span className="truncate text-[12.5px] text-foreground/80">{f.medio}</span>
+                    <span className="text-right text-xs whitespace-nowrap text-muted-foreground">{f.derecha}</span>
+                  </button>
+                </div>
               )
             })}
           </div>
         )}
         <div className="flex items-center justify-between gap-3 border-t px-6 py-4">
-          <span className="truncate font-mono text-[11px] text-muted-foreground">{marcado ? pie(marcado) : ""}</span>
+          <span className="truncate font-mono text-[11px] text-muted-foreground">{seleccionado ? pie(seleccionado.id) : ""}</span>
           <div className="flex shrink-0 gap-2">
             <Button type="button" variant="outline" onClick={onCerrar}>Cancelar</Button>
-            <Button type="button" disabled={!marcado} onClick={() => marcado && onElegir(marcado)}>{accion}</Button>
+            <Button type="button" disabled={!seleccionado || !filas} onClick={() => seleccionado && onElegir(seleccionado.id)}>{accion}</Button>
           </div>
         </div>
       </DialogContent>
