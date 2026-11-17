@@ -20,12 +20,17 @@ docker compose version >/dev/null 2>&1 || { echo "Falta 'docker compose' (viene 
 # Valor de una variable del .env (vacío si no está).
 valor_env() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- || true; }
 
+puerto_airflow() {
+  local puerto="${AIRFLOW_WEB_PORT:-$(valor_env AIRFLOW_WEB_PORT)}"
+  echo "${puerto:-8080}"
+}
+
 direcciones() {
   cat <<EOF
 
 ==> Direcciones (en tu navegador)
     Dashboard        : http://localhost:8501   $( [[ -n "$(valor_env DASHBOARD_PASSWORD)" ]] && echo "contraseña: $(valor_env DASHBOARD_PASSWORD)" || echo "(sin contraseña)")
-    Airflow          : http://localhost:8080   usuario: $(valor_env AIRFLOW_ADMIN_USER)  contraseña: $(valor_env AIRFLOW_ADMIN_PASSWORD)
+    Airflow          : http://localhost:$(puerto_airflow)   usuario: $(valor_env AIRFLOW_ADMIN_USER)  contraseña: $(valor_env AIRFLOW_ADMIN_PASSWORD)
     Neo4j Browser    : http://localhost:7474   usuario: neo4j  contraseña: $(valor_env NEO4J_PASSWORD)
     API (docs)       : http://localhost:8501/api/docs
     MongoDB          : mongodb://localhost:27017  usuario: $(valor_env MONGO_USER)  contraseña: $(valor_env MONGO_PASSWORD)
@@ -121,7 +126,7 @@ espera() {  # espera <nombre> <url> <segundos>
   echo " listo"
 }
 espera "el dashboard" http://localhost:8501/api/health 600
-espera "Airflow" http://localhost:8080/health 600
+espera "Airflow" http://localhost:$(puerto_airflow)/health 600
 
 # ---------------------------------------------------------------- 5. activar el DAG
 # Al activarlo, Airflow procesa enseguida la última hora completa (catchup=False), así hay KPIs y grafo en unos minutos.

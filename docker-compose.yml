@@ -105,7 +105,7 @@ services:
     environment: *airflow-env
     user: "${AIRFLOW_UID:-50000}:0"
     command: standalone
-    ports: ["8080:8080"]
+    ports: ["${AIRFLOW_WEB_PORT:-8080}:8080"]
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
