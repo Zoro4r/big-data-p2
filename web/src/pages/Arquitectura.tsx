@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { ArrowUpRight, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
+import { ArrowUpRight, Braces, ChevronLeft, ChevronRight, Cloud, PanelsTopLeft, Radio, RefreshCw, Workflow, Zap } from "lucide-react"
 
 import { Cargando } from "@/components/common"
 import { resaltar } from "@/components/crear-evento"
@@ -41,6 +41,7 @@ const CAJAS: Caja[] = [
   { id: "dashboard", titulo: "Dashboard", oscura: true, etiqueta: "Lo que estás viendo" },
 ]
 const NOMBRE = Object.fromEntries(CAJAS.map((c) => [c.id, c.titulo])) as Record<Id, string>
+const ICONOS_NODO: Partial<Record<Id, typeof Radio>> = { fuente: Radio, rapida: Zap, lotes: Workflow, api: Braces, dashboard: PanelsTopLeft }
 
 const gb = (b?: number | null) => (b == null ? "—" : b >= 1e9 ? `${(b / 1e9).toFixed(2)} GB` : `${(b / 1e6).toFixed(0)} MB`)
 const millones = (n?: number | null) => (n == null ? "—" : n >= 1e6 ? `${(n / 1e6).toFixed(2)} M` : entero(n))
@@ -52,13 +53,32 @@ const hace = (iso?: string | null) => {
 
 function NodoArquitectura({ id, detalle, onAbrir, compact = false }: { id: Id; detalle: string; onAbrir: (id: Id) => void; compact?: boolean }) {
     const c = CAJAS.find((caja) => caja.id === id)!
+    if (compact) {
+      const Icono = ICONOS_NODO[id]
+      return (
+        <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
+          className={cn("group flex h-[120px] w-full flex-col gap-3 rounded-xl border p-3 text-left shadow-xs transition-[border-color,box-shadow] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            c.oscura ? "border-foreground bg-foreground text-background" : "border-border bg-card hover:border-foreground/25")}>
+          <span className="flex w-full items-center justify-between">
+            <span className={cn("flex size-7 items-center justify-center rounded-lg", c.oscura ? "bg-background/10" : "bg-muted/70")}>
+              {c.logo ? <LogoBase base={c.logo} className="size-4" /> : Icono && <Icono className="size-4" strokeWidth={1.7} aria-hidden />}
+            </span>
+            <ArrowUpRight className="size-3 opacity-35 transition-opacity group-hover:opacity-80" aria-hidden />
+          </span>
+          <span className="flex flex-col gap-1">
+            <span className="text-xs font-semibold leading-4">{c.titulo}</span>
+            <span className={cn("text-[11px] leading-4", c.oscura ? "opacity-65" : "text-muted-foreground")}>{detalle}</span>
+          </span>
+        </button>
+      )
+    }
     return (
       <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
         className={cn("relative flex w-full flex-col justify-center gap-1 rounded-xl border text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
-          compact ? "h-20 p-2" : "min-h-20 p-4", c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
+          "min-h-20 p-4", c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
         <ArrowUpRight className="absolute right-3 top-3 size-3 opacity-40" aria-hidden />
-        <span className={cn("flex items-center pr-3 font-semibold", compact ? "gap-1 text-xs leading-tight" : "gap-2 text-sm")}>{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
-        <span className={cn(compact ? "text-[10.5px] leading-tight" : "text-xs", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
+        <span className="flex items-center gap-2 pr-3 text-sm font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
+        <span className={cn("text-xs", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
       </button>
     )
 }
@@ -108,12 +128,12 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
 
 const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
   { id: "fuente", x: 10, y: 225, w: 120, detalle: "Eventos JSON · SSE" },
-  { id: "rapida", x: 155, y: 225, w: 120, detalle: "Servicio de streaming" },
-  { id: "mongo", x: 300, y: 225, w: 120, detalle: "Documentos completos" },
+  { id: "rapida", x: 155, y: 225, w: 120, detalle: "Ingesta continua" },
+  { id: "mongo", x: 300, y: 225, w: 120, detalle: "Eventos originales" },
   { id: "lotes", x: 445, y: 225, w: 120, detalle: "Apache Airflow" },
-  { id: "cassandra", x: 590, y: 155, w: 135, detalle: "Series de tiempo y KPIs" },
-  { id: "neo4j", x: 590, y: 345, w: 135, detalle: "Relaciones y contribuciones" },
-  { id: "api", x: 750, y: 225, w: 120, detalle: "Consultas a las tres bases" },
+  { id: "cassandra", x: 590, y: 125, w: 135, detalle: "Minutos y KPIs" },
+  { id: "neo4j", x: 590, y: 365, w: 135, detalle: "Editores y páginas" },
+  { id: "api", x: 750, y: 225, w: 120, detalle: "Consultas a las bases" },
   { id: "dashboard", x: 895, y: 225, w: 145, detalle: "React · navegador" },
 ]
 
@@ -128,23 +148,27 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
   return (
     <div className="overflow-hidden rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
       <div className="overflow-x-auto">
-        <div className="relative h-[520px] min-w-[1060px]">
-          <div className="absolute left-[13.5%] right-[16.5%] top-10 bottom-6 rounded-2xl border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/10" />
-          <span className="absolute left-[15%] top-14 text-xs font-semibold text-blue-700 dark:text-blue-400">Google Cloud · Máquina virtual · Docker Compose</span>
-          <span className="absolute left-[85%] top-[190px] text-xs font-medium text-muted-foreground">Cliente web</span>
-          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 520" preserveAspectRatio="none" aria-hidden>
+        <div className="relative h-[560px] min-w-[1060px] bg-muted/10">
+          <div className="absolute left-[13.5%] right-[16.5%] top-8 bottom-6 rounded-2xl border border-border bg-card/70 shadow-xs" />
+          <div className="absolute left-[15%] right-[18%] top-12 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-xs font-semibold"><Cloud className="size-4 text-muted-foreground" strokeWidth={1.7} aria-hidden />Google Cloud<span className="font-normal text-muted-foreground">· Máquina virtual</span></span>
+            <span className="rounded-md border bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground">Docker Compose</span>
+          </div>
+          <span className="absolute left-[1%] top-[190px] text-[11px] font-medium text-muted-foreground">Origen</span>
+          <span className="absolute left-[85%] top-[190px] text-[11px] font-medium text-muted-foreground">Cliente web</span>
+          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 560" preserveAspectRatio="none" aria-hidden>
             <defs>
               <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
             </defs>
-            <g className="text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arquitectura-flecha)">
-              <path d="M130 265 H155" /><path d="M275 265 H300" /><path d="M420 265 H445" />
-              <path d="M565 250 C580 250 575 195 590 195" /><path d="M565 280 C580 280 575 385 590 385" />
-              <path d="M725 195 C740 195 735 250 750 250" /><path d="M725 385 C740 385 735 280 750 280" />
-              <path d="M870 265 H895" />
-              <path d="M360 305 V465 H810 V305" />
+            <g style={{ color: COLOR_CONEXION.flujo }} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arquitectura-flecha)">
+              <path d="M130 285 H155" /><path d="M275 285 H300" /><path d="M420 285 H445" />
+              <path d="M565 255 C580 255 575 185 590 185" /><path d="M565 315 C580 315 575 425 590 425" />
+              <path d="M725 185 C740 185 735 255 750 255" /><path d="M725 425 C740 425 735 315 750 315" />
+              <path d="M870 285 H895" />
+              <path d="M360 345 V513 Q360 525 372 525 H798 Q810 525 810 513 V345" />
             </g>
-            <path d="M215 225 V115 H657 V155" fill="none" stroke="currentColor" strokeWidth="2.3" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
-            <path d="M70 305 V415 H505 V305" fill="none" stroke="currentColor" strokeWidth="2.3" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
+            <path d="M215 225 V120 Q215 108 227 108 H645 Q657 108 657 120 V125" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
+            <path d="M70 345 V463 Q70 475 82 475 H493 Q505 475 505 463 V345" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
           </svg>
           {POSICIONES.map((node) => (
             <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
@@ -153,7 +177,7 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
           ))}
         </div>
       </div>
-      <ul className="flex flex-wrap gap-x-8 gap-y-3 border-t px-6 py-5 text-xs font-semibold text-foreground" aria-label="Leyenda de conexiones">
+      <ul className="flex flex-wrap justify-between gap-x-6 gap-y-3 border-t bg-muted/10 px-6 py-5 text-xs font-semibold text-foreground" aria-label="Leyenda de conexiones">
         {LEYENDAS_ARQUITECTURA.map(({ texto, color, discontinua }) => (
           <li key={texto} className="flex items-center gap-2">
             <svg width="32" height="12" viewBox="0 0 32 12" fill="none" style={{ color }} aria-hidden>
