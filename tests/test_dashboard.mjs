@@ -20,11 +20,13 @@ await build({
       import { renderToStaticMarkup } from "react-dom/server"
       import { MemoryRouter } from "react-router-dom"
       import Resumen from "./src/pages/Resumen"
+      import { TarjetasVivo } from "./src/pages/Vivo"
       import { TarjetaKpi } from "./src/components/common"
       import Arquitectura, { Diagrama } from "./src/pages/Arquitectura"
       export { KPIS, cambio } from "./src/lib/kpis"
       export { intervaloLocal, compararValores, variacion, COLOR } from "./src/lib/format"
       export { fixture } from "@/lib/api"
+      export function renderVivo(actual, anterior) { return renderToStaticMarkup(React.createElement(TarjetasVivo, {actual, anterior, onAbrir() {}})) }
       export function renderKpi(props) { return renderToStaticMarkup(React.createElement(TarjetaKpi, props)) }
       export function render(page) {
         return renderToStaticMarkup(React.createElement(MemoryRouter, null,
@@ -66,7 +68,7 @@ await build({
   }],
 })
 
-const { render, renderKpi, fixture, KPIS, cambio, intervaloLocal, compararValores, variacion, COLOR } = requireWeb(output)
+const { render, renderKpi, renderVivo, fixture, KPIS, cambio, intervaloLocal, compararValores, variacion, COLOR } = requireWeb(output)
 for (const name of Object.keys(KPIS)) {
   fixture.kpis[name] = [
     { ventana: "2026-11-17T01:00:00Z", valor: 9.09, detalle: null },
@@ -150,4 +152,14 @@ for (const label of ["Documento completo", "Conteos por minuto", "provisionales"
 fixture.corte = null
 for (const name of Object.keys(KPIS)) fixture.kpis[name] = []
 assert.ok(render("resumen").includes("Pendiente de consolidación"))
-console.log("React y métricas: períodos, contexto, mayúsculas, arquitectura y ausencia de datos verificados")
+
+const live = renderVivo({ eventos: 895, eventos_bot: 444, reversiones: 3, editores: {registrado: 182, bot: 18} },
+  { eventos: 1100, eventos_bot: 532, reversiones: 9, editores: {registrado: 222, bot: 22} })
+for (const label of ["Eventos registrados", "895", "Promedio: 3.0 eventos/s", "−205", "Editores participantes", "182 personas y 18 bots", "444 de 895 eventos", "Deshacen cambios de otro editor"]) {
+  assert.ok(live.includes(label), `Falta el contexto de En vivo: ${label}`)
+}
+assert.ok(!live.includes("Eventos por segundo"))
+assert.ok(!live.includes("Editores activos"))
+const emptyLive = renderVivo({eventos: 0, eventos_bot: 0, reversiones: 0, editores: {}}, {eventos: 0, eventos_bot: 0, reversiones: 0, editores: {}})
+assert.ok(!emptyLive.includes("NaN"))
+console.log("React: resumen por período, comparaciones de En vivo, contexto, arquitectura y estados sin datos verificados")

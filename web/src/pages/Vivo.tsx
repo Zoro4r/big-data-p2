@@ -39,21 +39,38 @@ const REFRESCO_MS = 4000
 const MOSTRAR = 25
 
 /** Tarjetas de En vivo que abren su detalle. */
-type MetricaVivo = "eps" | "editores" | "bots" | "rev"
-const ORDEN_VIVO: MetricaVivo[] = ["eps", "editores", "bots", "rev"]
-const NOMBRE_METRICA: Record<MetricaVivo, string> = { eps: "Eventos por segundo", editores: "Editores activos", bots: "Hechos por bots", rev: "Reversiones" }
+type MetricaVivo = "eventos" | "editores" | "bots" | "rev"
+const ORDEN_VIVO: MetricaVivo[] = ["eventos", "editores", "bots", "rev"]
+const NOMBRE_METRICA: Record<MetricaVivo, string> = { eventos: "Eventos registrados", editores: "Editores participantes", bots: "Eventos de bots", rev: "Reversiones detectadas" }
+
+export function TarjetasVivo({ actual: v, anterior, onAbrir }: { actual?: VentanaVivo; anterior?: VentanaVivo; onAbrir: (id: MetricaVivo) => void }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {!v || !anterior ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={160} />) : (
+        <>
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.eventos} cambio={variacion(v.eventos, anterior.eventos)} valor={entero(v.eventos)} pie={`Promedio: ${(v.eventos / 300).toFixed(1)} eventos/s`} onAbrir={() => onAbrir("eventos")} />
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.editores} cambio={variacion(totalEditores(v), totalEditores(anterior))} valor={entero(totalEditores(v))}
+            pie={`${entero(totalEditores(v) - (v.editores.bot ?? 0))} personas y ${entero(v.editores.bot ?? 0)} bots`} onAbrir={() => onAbrir("editores")} />
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.bots} cambio={variacion(proporcionBots(v), proporcionBots(anterior), "pp")} valor={v.eventos ? `${proporcionBots(v)!.toFixed(1)} %` : "—"}
+            pie={`${entero(v.eventos_bot)} de ${entero(v.eventos)} eventos`} onAbrir={() => onAbrir("bots")} />
+          <TarjetaKpi etiqueta={NOMBRE_METRICA.rev} cambio={variacion(v.reversiones, anterior.reversiones)} valor={entero(v.reversiones)} pie="Deshacen cambios de otro editor" onAbrir={() => onAbrir("rev")} />
+        </>
+      )}
+    </div>
+  )
+}
 
 /** Las cuatro tarjetas comparten exactamente la misma ventana móvil de cinco minutos. */
 function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
   const v = d.metricas.actual, anterior = d.metricas.anterior
   const comun = { etiqueta, momento: `${intervaloLocal(v.inicio, v.fin)} · últimos 5 minutos`,
     origen: <>Eventos guardados en <Base base="mongo" /> durante ese intervalo. Comparación con los cinco minutos inmediatamente anteriores.</> }
-  if (k === "eps") return {
-    ...comun, titulo: NOMBRE_METRICA.eps, valor: (v.eventos / 300).toFixed(1), nota: `${entero(v.eventos)} eventos en 5 min`,
-    datos: [["5 minutos anteriores", `${(anterior.eventos / 300).toFixed(1)} eventos/s`]],
-    definicion: "Promedio de eventos por segundo durante los últimos cinco minutos.",
-    calculo: { fraccion: ["eventos de los últimos 5 minutos", "300 segundos"] },
-    lectura: "Permite comparar el ritmo reciente entre dos intervalos de igual duración.",
+  if (k === "eventos") return {
+    ...comun, titulo: NOMBRE_METRICA.eventos, valor: entero(v.eventos), nota: `Promedio: ${(v.eventos / 300).toFixed(1)} eventos/s`,
+    datos: [["5 minutos anteriores", entero(anterior.eventos)]],
+    definicion: "Cantidad de eventos de Wikipedia guardados durante los últimos cinco minutos.",
+    calculo: { texto: "Se cuenta cada evento guardado entre el inicio y el fin del intervalo." },
+    lectura: "El promedio por segundo divide ese total entre 300 segundos. La pastilla compara los totales de ambos intervalos.",
   }
   if (k === "editores") return {
     ...comun, titulo: NOMBRE_METRICA.editores, valor: entero(totalEditores(v)), nota: "Editores distintos en 5 min",
@@ -61,7 +78,7 @@ function metricaVivo(k: MetricaVivo, d: Vivo, etiqueta: string): MetricaModal {
       ["5 minutos anteriores", entero(totalEditores(anterior))]],
     definicion: "Editores distintos que hicieron al menos un cambio durante los últimos cinco minutos.",
     calculo: { texto: "Usuarios distintos entre el inicio y el fin del intervalo; cada usuario se cuenta una vez." },
-    lectura: "Ayuda a distinguir un aumento de participantes de una ráfaga de pocos editores.",
+    lectura: "Cuenta a quienes realizaron cambios, no a todos los usuarios conectados. Cada editor puede generar varios eventos.",
   }
   if (k === "bots") return {
     ...comun, titulo: NOMBRE_METRICA.bots, valor: v.eventos ? `${proporcionBots(v)!.toFixed(1)} %` : "—", nota: `${entero(v.eventos_bot)} eventos de bots en 5 min`,
@@ -209,18 +226,8 @@ export default function VivoPage() {
       <Header ruta={["Panel", "En vivo"]} />
       <Pagina titulo="En vivo" descripcion={`${etiqueta} · cambios recientes de Wikipedia. Se actualiza cada 4 segundos.`}>
         {error && <p className="text-sm text-red-700 dark:text-red-400">No se pudo actualizar: {error}</p>}
-        <div className="space-y-1"><h2 className="text-base font-semibold">Últimos 5 minutos</h2><p className="text-sm text-muted-foreground">Cambios frente a los 5 minutos anteriores · datos provisionales.</p></div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {!reciente || !previo ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
-            <>
-              <TarjetaKpi etiqueta="Eventos por segundo" cambio={variacion(reciente.eventos / 300, previo.eventos / 300)} valor={(reciente.eventos / 300).toFixed(1)} pie={`${entero(reciente.eventos)} eventos en 5 min`} onAbrir={() => setMetrica("eps")} />
-              <TarjetaKpi etiqueta="Editores activos" cambio={variacion(totalEditores(reciente), totalEditores(previo))} valor={entero(totalEditores(reciente))}
-                pie={`${entero(totalEditores(reciente) - (reciente.editores.bot ?? 0))} personas · ${entero(reciente.editores.bot ?? 0)} bots`} onAbrir={() => setMetrica("editores")} />
-              <TarjetaKpi etiqueta="Hechos por bots" cambio={variacion(proporcionBots(reciente), proporcionBots(previo), "pp")} valor={reciente.eventos ? `${proporcionBots(reciente)!.toFixed(1)} %` : "—"} pie={`${entero(reciente.eventos_bot)} eventos en 5 min`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones detectadas" cambio={variacion(reciente.reversiones, previo.reversiones)} valor={entero(reciente.reversiones)} pie="En los últimos 5 minutos" onAbrir={() => setMetrica("rev")} />
-            </>
-          )}
-        </div>
+        <div className="space-y-1"><h2 className="text-base font-semibold">Últimos 5 minutos</h2><p className="text-sm text-muted-foreground">Comparado con los 5 min anteriores · pp = puntos porcentuales · datos provisionales.</p></div>
+        <TarjetasVivo actual={reciente} anterior={previo} onAbrir={setMetrica} />
 
         <Seccion titulo="Eventos por minuto" descripcion="Últimos 30 minutos · barras apiladas por wiki · el minuto en curso todavía se está llenando" accion={<Leyenda items={wikis.map((w) => ({ nombre: w, color: COLOR[w as "enwiki"] }))} />}>
           {!data ? <Cargando alto={240} /> : (
