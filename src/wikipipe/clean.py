@@ -66,7 +66,8 @@ def after_prefix(title: str) -> str:
 
 def derive(event: dict) -> dict:
     """Calcula los campos derivados de un evento ya validado."""
-    dt = datetime.fromisoformat(event["meta"]["dt"].replace("Z", "+00:00")).astimezone(timezone.utc)
+    dt = datetime.fromisoformat(event["meta"]["dt"].replace("Z", "+00:00"))
+    dt = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
     etype, user, comment = event["type"], event["user"], event.get("comment") or ""
     d = {
         "event_time": dt.isoformat().replace("+00:00", "Z"),
@@ -118,6 +119,8 @@ def derive(event: dict) -> dict:
 
 def validate(event: dict) -> str | None:
     """Devuelve el motivo de rechazo, o None si el evento es válido."""
+    if not isinstance(event, dict):
+        return "evento_no_objeto"
     meta = event.get("meta")
     if not isinstance(meta, dict) or not meta.get("id") or not meta.get("dt"):
         return "sin_meta"
@@ -126,11 +129,33 @@ def validate(event: dict) -> str | None:
     for field in REQUIRED:
         if event.get(field) in (None, ""):
             return f"falta_{field}"
+    if not isinstance(meta["id"], str):
+        return "id_invalido"
+    for field in ("type", "wiki", "title", "user"):
+        if not isinstance(event[field], str):
+            return f"tipo_invalido_{field}"
     if event["type"] not in VALID_TYPES:
         return "tipo_desconocido"
+    if not isinstance(event["namespace"], int) or isinstance(event["namespace"], bool):
+        return "namespace_invalido"
+    if event.get("comment") is not None and not isinstance(event["comment"], str):
+        return "comentario_invalido"
+    if "bot" in event and not isinstance(event["bot"], bool):
+        return "bot_invalido"
+    params = event.get("log_params")
+    if isinstance(params, dict):
+        for field in ("target", "duration"):
+            if params.get(field) is not None and not isinstance(params[field], str):
+                return "log_params_invalido"
+    length = event.get("length")
+    if length is not None:
+        if not isinstance(length, dict):
+            return "length_invalido"
+        if any(v is not None and (not isinstance(v, int) or isinstance(v, bool)) for v in length.values()):
+            return "length_invalido"
     try:
         datetime.fromisoformat(meta["dt"].replace("Z", "+00:00"))
-    except ValueError:
+    except (ValueError, TypeError, AttributeError):
         return "fecha_invalida"
     return None
 

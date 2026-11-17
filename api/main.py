@@ -90,8 +90,12 @@ def sumar_por(filas: list[dict], clave: str, campos: tuple[str, ...]) -> list[di
 @app.get("/api/resumen")
 def resumen(wiki: str = "ambas"):
     w = None if wiki == "ambas" else wikis_de(wiki)[0]
-    return {"kpis": q.kpis(72, w), "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
-            "total": q.total_eventos(), "desde": q.primer_evento()}
+    series = q.kpis(72, w)
+    latest = series["eventos_procesados"][0]["ventana"] if series["eventos_procesados"] else None
+    end = (datetime.fromisoformat(latest) + timedelta(hours=1)).isoformat() if latest else None
+    return {"kpis": series, "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
+            "total": q.total_eventos(), "desde": q.primer_evento(), "wiki": wiki,
+            "intervalo": {"inicio": latest, "fin": end}, "corte": end}
 
 
 @app.get("/api/estado")
@@ -188,8 +192,9 @@ def red(wiki: str = "ambas"):
 
 
 @app.get("/api/red/ego/{nombre}")
-def ego(nombre: str, limite: int = 30):
-    return q.ego_red(nombre, min(limite, 150))
+def ego(nombre: str, limite: int = 30, wiki: str = "ambas"):
+    selected = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return q.ego_red(nombre, min(max(limite, 1), 150), selected)
 
 
 # ---------------------------------------------------------------- CRUD (reutiliza wikipipe.crud)
@@ -230,11 +235,11 @@ PERIODOS = {"hora": 1, "dia": 24, "semana": 168, "todo": None}
 
 @app.get("/api/crud/mongo/buscar")
 def mongo_buscar(wiki: str = "enwiki", tipo: str = "todos", periodo: str = "dia", editor: str = "", titulo: str = "",
-                 demo: bool = False, id: str = "", antes: datetime | None = None, limite: int = 10):
+                 demo: bool = False, id: str = "", antes: datetime | None = None, limite: int = 10, antes_id: str = ""):
     if wiki not in ("enwiki", "eswiki") or tipo not in ("todos", "edit", "new", "categorize", "log") or periodo not in PERIODOS:
         raise HTTPException(400, "Filtro no válido")
     return q.crud_buscar(wiki, tipo, PERIODOS[periodo], editor.strip(), titulo.strip(), demo, id.strip(),
-                         antes, min(max(limite, 1), 50))
+                         antes, min(max(limite, 1), 50), antes_id)
 
 
 @app.get("/api/crud/mongo/{event_id}")
@@ -375,17 +380,17 @@ def cassandra_eliminar(kpi: str, ventana: datetime | None = None):
     return {"filas_eliminadas": n}
 
 
-TIPOS_EDITOR = ("registrado", "temporal", "bot")
+TIPOS_EDITOR = ("registrado", "temporal", "ip", "bot")
 
 
 class NodoEditor(BaseModel):
-    user: str
+    user: str = Field(min_length=1)
     tipo: str = "registrado"
 
 
 class Relacion(BaseModel):
-    origen: str
-    destino: str
+    origen: str = Field(min_length=1)
+    destino: str = Field(min_length=1)
     tipo: str
     veces: int = Field(1, ge=1)
     wiki: str | None = None
@@ -397,16 +402,24 @@ class CambiosNodo(BaseModel):
 
 @app.post("/api/crud/neo4j/editor")
 def neo_crear_editor(n: NodoEditor):
+    n.user = n.user.strip()
+    if not n.user:
+        raise HTTPException(400, "El nombre del editor es obligatorio")
     if n.tipo not in TIPOS_EDITOR:
         raise HTTPException(400, "Tipo de editor no válido")
     existia = crud.neo4j_detalle_editor(q.neo4j(), n.user, 0) is not None
+    editor = crud.neo4j_crear_editor(q.neo4j(), n.user, n.tipo)
     q.limpiar_cache()
-    return {"creado": not existia, "editor": crud.neo4j_crear_editor(q.neo4j(), n.user, n.tipo)}
+    return {"creado": not existia, "editor": editor}
 
 
 @app.post("/api/crud/neo4j/relacion")
 def neo_crear_relacion(r: Relacion):
     """MERGE de la relación; si alguno de los dos editores no existe, se crea con él."""
+    if not r.origen.strip() or not r.destino.strip():
+        raise HTTPException(400, "Los nombres de los editores son obligatorios")
+    if r.wiki is not None and r.wiki not in config.WIKIS:
+        raise HTTPException(400, "Wiki no válida")
     if r.tipo not in crud.RELACIONES_EDITOR:
         raise HTTPException(400, "Tipo de relación no permitido")
     d = q.neo4j()
@@ -452,9 +465,9 @@ def neo_actualizar(user: str, body: CambiosNodo):
 
 
 @app.delete("/api/crud/neo4j/relacion")
-def neo_eliminar_relacion(origen: str, destino: str, tipo: str):
+def neo_eliminar_relacion(origen: str, destino: str, tipo: str, relacion_id: str | None = None):
     try:
-        n = crud.neo4j_eliminar_relacion(q.neo4j(), origen, destino, tipo)
+        n = crud.neo4j_eliminar_relacion(q.neo4j(), origen, destino, tipo, relacion_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     q.limpiar_cache()

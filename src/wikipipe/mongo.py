@@ -81,7 +81,9 @@ def load_events(db: Database, clean_path: Path, rejected_path: Path | None = Non
         rejected_ops = []
         for row in read_events(rejected_path):
             # Mismo criterio de idempotencia: el id del evento, o un hash si el evento no lo tiene.
-            meta = (row.get("event") or {}).get("meta") or {}
+            event = row.get("event")
+            meta = event.get("meta") if isinstance(event, dict) else None
+            meta = meta if isinstance(meta, dict) else {}
             row_id = meta.get("id") or hashlib.sha1(json.dumps(row, sort_keys=True).encode()).hexdigest()
             doc = {"_id": row_id, **sanitize(row)}
             # Fecha del evento, para leer los rechazados de una hora (la usa fuente.volcar_desde_mongo).
@@ -109,4 +111,5 @@ def record_run(db: Database, summary: dict) -> None:
     summary = dict(summary)
     summary["window_start_dt"] = datetime.fromisoformat(summary["window_start"])
     summary["recorded_at"] = datetime.now(timezone.utc)
+    summary["format_version"] = 2
     db.pipeline_runs.replace_one({"_id": summary["window_start"]}, summary, upsert=True)

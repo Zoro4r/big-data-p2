@@ -4,8 +4,8 @@ Nodos: Editor, Pagina, Wiki, Categoria.
 Relaciones: EDITO, CREO, SUBIO, REVIRTIO, MENSAJE_A, AGRADECIO, BLOQUEO, MOVIDA_A,
 PERTENECE_A, EN_CATEGORIA y COEDITA (derivada de dos EDITO a la misma página).
 
-Idempotencia: todo se crea con MERGE. Las relaciones que acumulan conteos (EDITO, REVIRTIO,
-MENSAJE_A, AGRADECIO) guardan en `ventanas` las horas ya sumadas y no vuelven a sumarlas.
+Las relaciones de actividad conservan wiki y ventana UTC. Una transacción reemplaza la hora
+completa y reconstruye el estado acumulado afectado, también al corregir o eliminar eventos.
 """
 
 from __future__ import annotations
@@ -33,14 +33,14 @@ def ensure_schema(driver: Driver) -> None:
     with driver.session() as session:
         for stmt in "\n".join(lines).split(";"):
             if stmt.strip():
-                session.run(stmt)
-
-
-def _run_batches(driver: Driver, cypher: str, rows: list, **params) -> int:
-    with driver.session() as session:
-        for i in range(0, len(rows), BATCH):
-            session.execute_write(lambda tx, chunk: tx.run(cypher, rows=chunk, **params).consume(), rows[i:i + BATCH])
-    return len(rows)
+                session.run(stmt).consume()
+        current = session.run("MATCH (m:PipelineModelo {id:'wikipipe'}) RETURN m.version AS version").single()
+        if current and current["version"] == 2:
+            return
+        legacy = session.run("MATCH ()-[r:EDITO|REVIRTIO|MENSAJE_A|AGRADECIO]->() "
+                             "WHERE r.ventana IS NULL AND coalesce(r.manual, false) = false RETURN count(r) AS n").single()["n"]
+        if legacy:
+            raise RuntimeError("El grafo usa el modelo anterior. Reconstruye con python -m wikipipe.rebuild --reset-graph")
 
 
 def _guess_type(name: str) -> str:
@@ -51,6 +51,7 @@ def _guess_type(name: str) -> str:
 def build_rows(events) -> dict:
     """Convierte los eventos de la ventana en filas para cada consulta de carga."""
     wikis, editores, paginas, categorias = set(), {}, {}, {}
+    actividad = {}
     edito = defaultdict(lambda: {"n": 0, "delta": 0, "last": None})
     creo, subio, bloqueo, movida, cat_state = {}, {}, {}, {}, {}
     pares = {k: defaultdict(lambda: {"n": 0, "last": None, "wiki": None}) for k in ("REVIRTIO", "MENSAJE_A", "AGRADECIO")}
@@ -73,19 +74,24 @@ def build_rows(events) -> dict:
         d, wiki, user, etype, t = e["derived"], e["wiki"], e["user"], e["type"], e["derived"]["event_time"]
         wikis.add(wiki)
         editor(user, d["user_type"], t)
+        activity_key = (user, wiki)
+        if activity_key not in actividad or t > actividad[activity_key]["t"]:
+            actividad[activity_key] = {"user": user, "wiki": wiki, "tipo": d["user_type"], "t": t}
 
         if etype in ("edit", "new"):
             key = pagina(wiki, e["title"], e.get("namespace"), (e.get("length") or {}).get("new"), t)
             rel = edito[(user, key)]
             rel["n"] += 1
             rel["delta"] += d.get("delta_bytes", 0)
-            rel["last"] = t
+            rel["last"] = max(rel["last"] or t, t)
+            rel["tipo"] = d["user_type"]
+            rel["size"] = (e.get("length") or {}).get("new")
             if etype == "new":
                 creo[(user, key)] = {"user": user, "key": key, "fecha": t, "size": (e.get("length") or {}).get("new")}
             for rel_type, target in (("REVIRTIO", d.get("revert_target")), ("MENSAJE_A", d.get("message_target"))):
                 if target:
                     editor(target, _guess_type(target), None)
-                    p = pares[rel_type][(user, target)]
+                    p = pares[rel_type][(user, target, wiki)]
                     p["n"] += 1
                     p["last"], p["wiki"] = t, wiki
 
@@ -98,12 +104,12 @@ def build_rows(events) -> dict:
         elif etype == "log":
             if d.get("thanks_target"):
                 editor(d["thanks_target"], _guess_type(d["thanks_target"]), None)
-                p = pares["AGRADECIO"][(user, d["thanks_target"])]
+                p = pares["AGRADECIO"][(user, d["thanks_target"], wiki)]
                 p["n"] += 1
                 p["last"], p["wiki"] = t, wiki
             if d.get("block_target"):
                 editor(d["block_target"], _guess_type(d["block_target"]), None)
-                bloqueo[(user, d["block_target"])] = {"src": user, "dst": d["block_target"], "fecha": t,
+                bloqueo[(user, d["block_target"], wiki)] = {"src": user, "dst": d["block_target"], "fecha": t,
                                                       "duracion": d.get("block_duration"), "wiki": wiki}
             if d.get("move_target"):
                 src = pagina(wiki, e["title"], e.get("namespace"))
@@ -114,6 +120,7 @@ def build_rows(events) -> dict:
                 subio[(user, key)] = {"user": user, "key": key, "fecha": t}
 
     return {
+        "actividad": list(actividad.values()),
         "wikis": [{"nombre": w} for w in wikis],
         "editores": list(editores.values()),
         "paginas": list(paginas.values()),
@@ -121,7 +128,7 @@ def build_rows(events) -> dict:
         "edito": [{"user": u, "key": k, **v} for (u, k), v in edito.items()],
         "creo": list(creo.values()),
         "subio": list(subio.values()),
-        "pares": {k: [{"src": s, "dst": d, **v} for (s, d), v in rows.items()] for k, rows in pares.items()},
+        "pares": {k: [{"src": s, "dst": d, **v} for (s, d, _wiki), v in rows.items()] for k, rows in pares.items()},
         "bloqueo": list(bloqueo.values()),
         "movida": list(movida.values()),
         "cat_add": [{"page": p, "cat": c} for (p, c), a in cat_state.items() if a == "added"],
@@ -133,11 +140,13 @@ Q_WIKIS = "UNWIND $rows AS row MERGE (:Wiki {nombre: row.nombre})"
 Q_EDITORES = """
 UNWIND $rows AS row
 MERGE (e:Editor {user: row.user})
-// Con eventos propios (row.t) el tipo es seguro; si solo aparece como destino, es una suposición
-// por el nombre y no debe pisar un tipo ya conocido (p. ej. un bot revertido).
-SET e.tipo = CASE WHEN row.t IS NOT NULL THEN row.tipo ELSE coalesce(e.tipo, row.tipo) END
-FOREACH (_ IN CASE WHEN row.t IS NOT NULL AND (e.ultima_actividad IS NULL OR e.ultima_actividad < datetime(row.t))
-                   THEN [1] ELSE [] END | SET e.ultima_actividad = datetime(row.t))
+ON CREATE SET e.tipo = row.tipo
+"""
+Q_ACTIVIDAD = """
+UNWIND $rows AS row
+MATCH (e:Editor {user: row.user}), (w:Wiki {nombre: row.wiki})
+MERGE (e)-[r:ACTIVO_EN {ventana: $ventana, wiki: row.wiki}]->(w)
+SET r.ultima_vez = datetime(row.t), r.tipo = row.tipo, r.version = 2
 """
 Q_PAGINAS = """
 UNWIND $rows AS row
@@ -160,56 +169,56 @@ MERGE (c)-[:PERTENECE_A]->(w)
 Q_EDITO = """
 UNWIND $rows AS row
 MATCH (e:Editor {user: row.user}), (p:Pagina {key: row.key})
-MERGE (e)-[r:EDITO]->(p)
-WITH r, row WHERE NOT $ventana IN coalesce(r.ventanas, [])
-SET r.ediciones = coalesce(r.ediciones, 0) + row.n,
-    r.delta_bytes = coalesce(r.delta_bytes, 0) + row.delta,
-    r.ultima_vez = datetime(row.last),
-    r.ventanas = coalesce(r.ventanas, []) + $ventana
+MERGE (e)-[r:EDITO {ventana: $ventana, wiki: p.wiki}]->(p)
+SET r.ediciones = row.n, r.delta_bytes = row.delta, r.ultima_vez = datetime(row.last),
+    r.tipo = row.tipo, r.tamano = row.size, r.version = 2
 """
 Q_CREO = """
 UNWIND $rows AS row
 MATCH (e:Editor {user: row.user}), (p:Pagina {key: row.key})
-MERGE (e)-[r:CREO]->(p)
-SET r.fecha = datetime(row.fecha), r.tamano_inicial = row.size
+MERGE (e)-[r:CREO {ventana: $ventana, wiki: p.wiki}]->(p)
+SET r.fecha = datetime(row.fecha), r.tamano_inicial = row.size, r.version = 2
 """
 Q_SUBIO = """
 UNWIND $rows AS row
 MATCH (e:Editor {user: row.user}), (p:Pagina {key: row.key})
-MERGE (e)-[r:SUBIO]->(p)
-SET r.fecha = datetime(row.fecha)
+MERGE (e)-[r:SUBIO {ventana: $ventana, wiki: p.wiki}]->(p)
+SET r.fecha = datetime(row.fecha), r.version = 2
 """
 Q_PAR = """
 UNWIND $rows AS row
 MATCH (a:Editor {user: row.src}), (b:Editor {user: row.dst})
-MERGE (a)-[r:%s]->(b)
-WITH r, row WHERE NOT $ventana IN coalesce(r.ventanas, [])
-SET r.veces = coalesce(r.veces, 0) + row.n,
-    r.ultima_vez = datetime(row.last),
-    r.wiki = row.wiki,
-    r.ventanas = coalesce(r.ventanas, []) + $ventana
+MERGE (a)-[r:%s {ventana: $ventana, wiki: row.wiki}]->(b)
+SET r.veces = row.n, r.ultima_vez = datetime(row.last), r.version = 2
 """
 Q_BLOQUEO = """
 UNWIND $rows AS row
 MATCH (a:Editor {user: row.src}), (b:Editor {user: row.dst})
-MERGE (a)-[r:BLOQUEO]->(b)
-SET r.fecha = datetime(row.fecha), r.duracion = row.duracion, r.wiki = row.wiki
+MERGE (a)-[r:BLOQUEO {ventana: $ventana, wiki: row.wiki}]->(b)
+SET r.fecha = datetime(row.fecha), r.duracion = row.duracion, r.version = 2
 """
 Q_MOVIDA = """
 UNWIND $rows AS row
 MATCH (a:Pagina {key: row.src}), (b:Pagina {key: row.dst})
-MERGE (a)-[r:MOVIDA_A]->(b)
-SET r.fecha = datetime(row.fecha), r.editor = row.editor
+MERGE (a)-[r:MOVIDA_A {ventana: $ventana, wiki: a.wiki}]->(b)
+SET r.fecha = datetime(row.fecha), r.editor = row.editor, r.version = 2
 """
-Q_CAT_ADD = """
+Q_CAT_CHANGE = """
 UNWIND $rows AS row
 MATCH (p:Pagina {key: row.page}), (c:Categoria {key: row.cat})
-MERGE (p)-[:EN_CATEGORIA]->(c)
+MERGE (p)-[r:CAMBIO_CATEGORIA {ventana: $ventana, wiki: p.wiki}]->(c)
+SET r.accion = row.accion, r.version = 2
 """
-Q_CAT_REMOVE = """
+Q_REFRESH_CATEGORIES = """
 UNWIND $rows AS row
-MATCH (:Pagina {key: row.page})-[r:EN_CATEGORIA]->(:Categoria {key: row.cat})
-DELETE r
+MATCH (p:Pagina {key: row.page}), (c:Categoria {key: row.cat})
+OPTIONAL MATCH (p)-[old:EN_CATEGORIA]->(c)
+DELETE old
+WITH p, c
+OPTIONAL MATCH (p)-[change:CAMBIO_CATEGORIA]->(c)
+WITH p, c, change ORDER BY change.ventana DESC
+WITH p, c, head(collect(change.accion)) AS accion
+FOREACH (_ IN CASE WHEN accion = 'added' THEN [1] ELSE [] END | MERGE (p)-[:EN_CATEGORIA]->(c))
 """
 # COEDITA: para cada página editada en la ventana, une a sus editores humanos y guarda cuántas
 # páginas tienen en común (se recalcula, así que también es idempotente).
@@ -230,28 +239,56 @@ SET r.paginas_en_comun = comunes
 
 
 def load_window(driver: Driver, events, ventana: str) -> dict:
-    """Carga en Neo4j los eventos de una ventana. `ventana` = inicio de la ventana (ISO)."""
+    """Reemplazo atómico de una hora. El mutex del grafo serializa backfills y reintentos."""
+    from datetime import datetime, timezone
+
+    ventana = datetime.fromisoformat(ventana.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
     ensure_schema(driver)
     rows = build_rows(events)
-    stats = {
-        "wikis": _run_batches(driver, Q_WIKIS, rows["wikis"]),
-        "editores": _run_batches(driver, Q_EDITORES, rows["editores"]),
-        "paginas": _run_batches(driver, Q_PAGINAS, rows["paginas"]),
-        "categorias": _run_batches(driver, Q_CATEGORIAS, rows["categorias"]),
-        "EDITO": _run_batches(driver, Q_EDITO, rows["edito"], ventana=ventana),
-        "CREO": _run_batches(driver, Q_CREO, rows["creo"]),
-        "SUBIO": _run_batches(driver, Q_SUBIO, rows["subio"]),
-        "BLOQUEO": _run_batches(driver, Q_BLOQUEO, rows["bloqueo"]),
-        "MOVIDA_A": _run_batches(driver, Q_MOVIDA, rows["movida"]),
-        "EN_CATEGORIA+": _run_batches(driver, Q_CAT_ADD, rows["cat_add"]),
-        "EN_CATEGORIA-": _run_batches(driver, Q_CAT_REMOVE, rows["cat_remove"]),
-    }
-    for rel_type, rel_rows in rows["pares"].items():
-        stats[rel_type] = _run_batches(driver, Q_PAR % rel_type, rel_rows, ventana=ventana)
-    edited_pages = sorted({r["key"] for r in rows["edito"]})
-    _run_batches(driver, Q_COEDITA, edited_pages, max_editores=MAX_EDITORS_COEDIT)
-    log.info("Carga en Neo4j (filas por consulta): %s", stats)
-    return stats
+    categories = [{**r, "accion": action} for key, action in (("cat_add", "added"), ("cat_remove", "removed"))
+                  for r in rows[key]]
+    queries = [("wikis", Q_WIKIS), ("editores", Q_EDITORES), ("paginas", Q_PAGINAS),
+               ("categorias", Q_CATEGORIAS), ("actividad", Q_ACTIVIDAD), ("edito", Q_EDITO),
+               ("creo", Q_CREO), ("subio", Q_SUBIO), ("bloqueo", Q_BLOQUEO), ("movida", Q_MOVIDA)]
+
+    def replace(tx):
+        # El write lock de este nodo se mantiene hasta commit, incluso para ventanas distintas.
+        tx.run("MERGE (m:PipelineModelo {id: 'wikipipe'}) SET m.version = 2, m.lock = coalesce(m.lock, 0) + 1").consume()
+        affected = tx.run("MATCH (e:Editor)-[r:ACTIVO_EN]->() WHERE r.ventana = $v "
+                          "RETURN collect(DISTINCT e.user) AS users", v=ventana).single()["users"]
+        old_categories = tx.run("MATCH (p:Pagina)-[r:CAMBIO_CATEGORIA]->(c:Categoria) WHERE r.ventana = $v "
+                               "RETURN p.key AS page, c.key AS cat", v=ventana).data()
+        old_pages = tx.run("MATCH ()-[r:EDITO|SUBIO]->(p:Pagina) WHERE r.ventana = $v "
+                          "RETURN collect(DISTINCT p.key) AS pages", v=ventana).single()["pages"]
+        tx.run("MATCH ()-[r]->() WHERE r.version = 2 AND r.ventana = $v DELETE r", v=ventana).consume()
+        for key, query in queries:
+            for i in range(0, len(rows[key]), BATCH):
+                tx.run(query, rows=rows[key][i:i + BATCH], ventana=ventana).consume()
+        for rel_type, values in rows["pares"].items():
+            for i in range(0, len(values), BATCH):
+                tx.run(Q_PAR % rel_type, rows=values[i:i + BATCH], ventana=ventana).consume()
+        tx.run(Q_CAT_CHANGE, rows=categories, ventana=ventana).consume()
+        tx.run(Q_REFRESH_CATEGORIES, rows=old_categories + categories).consume()
+        users = sorted(set(affected) | {r["user"] for r in rows["editores"]})
+        tx.run("UNWIND $users AS u MATCH (e:Editor {user:u}) "
+               "OPTIONAL MATCH (e)-[r:ACTIVO_EN]->() WITH e,r ORDER BY r.ultima_vez DESC "
+               "WITH e,head(collect(r)) AS last SET e.ultima_actividad=last.ultima_vez, "
+               "e.tipo=coalesce(last.tipo,e.tipo)", users=users).consume()
+        pages = sorted(set(old_pages) | {r["key"] for r in rows["paginas"]})
+        tx.run("UNWIND $pages AS key MATCH (p:Pagina {key:key}) OPTIONAL MATCH ()-[r:EDITO]->(p) "
+               "WITH p,r ORDER BY r.ultima_vez DESC WITH p,head(collect(r)) AS last "
+               "SET p.ultima_edicion=last.ultima_vez,p.tamano=last.tamano", pages=pages).consume()
+        tx.run("UNWIND $users AS u MATCH (:Editor {user:u})-[r:COEDITA]-() DELETE r", users=users).consume()
+        # También se revisan las otras páginas de los editores afectados para quitar pares obsoletos.
+        page_keys = tx.run("UNWIND $users AS u MATCH (:Editor {user:u})-[:EDITO]->(p:Pagina) "
+                           "RETURN collect(DISTINCT p.key) AS keys", users=users).single()["keys"]
+        tx.run(Q_COEDITA, rows=page_keys, max_editores=MAX_EDITORS_COEDIT).consume()
+        return {key: len(rows[key]) for key, _query in queries}
+
+    with driver.session() as session:
+        result = session.execute_write(replace)
+    log.info("Grafo reemplazado para %s: %s", ventana, result)
+    return result
 
 
 Q_CONTEO_PAGINAS = """

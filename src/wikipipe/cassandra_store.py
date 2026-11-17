@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from cassandra.cluster import Cluster, Session
 from cassandra.concurrent import execute_concurrent_with_args
@@ -46,7 +46,9 @@ COLUMNAS_NUEVAS = [("ejecuciones", "fuente", "text")]
 
 
 def ensure_schema(session: Session) -> None:
-    for statement in split_cql((config.DB_DIR / "cassandra" / "schema.cql").read_text()):
+    schema = (config.DB_DIR / "cassandra" / "schema.cql").read_text(encoding="utf-8")
+    schema = schema.replace("wikipipe", config.CASSANDRA_KEYSPACE)
+    for statement in split_cql(schema):
         session.execute(statement)
     for tabla, columna, tipo in COLUMNAS_NUEVAS:
         existe = session.execute(
@@ -126,16 +128,49 @@ def aggregate(events) -> dict:
     return {"resumen": resumen, "minutos": minutos, "editores": editores, "paginas": paginas}
 
 
-def load_window(session: Session, events) -> dict:
+def load_window(session: Session, events, start: datetime, db=None) -> dict:
+    """Reemplaza una hora completa, incluso cuando ahora está vacía."""
+    from wikipipe import mongo
+    from wikipipe.windows import lock_hour
+
+    db = db if db is not None else mongo.get_db()
+    with lock_hour(db, start) as lease:
+        # El cursor se consume bajo el mismo bloqueo que utiliza el servicio stream.
+        return _load_locked(session, events, start, db, lease)
+
+
+def _load_locked(session, events, start, db, lease):
     """Agrega los eventos de la ventana y escribe las tablas de Cassandra."""
     ensure_schema(session)
     agg = aggregate(events)
+    end = start + timedelta(hours=1)
+    editors = sorted({key[0] for key in agg["editores"]})
+    previous = set(lease.document.get("editors", [])) | set(lease.document.get("pending_editors", []))
+    # Se guarda antes de escribir: un reintento también limpia las filas de una carga parcial.
+    db.pipeline_windows.update_one(lease.query, {"$set": {"pending_editors": sorted(previous | set(editors))}})
+    db.pipeline_runs.update_one({"_id": start.isoformat()}, {"$set": {"reprocessing": True}})
+    timestamp = lease.timestamp
+    session.execute("DELETE FROM resumen_por_hora USING TIMESTAMP %s WHERE fecha = %s AND hora = %s",
+                    (timestamp, start.date(), start.hour))
+    for wiki in sorted(config.WIKIS):
+        session.execute("DELETE FROM eventos_por_minuto USING TIMESTAMP %s WHERE wiki = %s AND fecha = %s "
+                        "AND minuto >= %s AND minuto < %s", (timestamp, wiki, start.date(), start, end))
+        for table in ("paginas_top_por_hora", "paginas_disputadas_por_hora"):
+            session.execute(f"DELETE FROM {table} USING TIMESTAMP %s WHERE wiki = %s AND fecha = %s AND hora = %s",
+                            (timestamp, wiki, start.date(), start.hour))
+    delete_editor = session.prepare("DELETE FROM actividad_editor USING TIMESTAMP ? "
+                                    "WHERE editor = ? AND fecha = ? AND hora = ?")
+    execute_concurrent_with_args(session, delete_editor,
+                                 [(timestamp, user, start.date(), start.hour) for user in previous | set(editors)],
+                                 concurrency=20, raise_on_first_error=True)
 
     resumen_rows = [
         (_day(f), h, w, r["eventos"], r["ediciones"], r["creaciones"], r["categorizaciones"], r["logs"],
          r["eventos_bot"], r["eventos_humanos"], r["editores"], r["editores_humanos"], r["reversiones"], r["delta_bytes"])
         for (f, h, w), r in agg["resumen"].items()
     ]
+    present = {row[2] for row in resumen_rows}
+    resumen_rows += [(start.date(), start.hour, wiki, *([0] * 11)) for wiki in sorted(config.WIKIS) if wiki not in present]
     minuto_rows = [
         (w, _day(f), datetime.fromisoformat(mi).replace(tzinfo=timezone.utc), m["eventos"], m["ediciones"],
          m["eventos_bot"], m["reversiones"])
@@ -151,10 +186,9 @@ def load_window(session: Session, events) -> dict:
     rankings = defaultdict(list)
     for (w, f, h, title), p in agg["paginas"].items():
         rankings[(w, f, h)].append((title, p))
-    pagina_rows, horas = [], []
+    pagina_rows = []
     disputa_rows = []
     for (w, f, h), items in rankings.items():
-        horas.append((w, _day(f), h))
         items.sort(key=lambda it: (-len(it[1]["editores"]), -it[1]["ediciones"], it[0]))
         for pos, (title, p) in enumerate(items[:TOP_PAGES], start=1):
             pagina_rows.append((w, _day(f), h, pos, title, p["ediciones"], len(p["editores"]), p["delta"]))
@@ -176,21 +210,22 @@ def load_window(session: Session, events) -> dict:
             "INSERT INTO actividad_editor (editor, fecha, hora, wiki, tipo_editor, eventos, ediciones, paginas, "
             "delta_bytes, reversiones_hechas, reversiones_recibidas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", editor_rows),
     }
-    delete_top = session.prepare("DELETE FROM paginas_top_por_hora WHERE wiki = ? AND fecha = ? AND hora = ?")
-    execute_concurrent_with_args(session, delete_top, horas, concurrency=20, raise_on_first_error=True)
     statements["paginas_top_por_hora"] = (
         "INSERT INTO paginas_top_por_hora (wiki, fecha, hora, posicion, pagina, ediciones, editores, delta_bytes) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", pagina_rows)
-    delete_disputa = session.prepare("DELETE FROM paginas_disputadas_por_hora WHERE wiki = ? AND fecha = ? AND hora = ?")
-    execute_concurrent_with_args(session, delete_disputa, horas, concurrency=20, raise_on_first_error=True)
     statements["paginas_disputadas_por_hora"] = (
         "INSERT INTO paginas_disputadas_por_hora (wiki, fecha, hora, posicion, pagina, reversiones, ediciones, editores) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", disputa_rows)
 
     stats = {}
     for table, (cql, rows) in statements.items():
-        execute_concurrent_with_args(session, session.prepare(cql), rows, concurrency=50, raise_on_first_error=True)
+        lease.check()
+        versioned = [(*row, timestamp + 1) for row in rows]
+        execute_concurrent_with_args(session, session.prepare(cql + " USING TIMESTAMP ?"), versioned,
+                                     concurrency=50, raise_on_first_error=True)
         stats[table] = len(rows)
+    lease.check()
+    db.pipeline_windows.update_one(lease.query, {"$set": {"editors": editors}, "$unset": {"pending_editors": ""}})
     log.info("Carga en Cassandra (filas por tabla): %s", stats)
     return stats
 

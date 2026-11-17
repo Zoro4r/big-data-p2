@@ -86,3 +86,54 @@ def test_logs():
     assert derive(move)["move_target"] == "Tony Edwards (cartoonist)"
     thanks = make(type="log", log_type="thanks", log_action="thank", title="User:Ana", log_params=[])
     assert derive(thanks)["thanks_target"] == "Ana"
+
+
+def test_malformed_records_are_rejected_and_processing_continues(tmp_path):
+    import gzip
+    import json
+    from wikipipe.clean import clean_file, read_events
+
+    values = [None, [], make(meta={"id": "bad", "dt": 123}), make(length={"new": "abc"}), make()]
+    raw, valid, rejected = [tmp_path / name for name in ("raw.gz", "valid.gz", "rejected.gz")]
+    with gzip.open(raw, "wt", encoding="utf-8") as file:
+        for value in values:
+            file.write(json.dumps(value) + "\n")
+    stats = clean_file(raw, valid, rejected)
+    assert stats["valid"] == 1 and stats["rejected"] == 4
+    assert len(list(read_events(rejected))) == 4
+    assert list(read_events(valid))[0]["_id"] == "abc"
+
+
+def test_naive_dates_are_utc():
+    assert derive(make(meta={"id": "x", "dt": "2026-10-31T16:00:00"}))["event_time"] == "2026-10-31T16:00:00Z"
+
+
+def test_extractor_keeps_invalid_ids_for_rejection_without_crashing(tmp_path, monkeypatch):
+    import json
+    from datetime import datetime, timedelta, timezone
+    from wikipipe import extract
+    from wikipipe.clean import clean_file
+
+    start = datetime(2026, 10, 31, 16, tzinfo=timezone.utc)
+    end = start + timedelta(hours=1)
+    events = [make(wiki={"invalid": True}),
+              make(meta={"id": {"invalid": True}, "dt": "2026-10-31T16:30:00Z"}),
+              make(), make(meta={"id": "stop", "dt": "2026-10-31T17:10:00Z"})]
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(extract.requests, "get", lambda *args, **kwargs: Response())
+    monkeypatch.setattr(extract, "iter_sse", lambda response: ((str(i), json.dumps(e)) for i, e in enumerate(events)))
+    raw = tmp_path / "raw.gz"
+    stats = extract.extract_window(start, end, raw, stop_after_beyond=1, idle_dc_seconds=0)
+    assert stats["kept"] == 2
+    quality = clean_file(raw, tmp_path / "clean.gz", tmp_path / "rejected.gz")
+    assert quality["valid"] == 1 and quality["rejected"] == 1

@@ -120,6 +120,23 @@
           ],
           "name": "por_revertido",
           "sparse": true
+        },
+        {
+          "keys": [
+            [
+              "wiki",
+              1
+            ],
+            [
+              "derived.event_dt",
+              -1
+            ],
+            [
+              "_id",
+              -1
+            ]
+          ],
+          "name": "por_wiki_fecha_id"
         }
       ]
     },
@@ -182,6 +199,10 @@
           "name": "por_inicio"
         }
       ]
+    },
+    "pipeline_windows": {
+      "_comment": "Bloqueos por hora, marcas de escritura y manifiestos de editores para reconstruir Cassandra. No expirar estos documentos.",
+      "indexes": []
     }
   }
 }

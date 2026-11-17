@@ -4,14 +4,14 @@
 | eventos_procesados         | Cassandra | suma de eventos de la hora                           |
 | crecimiento_pct            | Cassandra | (eventos h − eventos h−1) / eventos h−1 × 100        |
 | tasa_automatizacion_pct    | Cassandra | eventos de bots / eventos × 100                      |
-| actividad_por_editor       | Cassandra | eventos humanos / editores humanos                   |
+| actividad_por_editor       | MongoDB | eventos humanos / editores humanos                   |
 | tasa_creacion_pct          | MongoDB   | new / (edit + new) × 100                             |
 | volumen_neto_bytes         | MongoDB   | Σ (length.new − length.old)                          |
 | tasa_reversion_pct         | MongoDB   | ediciones que revierten a otro editor / ediciones × 100 |
 | total_eventos_acumulados   | MongoDB   | documentos en events con fecha anterior al fin de la ventana |
 | pagina_mas_disputada       | Cassandra | página que más reversiones recibió en la hora          |
-| editor_mas_conectado       | Neo4j     | editor humano activo en la hora con más relaciones COEDITA |
-| editor_mas_revertido       | Neo4j     | editor con más reversiones recibidas, entre los revertidos en la hora |
+| editor_mas_conectado       | Neo4j     | editor humano con más coeditores de esa hora |
+| editor_mas_revertido       | Neo4j     | editor con más reversiones recibidas en la hora |
 | calidad_datos_pct          | limpieza  | eventos válidos / eventos extraídos × 100            |
 
 Cada KPI se guarda como (valor, detalle); el detalle lleva el nombre de la entidad cuando aplica.
@@ -47,9 +47,14 @@ def from_cassandra(session, start: datetime, wiki: str | None = None) -> dict:
     if not now:
         return {}
     growth = _pct(now["eventos"] - prev["eventos"], prev["eventos"]) if prev else None
+    growth_detail = None
+    if not prev:
+        growth_detail = "Sin hora anterior"
+    elif not prev["eventos"]:
+        growth_detail = "Hora anterior sin eventos"
     return {
         "eventos_procesados": (now["eventos"], None),
-        "crecimiento_pct": (growth, None if prev else "sin hora anterior"),
+        "crecimiento_pct": (growth, growth_detail),
         "tasa_automatizacion_pct": (_pct(now["eventos_bot"], now["eventos"]), None),
         "actividad_por_editor": (
             round(now["eventos_humanos"] / now["editores_humanos"], 2) if now["editores_humanos"] else None, None),
@@ -77,16 +82,18 @@ def from_mongo(db, start: datetime, end: datetime, wiki: str | None = None) -> d
         {"$group": {
             "_id": None,
             "ediciones": {"$sum": 1},
+            "solo_ediciones": {"$sum": {"$cond": [{"$eq": ["$type", "edit"]}, 1, 0]}},
             "creaciones": {"$sum": {"$cond": [{"$eq": ["$type", "new"]}, 1, 0]}},
-            "reversiones": {"$sum": {"$cond": [{"$ifNull": ["$derived.revert_target", False]}, 1, 0]}},
+            "reversiones": {"$sum": {"$cond": [{"$and": [{"$eq": ["$type", "edit"]}, {"$ifNull": ["$derived.revert_target", False]}]}, 1, 0]}},
             "delta": {"$sum": "$derived.delta_bytes"},
         }},
     ]
-    agg = next(db.events.aggregate(pipeline), None) or {"ediciones": 0, "creaciones": 0, "reversiones": 0, "delta": 0}
+    agg = next(db.events.aggregate(pipeline), None) or {"ediciones": 0, "solo_ediciones": 0, "creaciones": 0, "reversiones": 0, "delta": 0}
     return {
-        "tasa_creacion_pct": (_pct(agg["creaciones"], agg["ediciones"]), None),
+        "tasa_creacion_pct": (_pct(agg["creaciones"], agg["ediciones"]),
+                              f"{agg['creaciones']:,} páginas nuevas de {agg['ediciones']:,} ediciones y creaciones"),
         "volumen_neto_bytes": (agg["delta"], None),
-        "tasa_reversion_pct": (_pct(agg["reversiones"], agg["ediciones"]), f"{agg['reversiones']} reversiones"),
+        "tasa_reversion_pct": (_pct(agg["reversiones"], agg["solo_ediciones"]), f"{agg['reversiones']} reversiones"),
         # Hasta el fin de la ventana: la capa de streaming ya guardó eventos posteriores.
         "total_eventos_acumulados": (
             db.events.count_documents({"wiki": {"$in": wikis}, "derived.event_dt": {"$lt": end}}), None),
@@ -94,27 +101,29 @@ def from_mongo(db, start: datetime, end: datetime, wiki: str | None = None) -> d
 
 
 Q_CONECTADO = """
-MATCH (e:Editor) WHERE e.ultima_actividad >= datetime($start) AND e.tipo <> 'bot'
-  AND ($wiki IS NULL OR EXISTS {
-    (e)-[r:EDITO]->(p:Pagina) WHERE p.wiki = $wiki AND r.ultima_vez >= datetime($start) })
-WITH e, COUNT { (e)-[:COEDITA]-() } AS coeditores
-WHERE coeditores > 0
-RETURN e.user AS nombre, coeditores AS valor ORDER BY valor DESC LIMIT 1
+MATCH (e:Editor)-[r:EDITO]->(p:Pagina)<-[other:EDITO]-(b:Editor)
+WHERE r.ventana >= $start AND r.ventana < $end
+  AND other.ventana >= $start AND other.ventana < $end
+  AND r.tipo <> 'bot' AND other.tipo <> 'bot' AND e <> b
+  AND ($wiki IS NULL OR p.wiki = $wiki)
+WITH e, count(DISTINCT b) AS coeditores
+RETURN e.user AS nombre, coeditores AS valor ORDER BY valor DESC, nombre LIMIT 1
 """
 Q_REVERTIDO = """
-MATCH (:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ultima_vez >= datetime($start) AND ($wiki IS NULL OR r.wiki = $wiki)
-WITH DISTINCT b
-MATCH (a:Editor)-[r:REVIRTIO]->(b) WHERE $wiki IS NULL OR r.wiki = $wiki
+MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor)
+WHERE r.ventana >= $start AND r.ventana < $end AND ($wiki IS NULL OR r.wiki = $wiki)
 WITH b, sum(r.veces) AS reversiones, count(DISTINCT a) AS patrulleros
-RETURN b.user AS nombre, reversiones AS valor, patrulleros ORDER BY valor DESC, patrulleros DESC LIMIT 1
+RETURN b.user AS nombre, reversiones AS valor, patrulleros
+ORDER BY valor DESC, patrulleros DESC, nombre LIMIT 1
 """
 
 
-def from_neo4j(driver, start: datetime, wiki: str | None = None) -> dict:
+def from_neo4j(driver, start: datetime, wiki: str | None = None, end: datetime | None = None) -> dict:
     out = {}
+    end = end or start + timedelta(hours=1)
     with driver.session() as session:
         for kpi, query in (("editor_mas_conectado", Q_CONECTADO), ("editor_mas_revertido", Q_REVERTIDO)):
-            rec = session.run(query, start=start.isoformat(), wiki=wiki).single()
+            rec = session.run(query, start=start.isoformat(), end=end.isoformat(), wiki=wiki).single()
             if rec is None:
                 out[kpi] = (None, None)
             elif kpi == "editor_mas_revertido":
@@ -133,17 +142,47 @@ def compute(start: datetime, end: datetime, clean_stats: dict, cass_session, mon
     kpis = {"calidad_datos_pct": (calidad, None)}
     kpis.update(from_cassandra(cass_session, start, wiki))
     kpis.update(from_mongo(mongo_db, start, end, wiki))
-    kpis.update(from_neo4j(neo_driver, start, wiki))
+    kpis.update(from_neo4j(neo_driver, start, wiki, end))
+    result = next(mongo_db.events.aggregate([
+        {"$match": {"wiki": {"$in": [wiki] if wiki else sorted(config.WIKIS)}, "derived.event_dt": {"$gte": start, "$lt": end},
+                    "derived.user_type": {"$ne": "bot"}}},
+        {"$group": {"_id": "$user", "eventos": {"$sum": 1}}},
+        {"$group": {"_id": None, "editores": {"$sum": 1}, "eventos": {"$sum": "$eventos"}}},
+    ]), None)
+    kpis["actividad_por_editor"] = (round(result["eventos"] / result["editores"], 2) if result else None, None)
     log.info("KPIs de %s (%s): %s", start.isoformat(), wiki or "ambas", kpis)
     return kpis
+
+
+def refresh_following(db, session, start: datetime) -> None:
+    """Propaga una corrección a los acumulados posteriores y al crecimiento de la siguiente hora."""
+    from wikipipe import cassandra_store
+
+    runs = db.pipeline_runs.find({"format_version": 2, "reprocessing": {"$ne": True},
+                                 "window_start_dt": {"$gt": start}}, {"window_start": 1, "window_end": 1})
+    for run in runs:
+        following = datetime.fromisoformat(run["window_start"])
+        end = datetime.fromisoformat(run["window_end"])
+        changes = {}
+        for wiki in [None, *sorted(config.WIKIS)]:
+            query = {"wiki": {"$in": [wiki] if wiki else sorted(config.WIKIS)}, "derived.event_dt": {"$lt": end}}
+            values = {"total_eventos_acumulados": (db.events.count_documents(query), None)}
+            if following == start + timedelta(hours=1):
+                growth = from_cassandra(session, following, wiki).get("crecimiento_pct")
+                if growth:
+                    values["crecimiento_pct"] = growth
+            cassandra_store.write_kpis(session, following, values, wiki)
+            prefix = f"kpis_por_wiki.{wiki}" if wiki else "kpis"
+            for name, (value, detail) in values.items():
+                changes[f"{prefix}.{name}"] = {"valor": value, "detalle": detail}
+        db.pipeline_runs.update_one({"_id": run["_id"]}, {"$set": changes})
 
 
 def rellenar_por_wiki() -> None:
     """Calcula los KPIs por wiki de las ventanas ya procesadas antes de existir `kpis_por_wiki`.
 
     Los de Cassandra y MongoDB salen exactos (se filtran por fecha). La calidad se recalcula
-    desde el archivo crudo de cada ventana. Los de Neo4j solo para la última ventana: el grafo
-    guarda su estado actual, no el de cada hora pasada.
+    desde el archivo crudo de cada ventana. Los de Neo4j usan las contribuciones temporales del modelo 2 para cada ventana.
     Uso: python -m wikipipe.kpis
     """
     import tempfile
@@ -157,7 +196,7 @@ def rellenar_por_wiki() -> None:
     cluster, session = cassandra_store.connect()
     try:
         cassandra_store.ensure_schema(session)
-        session.set_keyspace("wikipipe")
+        session.set_keyspace(config.CASSANDRA_KEYSPACE)
         ventanas = sorted(r.ventana for r in session.execute(
             "SELECT ventana FROM kpis WHERE kpi = 'eventos_procesados'"))
         log.info("Ventanas a rellenar: %d", len(ventanas))
@@ -169,13 +208,11 @@ def rellenar_por_wiki() -> None:
             if raw.exists():
                 with tempfile.TemporaryDirectory() as tmp:
                     calidad = clean_file(raw, Path(tmp) / "c.gz", Path(tmp) / "r.gz").get("quality_by_wiki", {})
-            ultima = i == len(ventanas) - 1
             for wiki in sorted(config.WIKIS):
                 valores = {"calidad_datos_pct": (calidad.get(wiki), None)}
                 valores.update(from_cassandra(session, start, wiki))
                 valores.update(from_mongo(db, start, end, wiki))
-                if ultima:
-                    valores.update(from_neo4j(driver, start, wiki))
+                valores.update(from_neo4j(driver, start, wiki, end))
                 valores = {k: x for k, x in valores.items() if x[0] is not None or k == "crecimiento_pct"}
                 cassandra_store.write_kpis(session, start, valores, wiki)
             print(f"{start:%Y-%m-%d %H:%M} listo ({i + 1}/{len(ventanas)})", flush=True)

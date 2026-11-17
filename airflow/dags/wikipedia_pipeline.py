@@ -80,7 +80,7 @@ def wikipedia_pipeline():
         events = mongo.events_in_window(mongo.get_db(), to_utc(data_interval_start), to_utc(data_interval_end), PROJECTION)
         cluster, session = cassandra_store.connect()
         try:
-            return cassandra_store.load_window(session, events)
+            return cassandra_store.load_window(session, events, to_utc(data_interval_start))
         finally:
             cluster.shutdown()
 
@@ -107,7 +107,7 @@ def wikipedia_pipeline():
         db, driver = mongo.get_db(), neo4j_store.connect()
         cluster, session = cassandra_store.connect()
         try:
-            session.set_keyspace("wikipipe")
+            session.set_keyspace(config.CASSANDRA_KEYSPACE)
             values = kpis.compute(start, end, limpieza, session, db, driver)
             cassandra_store.write_kpis(session, start, values)
             por_wiki = {}
@@ -115,6 +115,7 @@ def wikipedia_pipeline():
                 por_wiki[wiki] = kpis.compute(start, end, limpieza, session, db, driver, wiki)
                 cassandra_store.write_kpis(session, start, por_wiki[wiki], wiki)
             cassandra_store.write_run(session, start, extraccion, limpieza)
+            kpis.refresh_following(db, session, start)
             mongo.record_run(db, {
                 "window_start": start.isoformat(),
                 "window_end": end.isoformat(),

@@ -108,7 +108,7 @@ def extract_window(
                         try:
                             event = json.loads(data)
                             dt = parse_dt(event["meta"]["dt"])
-                        except (ValueError, KeyError, TypeError):
+                        except (ValueError, KeyError, TypeError, AttributeError):
                             stats["unparseable"] += 1
                             continue
                         if event["meta"].get("domain") == "canary":
@@ -139,13 +139,14 @@ def extract_window(
                         if not (start <= dt < end):
                             stats["out_of_window"] += 1
                             continue
-                        if event.get("wiki") not in wikis:
+                        if not isinstance(event.get("wiki"), str) or event["wiki"] not in wikis:
                             stats["other_wikis"] += 1
                             continue
                         meta_id = event["meta"].get("id")
-                        if meta_id in seen_ids:  # duplicado por reconexión
-                            continue
-                        seen_ids.add(meta_id)
+                        if isinstance(meta_id, str) and meta_id:
+                            if meta_id in seen_ids:  # duplicado por reconexión
+                                continue
+                            seen_ids.add(meta_id)
                         fh.write(json.dumps(event, ensure_ascii=False) + "\n")
                         stats["kept"] += 1
                 attempt = 0
