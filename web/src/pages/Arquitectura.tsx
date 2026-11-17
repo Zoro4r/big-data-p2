@@ -213,8 +213,8 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
             <path d="M387 356 V368 Q387 376 395 376 H860 Q868 376 868 368 V356" fill="none" stroke="var(--card)" strokeWidth="6" />
             <path d="M387 356 V368 Q387 376 395 376 H860 Q868 376 868 368 V356" fill="none" stroke={COLOR_CONEXION.flujo} strokeWidth="1.6" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" />
             <path d="M229 244 V122 Q229 110 241 110 H700 Q712 110 712 122 V144" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }}><title>Conteos agregados por minuto, provisionales. Los documentos completos se guardan en MongoDB.</title></path>
-            <path d="M72 356 V408 Q72 418 82 418 H535 Q545 418 545 408 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
-            <path d="M72 356 V408 Q72 418 82 418 H535 Q545 418 545 408 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
+            <path d="M72 356 V432 Q72 442 82 442 H535 Q545 442 545 432 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
+            <path d="M72 356 V432 Q72 442 82 442 H535 Q545 442 545 432 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
           </svg>
           {POSICIONES.map((node) => (
             <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1100}%`, top: node.y, width: `${100 * node.w / 1100}%` }}>
