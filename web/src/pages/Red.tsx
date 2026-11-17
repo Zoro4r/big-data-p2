@@ -124,6 +124,22 @@ export default function RedPage() {
     <>
       <Header ruta={["Panel", "Red de editores"]} />
       <Pagina titulo="Red de editores" descripcion="Explora las relaciones entre editores y descubre quiénes colaboran, revierten cambios o reciben agradecimientos.">
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold">Últimas 24 horas consolidadas · {etiqueta}</h2>
+            {t && <p className="text-sm text-muted-foreground">{intervaloLocal(t.inicio, t.fin)}</p>}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {!t ? Array.from({ length: 3 }, (_, i) => <Cargando key={i} alto={160} />) : (
+              <>
+                <TarjetaKpi etiqueta="Reversiones detectadas" valor={entero(t.reversiones)} pie={`Deshicieron cambios de ${entero(t.editores_revertidos)} editores`} onAbrir={() => setMetrica("reversiones")} />
+                <TarjetaKpi etiqueta="Editores revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="Por 2 o más editores distintos" onAbrir={() => setMetrica("varios")} />
+                <TarjetaKpi etiqueta="Editores que recibieron gracias" valor={entero(t.editores_agradecidos)} pie="Al menos un agradecimiento recibido" onAbrir={() => setMetrica("agradecidos")} />
+              </>
+            )}
+          </div>
+        </div>
+
         <Seccion titulo="Conexiones de un editor" descripcion={`Historial acumulado · ${etiqueta}. Arrastra los nodos, acerca con la rueda o pulsa un editor para ver sus conexiones.`}
           accion={
             <form onSubmit={buscar} className="flex gap-2">
@@ -183,22 +199,6 @@ export default function RedPage() {
             </div>
           </div>
         </Seccion>
-
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Últimas 24 horas consolidadas · {etiqueta}</h2>
-            {t && <p className="text-sm text-muted-foreground">{intervaloLocal(t.inicio, t.fin)}</p>}
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {!t ? Array.from({ length: 3 }, (_, i) => <Cargando key={i} alto={160} />) : (
-              <>
-                <TarjetaKpi etiqueta="Reversiones detectadas" valor={entero(t.reversiones)} pie={`Deshicieron cambios de ${entero(t.editores_revertidos)} editores`} onAbrir={() => setMetrica("reversiones")} />
-                <TarjetaKpi etiqueta="Editores revertidos por varios" valor={entero(t.revertidos_por_varios)} pie="Por 2 o más editores distintos" onAbrir={() => setMetrica("varios")} />
-                <TarjetaKpi etiqueta="Editores que recibieron gracias" valor={entero(t.editores_agradecidos)} pie="Al menos un agradecimiento recibido" onAbrir={() => setMetrica("agradecidos")} />
-              </>
-            )}
-          </div>
-        </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <Seccion titulo="Editores más revertidos" descripcion={`Reversiones recibidas en todo el historial de ${etiqueta}`}>
