@@ -1,5 +1,5 @@
 import type { Kpi, PuntoKpi } from "./kpis"
-import { bytes, entero, horaLocal, porcentaje } from "./format"
+import { bytes, compararValores, entero, horaLocal, porcentaje, type TonoValor } from "./format"
 
 export type VistaResumen = "hora" | "acumulado"
 export type ProtagonistaId = "pagina_mas_disputada" | "editor_mas_conectado" | "editor_mas_revertido"
@@ -21,6 +21,7 @@ export interface Resumen {
 export interface MetricaAcumulada {
   id: string; nombre: string; valor: string; pie: string; principal: boolean
   definicion: string; formula: string; fuente: "mongo" | "cassandra"
+  tonoValor?: TonoValor
 }
 
 export function metricasAcumuladas(data: Resumen | null): MetricaAcumulada[] {
@@ -31,8 +32,8 @@ export function metricasAcumuladas(data: Resumen | null): MetricaAcumulada[] {
       valor: entero(data?.kpis.total_eventos_acumulados[0]?.valor), pie: data?.desde ? `Desde ${horaLocal(data.desde)}` : "Hasta el corte mostrado",
       definicion: "Eventos guardados desde el inicio de la recolección hasta el corte mostrado.",
       formula: "Documentos en events con fecha anterior al corte.", fuente: "mongo" },
-    { id: "contenido", nombre: "Cambio neto de contenido", principal: true,
-      valor: bytes(a?.delta_bytes), pie: "Bytes añadidos menos eliminados",
+    { id: "contenido", nombre: "Variación de contenido", principal: true,
+      valor: bytes(a?.delta_bytes), tonoValor: compararValores(a?.delta_bytes, 0), pie: "Bytes añadidos menos eliminados",
       definicion: "Cambio neto de contenido en todas las horas consolidadas hasta el corte.",
       formula: "Suma de delta_bytes de las horas consolidadas.", fuente: "cassandra" },
     { id: "creaciones", nombre: "Páginas creadas", principal: true,
@@ -52,7 +53,7 @@ export function metricasAcumuladas(data: Resumen | null): MetricaAcumulada[] {
       definicion: "Ediciones que revierten a otro editor, detectadas en todas las horas consolidadas.",
       formula: "Suma de reversiones de las horas consolidadas.", fuente: "cassandra" },
     { id: "creacion", nombre: "Proporción de páginas nuevas", principal: false,
-      valor: porcentaje(creacion), pie: "Entre las ediciones y creaciones acumuladas",
+      valor: porcentaje(creacion), pie: "Entre las ediciones y creaciones",
       definicion: "Parte de las ediciones y creaciones consolidadas que corresponde a páginas nuevas.",
       formula: "Creaciones acumuladas / (ediciones + creaciones acumuladas) × 100.", fuente: "cassandra" },
     { id: "horas", nombre: "Horas consolidadas", principal: false,
