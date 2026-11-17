@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react"
-import { ArrowUpRight, Braces, ChevronLeft, ChevronRight, Cloud, PanelsTopLeft, Radio, RefreshCw, Workflow, Zap } from "lucide-react"
+import { siDocker } from "simple-icons"
+import { ArrowUpRight, Braces, ChevronLeft, ChevronRight, Cloud, PanelsTopLeft, Radio, RefreshCw, Zap } from "lucide-react"
 
 import { Cargando } from "@/components/common"
 import { resaltar } from "@/components/crear-evento"
@@ -41,7 +42,6 @@ const CAJAS: Caja[] = [
   { id: "dashboard", titulo: "Dashboard", oscura: true, etiqueta: "Lo que estás viendo" },
 ]
 const NOMBRE = Object.fromEntries(CAJAS.map((c) => [c.id, c.titulo])) as Record<Id, string>
-const ICONOS_NODO: Partial<Record<Id, typeof Radio>> = { fuente: Radio, rapida: Zap, lotes: Workflow, api: Braces, dashboard: PanelsTopLeft }
 
 const gb = (b?: number | null) => (b == null ? "—" : b >= 1e9 ? `${(b / 1e9).toFixed(2)} GB` : `${(b / 1e6).toFixed(0)} MB`)
 const millones = (n?: number | null) => (n == null ? "—" : n >= 1e6 ? `${(n / 1e6).toFixed(2)} M` : entero(n))
@@ -51,25 +51,62 @@ const hace = (iso?: string | null) => {
   return s < 60 ? `hace ${Math.round(s)} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : horaLocal(iso)
 }
 
+function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbrir: (id: Id) => void }) {
+  const c = CAJAS.find((caja) => caja.id === id)!
+  const accion = { type: "button" as const, onClick: () => onAbrir(id), "aria-label": `${c.titulo}: ver detalle` }
+  const foco = "group relative h-28 w-full text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  if (id === "fuente") return (
+    <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-2 rounded-xl text-center hover:bg-muted/40")}>
+      <span className="flex size-9 items-center justify-center rounded-full border bg-card"><Radio className="size-5" strokeWidth={1.5} aria-hidden /></span>
+      <span className="text-xs font-semibold leading-4">Wikimedia<br />EventStreams</span>
+      <span className="text-[10px] text-muted-foreground">{detalle}</span>
+    </button>
+  )
+  if (c.logo) return (
+    <button {...accion} className={cn(foco, "rounded-xl hover:drop-shadow-sm")}>
+      <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 144 112" preserveAspectRatio="none" fill="none" aria-hidden>
+        <path d="M1 16C1-4 143-4 143 16V96C143 116 1 116 1 96Z" fill="var(--card)" stroke="var(--border)" />
+        <ellipse cx="72" cy="16" rx="71" ry="14" fill="var(--muted)" fillOpacity="0.55" stroke="var(--border)" />
+      </svg>
+      <span className="relative flex h-full flex-col items-center justify-center gap-2 px-2 pt-5">
+        <span className="flex items-center gap-1.5 text-xs font-semibold"><LogoBase base={c.logo} className="size-3.5" />{c.titulo}</span>
+        <span className="text-center text-[10px] leading-4 text-muted-foreground">{detalle}</span>
+      </span>
+    </button>
+  )
+  if (id === "api") return (
+    <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-2 rounded-2xl bg-foreground text-background shadow-sm hover:shadow-md")}>
+      <Braces className="size-5 opacity-80" strokeWidth={1.6} aria-hidden />
+      <span className="text-sm font-semibold">API</span>
+      <span className="text-[10px] opacity-65">FastAPI</span>
+    </button>
+  )
+  if (id === "dashboard") return (
+    <button {...accion} className={cn(foco, "overflow-hidden rounded-lg border bg-card shadow-xs hover:shadow-md")}>
+      <span className="flex h-6 items-center gap-1 border-b bg-muted/40 px-2.5" aria-hidden>
+        {[0, 1, 2].map((i) => <span key={i} className="size-1 rounded-full bg-foreground/20" />)}
+        <span className="ml-1 h-2 flex-1 rounded-sm bg-foreground/5" />
+      </span>
+      <span className="flex flex-col items-center justify-center gap-2 py-4">
+        <span className="flex items-center gap-1.5 text-xs font-semibold"><PanelsTopLeft className="size-3.5 text-muted-foreground" aria-hidden />Dashboard</span>
+        <span className="text-[10px] text-muted-foreground">{detalle}</span>
+      </span>
+    </button>
+  )
+  return (
+    <button {...accion} className={cn(foco, "flex flex-col justify-center gap-3 rounded-xl border bg-card p-3 shadow-xs hover:shadow-md")}>
+      <span className="flex items-center gap-2 text-xs font-semibold">
+        {id === "rapida" ? <Zap className="size-4 text-blue-600 dark:text-blue-400" strokeWidth={1.7} aria-hidden /> : <LogoBase base="airflow" className="size-4" />}
+        {id === "rapida" ? "Streaming" : "Airflow"}
+      </span>
+      <span className="text-[10px] text-muted-foreground">{detalle}</span>
+    </button>
+  )
+}
+
 function NodoArquitectura({ id, detalle, onAbrir, compact = false }: { id: Id; detalle: string; onAbrir: (id: Id) => void; compact?: boolean }) {
     const c = CAJAS.find((caja) => caja.id === id)!
-    if (compact) {
-      const Icono = ICONOS_NODO[id]
-      return (
-        <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
-          className={cn("group relative flex h-[88px] w-full flex-col justify-center gap-1.5 rounded-xl border p-3 text-left transition-[border-color,box-shadow] hover:border-foreground/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            c.oscura ? "border-border bg-muted/40" : "border-border bg-card shadow-xs")}>
-          <ArrowUpRight className="absolute right-2 top-2 size-2.5 text-muted-foreground/50 transition-colors group-hover:text-foreground" aria-hidden />
-          <span className="flex items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted/70">
-              {c.logo ? <LogoBase base={c.logo} className="size-4" /> : Icono && <Icono className="size-4 text-foreground/75" strokeWidth={1.7} aria-hidden />}
-            </span>
-            <span className="text-[13px] font-semibold leading-4">{c.titulo}</span>
-          </span>
-          <span className="pl-[38px] text-[11px] leading-4 text-muted-foreground">{detalle}</span>
-        </button>
-      )
-    }
+    if (compact) return <NodoSistema id={id} detalle={detalle} onAbrir={onAbrir} />
     return (
       <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
         className={cn("relative flex w-full flex-col justify-center gap-1 rounded-xl border text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
@@ -132,14 +169,14 @@ export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
 }
 
 const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
-  { id: "fuente", x: 24, y: 286, w: 144, detalle: "JSON · SSE" },
-  { id: "rapida", x: 216, y: 176, w: 168, detalle: "Ingesta continua" },
-  { id: "lotes", x: 216, y: 396, w: 168, detalle: "Apache Airflow" },
-  { id: "mongo", x: 448, y: 176, w: 168, detalle: "Eventos originales" },
-  { id: "cassandra", x: 448, y: 356, w: 168, detalle: "Minutos y KPIs" },
-  { id: "neo4j", x: 448, y: 496, w: 168, detalle: "Editores y páginas" },
-  { id: "api", x: 696, y: 356, w: 152, detalle: "API de consultas" },
-  { id: "dashboard", x: 896, y: 356, w: 144, detalle: "Interfaz web" },
+  { id: "fuente", x: 12, y: 244, w: 120, detalle: "JSON · SSE" },
+  { id: "rapida", x: 166, y: 244, w: 126, detalle: "Cada ~2 segundos" },
+  { id: "mongo", x: 324, y: 244, w: 126, detalle: "Eventos completos" },
+  { id: "lotes", x: 482, y: 244, w: 126, detalle: "Lotes · cada hora" },
+  { id: "cassandra", x: 640, y: 144, w: 144, detalle: "Minutos y KPIs" },
+  { id: "neo4j", x: 640, y: 384, w: 144, detalle: "Editores y páginas" },
+  { id: "api", x: 818, y: 244, w: 100, detalle: "FastAPI" },
+  { id: "dashboard", x: 960, y: 244, w: 128, detalle: "React · navegador" },
 ]
 
 const COLOR_CONEXION = { flujo: "#94a3b8", conteos: "#5b8fd1", recuperacion: "#9671c6" }
@@ -153,38 +190,34 @@ export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) 
   return (
     <div className="overflow-hidden rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
       <div className="overflow-x-auto">
-        <div className="relative h-[640px] min-w-[1060px]">
-          <div className="absolute left-[18.1%] right-[17.7%] top-6 bottom-6 rounded-2xl border bg-muted/15" />
-          <div className="absolute left-[20.4%] right-[20%] top-11 flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2 text-xs font-semibold"><Cloud className="size-4 text-muted-foreground" strokeWidth={1.7} aria-hidden />Google Cloud<span className="font-normal text-muted-foreground">· Máquina virtual</span></span>
-            <span className="rounded-md border bg-card px-2 py-1 text-[10px] font-medium text-muted-foreground">Docker Compose</span>
+        <div className="relative h-[560px] min-w-[1100px]">
+          <div className="absolute left-[13.45%] right-[15.1%] top-7 bottom-6 rounded-2xl border border-blue-200/70 bg-blue-50/35 dark:border-blue-900/60 dark:bg-blue-950/10" />
+          <div className="absolute left-[15.25%] right-[17%] top-11 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2.5"><Cloud className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden /><span className="flex flex-col gap-0.5"><span className="text-xs font-semibold">Google Cloud</span><span className="text-[10px] text-muted-foreground">Máquina virtual</span></span></span>
+            <span className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-100/80 px-3 py-2 text-xs font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden><path d={siDocker.path} /></svg>
+              Docker Compose
+            </span>
           </div>
-          {([ [216, "Procesamiento"], [448, "Almacenamiento"], [696, "Consultas"] ] as const).map(([x, nombre]) => (
-            <span key={nombre} className="absolute top-[116px] text-[11px] font-semibold tracking-wide text-muted-foreground" style={{ left: `${100 * x / 1060}%` }}>{nombre}</span>
-          ))}
-          <span className="absolute left-[2.3%] top-[254px] text-[11px] font-medium text-muted-foreground">Origen</span>
-          <span className="absolute left-[84.5%] top-[324px] text-[11px] font-medium text-muted-foreground">Cliente web</span>
-          <svg className="absolute inset-0 size-full" viewBox="0 0 1060 640" preserveAspectRatio="none" aria-hidden>
+          <span className="absolute left-[1.1%] top-[214px] text-[10px] font-medium text-muted-foreground">Fuente de datos</span>
+          <span className="absolute left-[87.3%] top-[214px] text-[10px] font-medium text-muted-foreground">Visualización</span>
+          <svg className="absolute inset-0 size-full" viewBox="0 0 1100 560" preserveAspectRatio="none" aria-hidden>
             <defs>
               <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
             </defs>
             <g style={{ color: COLOR_CONEXION.flujo }} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arquitectura-flecha)">
-              <path d="M168 316 H176 Q184 316 184 308 V228 Q184 220 192 220 H216" />
-              <path d="M384 220 H448" />
-              <path d="M532 264 V288 Q532 300 520 300 H420 Q408 300 408 312 V428 Q408 440 396 440 H384" />
-              <path d="M384 412 H416 Q428 412 428 400 H448" />
-              <path d="M384 464 H404 Q416 464 416 476 V528 Q416 540 428 540 H448" />
-              <path d="M616 220 H644 Q656 220 656 232 V368 Q656 380 668 380 H696" />
-              <path d="M616 400 H696" />
-              <path d="M616 540 H644 Q656 540 656 528 V432 Q656 420 668 420 H696" />
-              <path d="M848 400 H896" />
+              <path d="M132 300 H166" /><path d="M292 300 H324" /><path d="M450 300 H482" />
+              <path d="M608 274 C624 274 624 200 640 200" /><path d="M608 326 C624 326 624 440 640 440" />
+              <path d="M784 200 C801 200 801 274 818 274" /><path d="M784 440 C801 440 801 326 818 326" />
+              <path d="M918 300 H960" />
+              <path d="M387 356 V496 Q387 508 399 508 H856 Q868 508 868 496 V356" />
             </g>
-            <path d="M300 264 V324 Q300 336 312 336 H520 Q532 336 532 348 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
-            <path d="M300 264 V324 Q300 336 312 336 H520 Q532 336 532 348 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
-            <path d="M168 348 H184 Q196 348 196 360 V428 Q196 440 208 440 H216" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
+            <path d="M229 244 V122 Q229 110 241 110 H700 Q712 110 712 122 V144" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }} />
+            <path d="M72 356 V442 Q72 454 84 454 H533 Q545 454 545 442 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
+            <path d="M72 356 V442 Q72 454 84 454 H533 Q545 454 545 442 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
           </svg>
           {POSICIONES.map((node) => (
-            <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
+            <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1100}%`, top: node.y, width: `${100 * node.w / 1100}%` }}>
               <NodoArquitectura id={node.id} detalle={node.detalle} onAbrir={onAbrir} compact />
             </div>
           ))}
