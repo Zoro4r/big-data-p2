@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react"
-import { ArrowUpRight, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
+import { siDocker } from "simple-icons"
+import { ArrowUpRight, Braces, ChevronLeft, ChevronRight, Cloud, PanelsTopLeft, Radio, RefreshCw, Zap } from "lucide-react"
 
 import { Cargando } from "@/components/common"
 import { resaltar } from "@/components/crear-evento"
@@ -7,6 +8,7 @@ import { LogoBase, type Base } from "@/components/fuente"
 import { Header, Pagina } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useApi } from "@/lib/api"
 import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -28,32 +30,18 @@ interface Datos {
 type Id = "fuente" | "rapida" | "lotes" | "mongo" | "cassandra" | "neo4j" | "api" | "dashboard"
 const ORDEN: Id[] = ["fuente", "rapida", "lotes", "mongo", "cassandra", "neo4j", "api", "dashboard"]
 
-interface Caja { id: Id; x: number; y: number; w: number; h: number; titulo: string; lineas: string[]; oscura?: boolean; logo?: Base; etiqueta: string }
+interface Caja { id: Id; titulo: string; oscura?: boolean; logo?: Base; etiqueta: string }
 const CAJAS: Caja[] = [
-  { id: "fuente", x: 16, y: 120, w: 160, h: 100, titulo: "Wikimedia EventStreams", lineas: ["stream recentchange · JSON por SSE"], oscura: true, etiqueta: "Los datos que llegan · origen, estructura y características" },
-  { id: "rapida", x: 214, y: 40, w: 200, h: 80, titulo: "Capa rápida", lineas: ["servicio stream · guarda cada ~2 s"], etiqueta: "Servicio stream · eventos al instante" },
-  { id: "lotes", x: 214, y: 200, w: 200, h: 120, titulo: "Capa por lotes", lineas: ["DAG de Airflow · cada hora", "extraer → validar → cargar → KPIs"], etiqueta: "El flujo de Airflow, paso a paso" },
-  { id: "mongo", x: 470, y: 30, w: 190, h: 70, titulo: "MongoDB", lineas: ["eventos originales"], logo: "mongo", etiqueta: "Almacenamiento · los eventos tal como llegan" },
-  { id: "cassandra", x: 470, y: 145, w: 190, h: 70, titulo: "Cassandra", lineas: ["series de tiempo y KPIs"], logo: "cassandra", etiqueta: "Almacenamiento · series de tiempo y KPIs" },
-  { id: "neo4j", x: 470, y: 260, w: 190, h: 70, titulo: "Neo4j", lineas: ["red de editores y páginas"], logo: "neo4j", etiqueta: "Almacenamiento · la red de colaboración" },
-  { id: "api", x: 720, y: 130, w: 150, h: 100, titulo: "API FastAPI", lineas: ["lee las tres bases"], etiqueta: "Qué base consulta cada vista" },
-  { id: "dashboard", x: 930, y: 130, w: 170, h: 100, titulo: "Dashboard", lineas: ["React + shadcn"], oscura: true, etiqueta: "Lo que estás viendo" },
+  { id: "fuente", titulo: "Wikimedia EventStreams", oscura: true, etiqueta: "Los datos que llegan · origen, estructura y características" },
+  { id: "rapida", titulo: "Capa rápida", etiqueta: "Servicio stream · eventos al instante" },
+  { id: "lotes", titulo: "Capa por lotes", etiqueta: "El flujo de Airflow, paso a paso" },
+  { id: "mongo", titulo: "MongoDB", logo: "mongo", etiqueta: "Almacenamiento · los eventos tal como llegan" },
+  { id: "cassandra", titulo: "Cassandra", logo: "cassandra", etiqueta: "Almacenamiento · series de tiempo y KPIs" },
+  { id: "neo4j", titulo: "Neo4j", logo: "neo4j", etiqueta: "Almacenamiento · la red de colaboración" },
+  { id: "api", titulo: "API FastAPI", etiqueta: "Qué base consulta cada vista" },
+  { id: "dashboard", titulo: "Dashboard", oscura: true, etiqueta: "Lo que estás viendo" },
 ]
 const NOMBRE = Object.fromEntries(CAJAS.map((c) => [c.id, c.titulo])) as Record<Id, string>
-
-/** Flechas del flujo. El lote lee cada hora de MongoDB (lo que guardó el stream); la punteada es el respaldo:
- *  si el stream no cubrió la hora, el lote la pide a EventStreams. */
-const FLECHAS: { d: string; respaldo?: boolean }[] = [
-  { d: "M176 160 C 195 160, 195 75, 214 75" },                       // EventStreams → capa rápida
-  { d: "M176 185 C 195 185, 195 275, 214 275", respaldo: true },     // EventStreams → capa por lotes (respaldo)
-  { d: "M414 58 C 440 58, 440 55, 470 55" },                         // capa rápida → MongoDB
-  { d: "M414 100 C 442 100, 442 168, 470 168" },                     // capa rápida → Cassandra
-  { d: "M470 82 C 440 82, 444 222, 414 222" },                       // MongoDB → capa por lotes (lee la hora)
-  { d: "M414 252 C 442 252, 442 192, 470 192" },                     // capa por lotes → Cassandra
-  { d: "M414 292 C 442 292, 442 295, 470 295" },                     // capa por lotes → Neo4j
-  { d: "M660 65 C 690 65, 690 168, 720 168" }, { d: "M660 180 L 720 180" }, { d: "M660 295 C 690 295, 690 192, 720 192" },
-  { d: "M870 180 L 930 180" },
-]
 
 const gb = (b?: number | null) => (b == null ? "—" : b >= 1e9 ? `${(b / 1e9).toFixed(2)} GB` : `${(b / 1e6).toFixed(0)} MB`)
 const millones = (n?: number | null) => (n == null ? "—" : n >= 1e6 ? `${(n / 1e6).toFixed(2)} M` : entero(n))
@@ -63,32 +51,189 @@ const hace = (iso?: string | null) => {
   return s < 60 ? `hace ${Math.round(s)} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : horaLocal(iso)
 }
 
-function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
+function NodoSistema({ id, detalle, onAbrir }: { id: Id; detalle: string; onAbrir: (id: Id) => void }) {
+  const c = CAJAS.find((caja) => caja.id === id)!
+  const accion = { type: "button" as const, onClick: () => onAbrir(id), "aria-label": `${c.titulo}: ver detalle` }
+  const foco = "group relative h-28 w-full text-center transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+  if (id === "fuente") return (
+    <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-2 rounded-xl text-center hover:bg-muted/40")}>
+      <span className="flex size-9 items-center justify-center rounded-full border bg-card"><Radio className="size-5" strokeWidth={1.5} aria-hidden /></span>
+      <span className="text-[13px] font-semibold leading-[18px]">Wikimedia<br />EventStreams</span>
+      <span className="text-[13px] text-muted-foreground">{detalle}</span>
+    </button>
+  )
+  if (c.logo) return (
+    <button {...accion} className={cn(foco, "rounded-xl hover:drop-shadow-sm")}>
+      <svg className="pointer-events-none absolute inset-0 size-full" viewBox="0 0 144 112" preserveAspectRatio="none" fill="none" aria-hidden>
+        <path d="M1 16C1-4 143-4 143 16V96C143 116 1 116 1 96Z" fill="var(--card)" stroke="var(--border)" />
+        <ellipse cx="72" cy="16" rx="71" ry="14" fill="var(--muted)" fillOpacity="0.55" stroke="var(--border)" />
+      </svg>
+      <span className="relative flex h-full flex-col items-center justify-center gap-2 px-2 pt-5">
+        <span className="flex items-center justify-center gap-1.5 text-sm font-semibold"><LogoBase base={c.logo} className="size-3.5" />{c.titulo}</span>
+        <span className="text-center text-[13px] leading-4 text-muted-foreground">{detalle}</span>
+      </span>
+    </button>
+  )
+  if (id === "api") return (
+    <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-2 rounded-2xl bg-foreground text-background shadow-sm hover:shadow-md")}>
+      <Braces className="size-5 opacity-80" strokeWidth={1.6} aria-hidden />
+      <span className="text-sm font-semibold">API</span>
+      <span className="text-[13px] opacity-65">FastAPI</span>
+    </button>
+  )
+  if (id === "dashboard") return (
+    <button {...accion} className={cn(foco, "overflow-hidden rounded-lg border bg-card shadow-xs hover:shadow-md")}>
+      <span className="flex h-6 items-center gap-1 border-b bg-muted/40 px-2.5" aria-hidden>
+        {[0, 1, 2].map((i) => <span key={i} className="size-1 rounded-full bg-foreground/20" />)}
+        <span className="ml-1 h-2 flex-1 rounded-sm bg-foreground/5" />
+      </span>
+      <span className="flex flex-col items-center justify-center gap-2 py-4">
+        <span className="flex items-center justify-center gap-1.5 text-sm font-semibold"><PanelsTopLeft className="size-3.5 text-muted-foreground" aria-hidden />Dashboard</span>
+        <span className="text-[13px] text-muted-foreground">{detalle}</span>
+      </span>
+    </button>
+  )
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card shadow-xs">
-      <div className="relative mx-auto h-[372px] w-[1120px]">
-        <svg aria-hidden className="absolute inset-0 size-full text-muted-foreground/50">
-          <defs>
-            <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" /></marker>
-          </defs>
-          <g stroke="currentColor" strokeWidth={1.5} fill="none" markerEnd="url(#flecha)">
-            {FLECHAS.map((f) => <path key={f.d} d={f.d} strokeDasharray={f.respaldo ? "5 4" : undefined} />)}
-          </g>
-        </svg>
-        {CAJAS.map((c) => (
-          <button key={c.id} type="button" onClick={() => onAbrir(c.id)} aria-label={`${c.titulo}: ver detalle`}
-            style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
-            className={cn("group absolute flex flex-col justify-center gap-1 rounded-xl border px-3 py-2.5 text-left transition-[border-color,box-shadow] outline-none hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              c.oscura ? "border-foreground bg-foreground text-background" : "bg-card hover:border-foreground/40")}>
-            <ArrowUpRight className="absolute top-2 right-2 size-3.5 opacity-40 transition-opacity group-hover:opacity-100" aria-hidden />
-            <span className="flex items-center gap-1.5 pr-4 text-[13.5px] leading-tight font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
-            {c.lineas.map((l) => <span key={l} className={cn("text-xs leading-snug", c.oscura ? "opacity-75" : "text-muted-foreground")}>{l}</span>)}
-          </button>
-        ))}
-        <p className="absolute bottom-3 left-4 text-xs text-muted-foreground">
-          El lote lee cada hora de MongoDB, donde ya la guardó el stream. La línea punteada es el respaldo: si el stream no cubrió la hora, el lote la pide a EventStreams.
+    <button {...accion} className={cn(foco, "flex flex-col items-center justify-center gap-3 rounded-xl border bg-card p-3 shadow-xs hover:shadow-md")}>
+      <span className="flex items-center justify-center gap-2 text-sm font-semibold">
+        {id === "rapida" ? <Zap className="size-4 text-blue-600 dark:text-blue-400" strokeWidth={1.7} aria-hidden /> : <LogoBase base="airflow" className="size-4" />}
+        {id === "rapida" ? "Streaming" : "Airflow"}
+      </span>
+      <span className="text-[13px] text-muted-foreground">{detalle}</span>
+    </button>
+  )
+}
+
+function NodoArquitectura({ id, detalle, onAbrir, compact = false }: { id: Id; detalle: string; onAbrir: (id: Id) => void; compact?: boolean }) {
+    const c = CAJAS.find((caja) => caja.id === id)!
+    if (compact) return <NodoSistema id={id} detalle={detalle} onAbrir={onAbrir} />
+    return (
+      <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
+        className={cn("relative flex w-full flex-col items-center justify-center gap-1 rounded-xl border text-center transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+          "min-h-20 p-4", c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
+        <ArrowUpRight className="absolute right-3 top-3 size-3 opacity-40" aria-hidden />
+        <span className="flex items-center justify-center gap-2 text-sm font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
+        <span className={cn("text-[13px]", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
+      </button>
+    )
+}
+
+export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
+  const nodo = (id: Id, detalle: string) => <NodoArquitectura id={id} detalle={detalle} onAbrir={onAbrir} />
+  const flecha = <ChevronRight className="mx-auto size-5 shrink-0 rotate-90 text-muted-foreground sm:rotate-0" aria-hidden />
+  return (
+    <div className="space-y-6 rounded-xl border bg-card p-5 shadow-xs sm:p-6">
+      <section className="space-y-3" aria-label="Flujo en vivo">
+        <h2 className="text-sm font-semibold">En vivo · cada ~2 segundos</h2>
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
+          {nodo("fuente", "Envía eventos JSON")}{flecha}
+          {nodo("rapida", "Valida los eventos y escribe dos resultados")}{flecha}
+          <div className="space-y-2">
+            {nodo("mongo", "Documento completo de cada evento")}
+            {nodo("cassandra", "Conteos por minuto · provisionales")}
+          </div>
+        </div>
+      </section>
+      <section className="space-y-3 border-t pt-5" aria-label="Consolidación horaria">
+        <h2 className="text-sm font-semibold">Consolidación · cada hora</h2>
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
+          {nodo("mongo", "Airflow lee los eventos de la hora completa")}{flecha}
+          {nodo("lotes", "Valida, transforma y calcula indicadores")}{flecha}
+          <div className="space-y-2">
+            {nodo("cassandra", "Resúmenes y KPIs · corrige los minutos")}
+            {nodo("neo4j", "Relaciones de esa hora entre editores y páginas")}
+          </div>
+        </div>
+        <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Recuperación de una hora incompleta · Airflow la solicita a Wikimedia y guarda los eventos faltantes en MongoDB antes de consolidar.
         </p>
+      </section>
+      <section className="space-y-3 border-t pt-5" aria-label="Consulta del dashboard">
+        <h2 className="text-sm font-semibold">Consulta y visualización</h2>
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
+          <div className="grid gap-1.5">
+            {([ ["mongo", "MongoDB", "Eventos"], ["cassandra", "Cassandra", "Métricas"], ["neo4j", "Neo4j", "Relaciones"] ] as const).map(([id, nombre, descripcion]) => (
+              <button key={id} type="button" onClick={() => onAbrir(id)} aria-label={`${nombre} · ${descripcion}: ver detalle`} title={nombre}
+                className="flex min-h-8 items-center justify-center gap-2 rounded-md border bg-card px-3 py-1.5 text-[13px] transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <LogoBase base={id} className="size-3.5" />
+                <span className="font-semibold">{descripcion}</span>
+              </button>
+            ))}
+          </div>
+          {flecha}{nodo("api", "Consulta cada base según la vista")}{flecha}{nodo("dashboard", "En vivo, horas consolidadas e historial")}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
+  { id: "fuente", x: 12, y: 244, w: 120, detalle: "JSON · SSE" },
+  { id: "rapida", x: 166, y: 244, w: 126, detalle: "Cada ~2 segundos" },
+  { id: "mongo", x: 324, y: 244, w: 126, detalle: "Documentos completos" },
+  { id: "lotes", x: 482, y: 244, w: 126, detalle: "Lotes · cada hora" },
+  { id: "cassandra", x: 640, y: 144, w: 144, detalle: "Minutos y KPIs" },
+  { id: "neo4j", x: 640, y: 392, w: 144, detalle: "Editores y páginas" },
+  { id: "api", x: 818, y: 244, w: 100, detalle: "FastAPI" },
+  { id: "dashboard", x: 960, y: 244, w: 128, detalle: "React · navegador" },
+]
+
+const COLOR_CONEXION = { flujo: "#94a3b8", conteos: "#5b8fd1", recuperacion: "#9671c6" }
+const LEYENDAS_ARQUITECTURA = [
+  { texto: "Flujo y consultas", color: COLOR_CONEXION.flujo, discontinua: false },
+  { texto: "Conteos agregados/min · provisionales", color: COLOR_CONEXION.conteos, discontinua: false },
+  { texto: "Recuperación de horas incompletas", color: COLOR_CONEXION.recuperacion, discontinua: true },
+]
+
+export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) {
+  return (
+    <div className="overflow-hidden rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
+      <div className="overflow-x-auto">
+        <div className="relative h-[560px] min-w-[1100px]">
+          <div className="absolute left-[13.45%] right-[15.1%] top-7 bottom-6 rounded-2xl border border-blue-200/70 bg-blue-50/35 dark:border-blue-900/60 dark:bg-blue-950/10" />
+          <div className="absolute left-[15.25%] right-[17%] top-11 flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2.5"><Cloud className="size-5 text-muted-foreground" strokeWidth={1.5} aria-hidden /><span className="flex flex-col gap-0.5"><span className="text-[13px] font-semibold">Google Cloud</span><span className="text-xs text-muted-foreground">Máquina virtual</span></span></span>
+            <span className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-100/80 px-3 py-2 text-[13px] font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden><path d={siDocker.path} /></svg>
+              Docker Compose
+            </span>
+          </div>
+          <span className="absolute left-[1.1%] top-[214px] w-[10.9%] text-xs font-medium text-muted-foreground text-center">Fuente de datos</span>
+          <span className="absolute left-[87.3%] top-[214px] w-[11.64%] text-xs font-medium text-muted-foreground text-center">Visualización</span>
+          <svg className="absolute inset-0 size-full" viewBox="0 0 1100 560" preserveAspectRatio="none" aria-hidden>
+            <defs>
+              <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="context-stroke" /></marker>
+            </defs>
+            <g style={{ color: COLOR_CONEXION.flujo }} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arquitectura-flecha)">
+              <path d="M132 300 H166" /><path d="M292 300 H324" /><path d="M450 300 H482" />
+              <path d="M608 274 C624 274 624 200 640 200" /><path d="M608 326 C624 326 624 448 640 448" />
+              <path d="M784 200 C801 200 801 274 818 274" /><path d="M784 448 C801 448 801 326 818 326" />
+              <path d="M918 300 H960" />
+            </g>
+            <path d="M387 356 V368 Q387 376 395 376 H860 Q868 376 868 368 V356" fill="none" stroke="var(--card)" strokeWidth="6" />
+            <path d="M387 356 V368 Q387 376 395 376 H860 Q868 376 868 368 V356" fill="none" stroke={COLOR_CONEXION.flujo} strokeWidth="1.6" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" />
+            <path d="M229 244 V122 Q229 110 241 110 H700 Q712 110 712 122 V144" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.conteos }}><title>Conteos agregados por minuto, provisionales. Los documentos completos se guardan en MongoDB.</title></path>
+            <path d="M72 356 V476 Q72 486 82 486 H535 Q545 486 545 476 V356" fill="none" stroke="var(--card)" strokeWidth="7" />
+            <path d="M72 356 V476 Q72 486 82 486 H535 Q545 486 545 476 V356" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" style={{ color: COLOR_CONEXION.recuperacion }} />
+          </svg>
+          {POSICIONES.map((node) => (
+            <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1100}%`, top: node.y, width: `${100 * node.w / 1100}%` }}>
+              <NodoArquitectura id={node.id} detalle={node.detalle} onAbrir={onAbrir} compact />
+            </div>
+          ))}
+        </div>
       </div>
+      <ul className="flex flex-wrap justify-between gap-x-6 gap-y-3 border-t bg-muted/10 px-6 py-5 text-[13px] font-semibold text-foreground" aria-label="Leyenda de conexiones">
+        {LEYENDAS_ARQUITECTURA.map(({ texto, color, discontinua }) => (
+          <li key={texto} className="flex items-center gap-2">
+            <svg width="32" height="12" viewBox="0 0 32 12" fill="none" style={{ color }} aria-hidden>
+              <path d="M1 6H30" stroke="currentColor" strokeWidth="2" strokeDasharray={discontinua ? "4 3" : undefined} />
+              <path d="M26 2L30 6L26 10" stroke="currentColor" strokeWidth="2" />
+            </svg>
+            {texto}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -298,7 +443,7 @@ function CapaRapida({ d }: { d: Datos }) {
       </Bloque>
       <Bloque titulo="Por qué existe, si ya está el DAG">
         El DAG corre una vez por hora: sin esta capa, el dashboard mostraría datos con hasta una hora de atraso. Es una arquitectura Lambda: la capa rápida da
-        inmediatez y la capa por lotes da exactitud (cada hora recalcula y corrige los conteos). Las dos usan el mismo <Codigo>_id</Codigo>, así que no hay duplicados.
+        inmediatez y la capa por lotes da exactitud (cada hora recalcula y corrige los conteos). Los eventos se identifican por <Codigo>meta.id</Codigo>. Los conteos se reconstruyen desde MongoDB y las escrituras se coordinan por hora.
       </Bloque>
     </>
   )
@@ -312,7 +457,7 @@ const PASOS: [string, string, string][] = [
   ["validar_y_limpiar", "Descarta eventos sin meta, sin campos obligatorios, de tipo desconocido o con fecha mal formada, y agrega el bloque derived. Los rechazados se guardan con su motivo.", "Archivo limpio + rechazados"],
   ["cargar_mongo", "Inserta o reemplaza los eventos limpios en la colección events. Si la hora se leyó de MongoDB no escribe nada: ya está ahí completa.", "MongoDB"],
   ["cargar_cassandra", "Agrega la hora: totales, serie por minuto, actividad por editor y páginas más editadas.", "Cassandra"],
-  ["cargar_neo4j", "Crea o actualiza con MERGE los editores, páginas y categorías, y sus relaciones.", "Neo4j"],
+  ["cargar_neo4j", "Reemplaza las contribuciones de la hora y de cada wiki, y actualiza las relaciones acumuladas afectadas.", "Neo4j"],
   ["calcular_kpis", "Calcula los 12 KPIs de la hora (global y por wiki) con las tres bases y los guarda.", "Cassandra"],
 ]
 
@@ -369,7 +514,7 @@ function Mongo({ d }: { d: Datos }) {
       <TresBloques
         que="Cada evento completo, tal como llega del stream, más el bloque derived que agrega la limpieza. Un documento por evento en la colección events."
         porque="Los 4 tipos de evento tienen campos distintos y objetos anidados; un esquema flexible los guarda sin forzar columnas vacías y permite consultar campos anidados (length.new, log_params…)."
-        quien="El servicio stream (cada ~2 s) y la tarea cargar_mongo del DAG (cada hora). Las dos usan el mismo _id, que es el meta.id del evento." />
+        quien="El servicio stream guarda cada evento. Airflow completa los eventos de horas sin cobertura. Ambos identifican el evento mediante meta.id." />
       <div className="grid gap-3 sm:grid-cols-3">
         <Cifra titulo="Documentos" valor={millones(d.mongo.eventos)} texto={`Desde el ${d.mongo.desde ? horaLocal(d.mongo.desde) : "—"} UTC−5.`} />
         <Cifra titulo="Tamaño de los datos" valor={gb(d.mongo.tamano_bytes)} texto={`${gb(d.mongo.disco_bytes)} en disco, comprimido.`} />
@@ -434,10 +579,10 @@ function Neo4j({ d }: { d: Datos }) {
       <TresBloques
         que="Editores, páginas, categorías y wikis, unidos por lo que hacen: editar, crear, revertir, agradecer, bloquear, compartir páginas…"
         porque="Las preguntas son de conexiones: quién revierte a quién, qué editores comparten páginas, qué página atrae a más editores. En un grafo se responden recorriendo vecinos, sin joins costosos."
-        quien="La tarea cargar_neo4j del DAG, cada hora, con MERGE (si el nodo o la relación ya existe, se actualiza)." />
+        quien="La tarea cargar_neo4j del DAG reemplaza las contribuciones de cada hora y wiki mediante una transacción." />
       <div className="grid gap-3 sm:grid-cols-2">
         <Cifra titulo="Nodos" valor={millones(nodos)} texto={Object.entries(d.grafo.nodos).map(([k, v]) => `${k} ${millones(v)}`).join(" · ")} />
-        <Cifra titulo="Relaciones" valor={millones(rels)} texto="De 11 tipos: con el contenido y entre editores." />
+        <Cifra titulo="Relaciones almacenadas" valor={millones(rels)} texto="Contribuciones de cada hora y wiki, junto con las relaciones acumuladas del grafo." />
       </div>
       <Imagen src="/img/esquema-grafo.png" alt="Esquema del grafo: nodos Editor, Página, Wiki y Categoría con sus 11 relaciones"
         pie="Esquema del grafo · 4 tipos de nodo y 11 tipos de relación. Arriba, la capa entre editores; abajo, la que los une con el contenido." />
@@ -455,11 +600,11 @@ function Neo4j({ d }: { d: Datos }) {
 }
 
 const VISTAS: [string, Base[], string][] = [
-  ["Resumen y KPIs", ["cassandra", "neo4j"], "KPIs y resumen por hora (Cassandra) y protagonistas del grafo (Neo4j)."],
+  ["Resumen y KPIs", ["cassandra", "mongo"], "KPIs y protagonistas de una hora, calculados por el DAG y almacenados en Cassandra."],
   ["En vivo", ["mongo", "cassandra"], "Últimos eventos (MongoDB) y conteos por minuto (Cassandra)."],
   ["Actividad en el tiempo", ["cassandra"], "Serie por minuto e historial de cada editor."],
   ["Explorador de eventos", ["mongo"], "Búsqueda y conteos sobre los eventos."],
-  ["Red de editores", ["neo4j"], "Rankings, páginas disputadas y la red alrededor de un editor."],
+  ["Red de editores", ["neo4j", "cassandra"], "Rankings, páginas disputadas y la red alrededor de un editor."],
   ["Operaciones CRUD", ["mongo", "cassandra", "neo4j"], "Crear, consultar, actualizar y eliminar en las tres bases."],
   ["Arquitectura", ["mongo", "cassandra", "neo4j"], "Cifras de esta página."],
 ]
@@ -533,7 +678,14 @@ export default function ArquitecturaPage() {
     <>
       <Header ruta={["Proyecto", "Arquitectura"]} />
       <Pagina titulo="Arquitectura" descripcion="Cómo llegan los datos de Wikipedia, cómo se procesan y en qué base se guarda cada parte. Haz clic en un componente para ver su detalle.">
-        <Diagrama onAbrir={setAbierto} />
+        <Tabs defaultValue="arquitectura" className="gap-5">
+          <TabsList aria-label="Vista de arquitectura">
+            <TabsTrigger value="arquitectura">Arquitectura</TabsTrigger>
+            <TabsTrigger value="funcionamiento">Cómo funciona</TabsTrigger>
+          </TabsList>
+          <TabsContent value="arquitectura"><ArquitecturaGeneral onAbrir={setAbierto} /></TabsContent>
+          <TabsContent value="funcionamiento"><Diagrama onAbrir={setAbierto} /></TabsContent>
+        </Tabs>
       </Pagina>
       <Detalle id={abierto} d={data} onCambiar={setAbierto} />
     </>
