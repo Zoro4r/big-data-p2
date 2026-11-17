@@ -1405,6 +1405,14 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - los KPIs de la Fundación se dicen con precisión;
     - las frases largas se partieron.
   - Guion y notas de las diapositivas iguales en ambos decks.
+- **Rama `dev-ian` (17 nov):**
+  - **Qué es:** 32 commits de Ian que no están en `main`, hechos el 16 y 17 de noviembre sobre `main` del 13. Traen un «modelo 2» de datos: contribuciones de Neo4j por hora y wiki, coordinación entre el streaming y Airflow mediante `pipeline_windows`, y `rebuild.py`, que vacía y reconstruye Neo4j. También rediseñan el dashboard (Resumen por hora y acumulado, paleta pastel) y suman pruebas.
+  - **Decisión:** por la entrega no se integra entera. Exigiría reconstruir los datos en producción y choca con los cambios del dashboard posteriores al 13. Se trajo solo la página de Arquitectura de Ian (commit `feat: bring architecture diagram from dev-ian`).
+  - **La Arquitectura de Ian:**
+    - Tiene las pestañas «Arquitectura» y «Cómo funciona», la VM y Docker Compose como contenedor, una leyenda de flechas y el logo oficial de Airflow.
+    - Son 3 archivos: [Arquitectura.tsx](../web/src/pages/Arquitectura.tsx), [fuente.tsx](../web/src/components/fuente.tsx) y `web/public/img/airflow.svg`.
+    - Usa los mismos datos de `/api/arquitectura` que la versión anterior. Se verificó con datos reales antes de integrarla.
+  - **El resto de la rama** queda para después de la entrega.
 - **Incidente en la VM (17 nov, 05:00–11:42 UTC):** la VM dejó de responder (Airflow, SSH y los registros) justo cuando arrancaba la corrida de las 05:00.
   - **Causa:**
     - Una regresión de `ext4` en el kernel de Debian 6.1.0-55 (paquete 6.1.192-1, DLA-4906-1), que instalaron las actualizaciones automáticas. El fallo es un `NULL pointer dereference` en `ext4_mb_load_buddy_gfp` y `ext4_mb_regular_allocator` al reservar espacio en disco.
