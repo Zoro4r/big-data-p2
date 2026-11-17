@@ -192,4 +192,10 @@ resource "google_compute_instance" "vm" {
   }
 
   depends_on = [google_storage_bucket_object.code, google_storage_bucket_iam_member.vm_bucket]
+
+  # El disco se puede ampliar en caliente con gcloud; cambiar el tamaño aquí recrearía la VM y
+  # borraría los datos, así que Terraform solo lo usa al crearla.
+  lifecycle {
+    ignore_changes = [boot_disk[0].initialize_params[0].size]
+  }
 }
