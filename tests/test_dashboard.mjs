@@ -23,7 +23,7 @@ await build({
       import { TarjetaKpi } from "./src/components/common"
       import Arquitectura, { Diagrama } from "./src/pages/Arquitectura"
       export { KPIS, cambio } from "./src/lib/kpis"
-      export { intervaloLocal, compararValores, COLOR } from "./src/lib/format"
+      export { intervaloLocal, compararValores, variacion, COLOR } from "./src/lib/format"
       export { fixture } from "@/lib/api"
       export function renderKpi(props) { return renderToStaticMarkup(React.createElement(TarjetaKpi, props)) }
       export function render(page) {
@@ -61,7 +61,7 @@ await build({
   }],
 })
 
-const { render, renderKpi, fixture, KPIS, cambio, intervaloLocal, compararValores, COLOR } = requireWeb(output)
+const { render, renderKpi, fixture, KPIS, cambio, intervaloLocal, compararValores, variacion, COLOR } = requireWeb(output)
 for (const name of Object.keys(KPIS)) {
   fixture.kpis[name] = [
     { ventana: "2026-11-17T01:00:00Z", valor: 9.09, detalle: null },
@@ -82,7 +82,7 @@ assert.equal(cambio("eventos_procesados", [
   { ventana: "2026-11-17T02:00:00Z", valor: 20 },
   { ventana: "2026-11-17T00:00:00Z", valor: 10 },
 ]), null)
-assert.ok(cambio("tasa_automatizacion_pct", fixture.kpis.tasa_automatizacion_pct).texto.includes("puntos porcentuales"))
+assert.ok(cambio("tasa_automatizacion_pct", fixture.kpis.tasa_automatizacion_pct).texto.includes(" pp"))
 assert.ok(!summary.includes("Ediciones consolidadas"))
 const accumulated = summary.match(/<dl[^>]*>(.*?)<\/dl>/s)?.[1]
 assert.ok(accumulated)
@@ -92,7 +92,17 @@ const neutralCard = renderKpi({ etiqueta: "Eventos", valor: "100", pie: "Esta ho
 assert.ok(neutralCard.includes("text-foreground"))
 assert.ok(neutralCard.includes("self-center"))
 assert.ok(!neutralCard.includes("text-center"))
-assert.ok(renderKpi({ etiqueta: "Eventos", valor: "100", pie: "Esta hora", tonoValor: "malo" }).includes("text-red-700"))
+const changedCard = renderKpi({ etiqueta: "Eventos", valor: "100", pie: "Esta hora", cambio: { texto: "−3 pp", tono: "malo", sube: false } })
+assert.ok(changedCard.includes("text-red-700"))
+const mainValue = changedCard.match(/data-slot="card-title"[^>]*>/)?.[0]
+assert.ok(mainValue?.includes("text-foreground"))
+assert.ok(!mainValue?.includes("text-red"))
+assert.equal(variacion(20, 23, "pp").texto, "−3 pp")
+assert.equal(variacion(20, 20).tono, "neutro")
+assert.equal(variacion(null, 0), null)
+assert.ok(summary.indexOf("Evolución por hora") < summary.indexOf("Acumulado"))
+assert.equal((summary.slice(0, summary.indexOf("Evolución por hora")).match(/Ver definición/g) ?? []).length, 4)
+assert.ok(summary.includes("Más detalles de la hora"))
 assert.equal(compararValores(5, 3), "bueno")
 assert.equal(compararValores(3, 5), "malo")
 assert.equal(compararValores(5, 5), "neutro")

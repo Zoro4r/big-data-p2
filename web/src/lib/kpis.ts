@@ -59,7 +59,7 @@ export function cambio(kpi: Kpi, serie: PuntoKpi[]) {
   if (Math.abs(d) < 1e-9) return null // sin cambio: no se muestra pastilla
   const u = KPIS[kpi].unidad
   const texto =
-    u === "%" ? `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(2)} puntos porcentuales`
+    u === "%" ? `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(2)} pp`
       : u === "bytes" ? bytes(d)
         : `${d >= 0 ? "+" : "−"}${Number.isInteger(d) ? entero(Math.abs(d)) : Math.abs(d).toFixed(2)}`
   const tono = u === "bytes" ? "neutro" : compararValores(actual.valor, previa.valor)

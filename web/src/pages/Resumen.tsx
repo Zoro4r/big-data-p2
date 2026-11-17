@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { bytes, entero, horaLocal, intervaloLocal, compararValores, TENDENCIA_GRAFICO } from "@/lib/format"
+import { bytes, entero, horaLocal, intervaloLocal, COLOR } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
@@ -37,6 +37,7 @@ const TARJETAS: { kpi: Kpi; pie: (r: Resumen) => string }[] = [
 /** Un punto del gráfico de evolución: una hora procesada por el DAG. */
 interface PuntoHora { ventana: string; valor: number; previo: number | null; ultima: boolean }
 
+const PRINCIPALES = new Set<Kpi>(["eventos_procesados", "volumen_neto_bytes", "tasa_creacion_pct", "tasa_automatizacion_pct"])
 const HORAS_EVOLUCION = 72
 
 function TooltipEvolucion({ active, payload, kpi }: { active?: boolean; payload?: { payload: PuntoHora }[]; kpi: Kpi }) {
@@ -101,16 +102,60 @@ export default function ResumenPage() {
           <div><h2 className="text-base font-semibold">Última hora consolidada</h2><p className="text-sm text-muted-foreground">{periodo}</p></div>
           <span className="text-xs text-muted-foreground">Cambios frente a la hora anterior</span>
         </div>
+        {data?.kpis.eventos_procesados[0]?.valor != null && (
+          <p className="text-sm leading-relaxed">
+            Se procesaron {entero(data.kpis.eventos_procesados[0].valor)} eventos
+            {data.kpis.crecimiento_pct[0]?.valor != null ? (data.kpis.crecimiento_pct[0].valor === 0 ? ", sin cambio frente a la hora anterior." :
+              `, un ${Math.abs(data.kpis.crecimiento_pct[0].valor).toFixed(1)} % ${data.kpis.crecimiento_pct[0].valor > 0 ? "más" : "menos"} que la hora anterior.`) : "."}
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
-            ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
-            : TARJETAS.map(({ kpi, pie }) => (
+            ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={150} />)
+            : TARJETAS.filter(({ kpi }) => PRINCIPALES.has(kpi)).map(({ kpi, pie }) => (
                 <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
-                  tonoValor={kpi === "crecimiento_pct" ? compararValores(data.kpis[kpi][0]?.valor, 0) : undefined}
-                  cambio={kpi === "crecimiento_pct" ? null : cambio(kpi, data.kpis[kpi])}
-                  pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
+                  cambio={cambio(kpi, data.kpis[kpi])} pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
               ))}
         </div>
+
+        <Seccion titulo={`Evolución por hora · ${etiqueta}`}
+          descripcion={`Valor de cada hora consolidada · últimas ${evolucion.length || HORAS_EVOLUCION} horas disponibles · ${etiqueta}`}
+          accion={
+            <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
+              <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TARJETAS.map(({ kpi: k }) => (  // mismo orden que las tarjetas, columna por columna
+                  <SelectItem key={k} value={k}>{KPIS[k].nombre}</SelectItem>
+                ))}
+              </SelectContent>
+              </Select>
+          }>
+          {!data ? <Cargando alto={260} /> : evolucion.length < 2 ? <p className="text-sm text-muted-foreground">Hace falta más de una hora con este KPI para ver su evolución.</p> : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={evolucion} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="22%" maxBarSize={72}>
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="ventana" tickFormatter={(t) => horaLocal(t)} tickLine={false} axisLine={false} minTickGap={60} fontSize={11} stroke="var(--muted-foreground)" />
+                <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
+                <ReferenceLine y={0} stroke="var(--border)" />
+                <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
+                <Bar dataKey="valor" fill={COLOR.enwiki} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                  {evolucion.map((p) => <Cell key={p.ventana} fillOpacity={p.ultima ? 1 : 0.65} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Seccion>
+
+        <details className="rounded-xl border bg-card shadow-xs">
+          <summary className="cursor-pointer rounded-xl px-6 py-4 text-sm font-medium focus-visible:ring-2 focus-visible:ring-ring">Más detalles de la hora</summary>
+          <div className="grid grid-cols-1 gap-4 border-t p-5 sm:grid-cols-2 xl:grid-cols-4">
+            {cargando || !data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={150} />)
+              : TARJETAS.filter(({ kpi }) => !PRINCIPALES.has(kpi)).map(({ kpi, pie }) => (
+                <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
+                  cambio={kpi === "crecimiento_pct" ? null : cambio(kpi, data.kpis[kpi])} pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
+              ))}
+          </div>
+        </details>
 
         <Seccion titulo="Acumulado" descripcion={fin ? `${etiqueta} · hasta ${horaLocal(fin)} UTC−5 · ${entero(acumulado?.horas)} horas consolidadas` : "Pendiente de una hora consolidada"}>
           <dl className="grid gap-5 sm:grid-cols-3 sm:gap-0">
@@ -136,37 +181,6 @@ export default function ResumenPage() {
           </dl>
         </Seccion>
 
-        <Seccion titulo={`Evolución por hora · ${etiqueta}`}
-          descripcion={`Valor de cada hora consolidada · últimas ${evolucion.length || HORAS_EVOLUCION} horas disponibles · ${etiqueta}`}
-          accion={
-            <Select value={kpiElegido} onValueChange={(v) => setKpiElegido(v as Kpi)}>
-              <SelectTrigger className="w-64" aria-label="KPI"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TARJETAS.map(({ kpi: k }) => (  // mismo orden que las tarjetas, columna por columna
-                  <SelectItem key={k} value={k}>{KPIS[k].nombre}</SelectItem>
-                ))}
-              </SelectContent>
-              </Select>
-          }>
-          {!data ? <Cargando alto={260} /> : evolucion.length < 2 ? <p className="text-sm text-muted-foreground">Hace falta más de una hora con este KPI para ver su evolución.</p> : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={evolucion} margin={{ left: 0, right: 16, top: 8 }} barCategoryGap="22%" maxBarSize={72}>
-                <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="ventana" tickFormatter={(t) => horaLocal(t)} tickLine={false} axisLine={false} minTickGap={60} fontSize={11} stroke="var(--muted-foreground)" />
-                <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
-                <ReferenceLine y={0} stroke="var(--border)" />
-                <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
-                <Bar dataKey="valor" fill={TENDENCIA_GRAFICO.neutro} radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                  {evolucion.map((p) => {
-                    const tono = KPIS[kpiElegido].unidad === "bytes" ? "neutro" : compararValores(p.valor, p.previo)
-                    const fill = TENDENCIA_GRAFICO[tono]
-                    return <Cell key={p.ventana} fill={fill} fillOpacity={p.ultima ? 1 : 0.65} />
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Seccion>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
           <Seccion className="lg:col-span-2" titulo="Protagonistas de la hora" descripcion={`${periodo} · actividad exclusivamente de esta hora`}>

@@ -94,18 +94,16 @@ export function colorTipo(tipo: string | null | undefined): string {
 
 
 export type TonoValor = "bueno" | "malo" | "neutro"
-export const TENDENCIA_GRAFICO: Record<TonoValor, string> = {
-  bueno: "#a8cdb6",
-  malo: "#dfafaf",
-  neutro: COLOR.enwiki,
-}
-export const TEXTO_TENDENCIA: Record<TonoValor, string> = {
-  bueno: "text-green-700 dark:text-green-400",
-  malo: "text-red-700 dark:text-red-400",
-  neutro: "text-foreground",
-}
 
 export function compararValores(actual: number | null | undefined, anterior: number | null | undefined): TonoValor {
   if (actual == null || anterior == null || !Number.isFinite(actual) || !Number.isFinite(anterior) || actual === anterior) return "neutro"
   return actual > anterior ? "bueno" : "malo"
+}
+
+/** Diferencia absoluta; los porcentajes se comparan en puntos porcentuales. */
+export function variacion(actual: number | null | undefined, anterior: number | null | undefined, unidad: "numero" | "pp" = "numero") {
+  if (actual == null || anterior == null || !Number.isFinite(actual) || !Number.isFinite(anterior)) return null
+  const diferencia = Math.round((actual - anterior) * 100) / 100
+  return { texto: `${diferencia > 0 ? "+" : diferencia < 0 ? "−" : ""}${numero(Math.abs(diferencia))}${unidad === "pp" ? " pp" : ""}`,
+    tono: compararValores(diferencia, 0), sube: diferencia === 0 ? null : diferencia > 0 }
 }
