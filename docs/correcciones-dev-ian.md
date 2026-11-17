@@ -1,5 +1,7 @@
 # Correcciones y verificación de `dev-ian`
 
+Estado de las ramas, últimos cambios, pruebas y pendientes: [Contexto para continuar el proyecto](contexto-dev-ian.md).
+
 El modelo 2 conserva las contribuciones de Neo4j por hora UTC y wiki. Los protagonistas del Resumen cuentan exclusivamente la hora indicada. Red de editores identifica sus métricas de 24 horas consolidadas y su historial acumulado.
 
 Streaming guarda el documento completo en MongoDB y reconstruye los conteos provisionales del minuto desde esos documentos. Airflow consolida los resúmenes y corrige los minutos. Ambos escritores coordinan cada hora mediante `pipeline_windows`, un bloqueo renovable y timestamps crecientes de Cassandra. Los manifiestos incluyen escrituras pendientes para recuperar cargas parciales.
