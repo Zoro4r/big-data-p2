@@ -1364,6 +1364,19 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - **Lo que encontró:** promesas sin cumplir («siete necesidades» y «siete vistas» que no se nombran; la sobrescritura de Cassandra que no se mostraba), términos sin definir (reversión, patrullero, bot, DAG, MERGE, derived, indicador), no quedaba claro de dónde salen los datos por minuto, repeticiones y frases que sonaban leídas.
     - **Corrección del guion**, guiada por `youtube-script-writer` (mohitagw15856/pm-claude-skills) y `video-content-strategist` (alirezarezvani/claude-skills): apertura con gancho en lugar de saludo; cada diapositiva indica qué se ve en pantalla; términos definidos al usarlos; en la demo, MongoDB rechaza de verdad un documento incompleto y Cassandra muestra el aviso de sobrescritura; la calidad de datos se menciona en el resumen; sin repeticiones. Las notas de las diapositivas se igualaron y se quitaron las etiquetas N1–N7 de la diapositiva 2. Nuevo total: ≈19 min 05 s.
   - **Tono del guion:** se reescribió para que suene hablado, con frases cortas, en primera persona y con un relevo explícito al final de cada parte.
+  - **Diapositivas con evidencia (17 nov):** a pedido del usuario, el deck se alineó con el guion revisado.
+    - **Método:** se siguió el modelo aserción-evidencia de la skill `conference-materials` (MattArtzAnthro/AI-Anthropology-Toolkit): el título de cada diapositiva afirma algo, el cuerpo lo demuestra con una imagen y lleva poco texto. Las skills de imágenes de stock (`unsplash`, `stock-images`, `google-image-search`) piden claves de API; se prefirieron capturas reales del sistema, que además sirven de prueba.
+    - **Capturas nuevas:** se tomaron a doble resolución, del dashboard y de Airflow. Para el CRUD solo se llenaron formularios, sin escribir en las bases: el validador de MongoDB rechazando un documento sin `title`, el aviso de Cassandra con una clave real que ya existe (`tasa_reversion_pct`, 16 nov 04:00 UTC) y la vista previa de una relación en Neo4j.
+    - **Cambios por diapositiva:**
+      - El problema: lista de últimos eventos, junto a los cuatro públicos.
+      - El dataset: un JSON real y cuatro cifras; los eventos guardados pasan de 5.2 M a 6.5 M.
+      - Airflow: la grilla de corridas en verde y el grafo de las seis tareas.
+      - Modelos: una captura por base.
+      - CRUD: la reacción de cada base al escribir.
+      - KPIs: las tarjetas del Resumen, con cuántos KPIs hay por público.
+      - Dashboard: miniaturas de las vistas, en lugar de la tabla.
+      - Portada, arquitectura, demo y cierre no cambian.
+    - **Guion:** «más de cinco millones» pasó a «más de seis millones», para coincidir con la diapositiva.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
 - **Informe, sección 7 (CRUD):** a pedido del usuario, la introducción ya no dice «El curso pide demostrarlas…» ni «Para nosotros…». Ahora la escribe el sistema en tono de informe. También «para ver qué va a pasar antes de que pase» pasó a «el resultado previsto antes de ejecutar la operación». En el informe (sección 5, tarea `validar_y_limpiar`) se describe como parte de la regla, sin mencionar reprocesos.
