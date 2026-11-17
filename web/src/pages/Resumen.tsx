@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useApi } from "@/lib/api"
 import { useWiki } from "@/lib/estado"
-import { bytes, entero, horaLocal, intervaloLocal, compararValores, PALETA_METRICA } from "@/lib/format"
+import { bytes, entero, horaLocal, intervaloLocal, compararValores, TENDENCIA_GRAFICO } from "@/lib/format"
 import { cambio, formatoKpi, KPIS, type Kpi, type PuntoKpi } from "@/lib/kpis"
 
 interface Hora { hora_utc: string; wiki: string; eventos: number; eventos_bot: number; reversiones: number }
@@ -99,33 +99,42 @@ export default function ResumenPage() {
         {error && <div role="alert" className="rounded-lg border border-destructive p-3 text-sm">{error} <button type="button" className="underline" onClick={recargar}>Reintentar</button></div>}
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div><h2 className="text-base font-semibold">Última hora consolidada</h2><p className="text-sm text-muted-foreground">{periodo}</p></div>
-          <span className="text-xs text-muted-foreground">Cambios frente a la hora anterior · verde al subir, rojo al bajar · reversiones al revés</span>
+          <span className="text-xs text-muted-foreground">Cambios frente a la hora anterior</span>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cargando || !data
             ? Array.from({ length: 8 }, (_, i) => <Cargando key={i} alto={150} />)
             : TARJETAS.map(({ kpi, pie }) => (
-                <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)} color={KPIS[kpi].color}
+                <TarjetaKpi key={kpi} etiqueta={KPIS[kpi].nombre} valor={formatoKpi(kpi, data.kpis[kpi][0]?.valor)}
                   tonoValor={kpi === "crecimiento_pct" ? compararValores(data.kpis[kpi][0]?.valor, 0) : undefined}
                   cambio={kpi === "crecimiento_pct" ? null : cambio(kpi, data.kpis[kpi])}
                   pie={pie(data)} onAbrir={() => setKpiAbierto(kpi)} />
               ))}
         </div>
 
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold">Acumulado</h2>
-          <p className="text-sm text-muted-foreground">{fin ? `${etiqueta} · hasta ${horaLocal(fin)} UTC−5 · ${entero(acumulado?.horas)} horas consolidadas` : "Pendiente de una hora consolidada"}</p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <TarjetaKpi etiqueta="Eventos almacenados" color="azul" valor={formatoKpi("total_eventos_acumulados", data?.kpis.total_eventos_acumulados[0]?.valor)}
-            pie={data?.desde ? `Desde ${horaLocal(data.desde)}` : "Registrados hasta el corte"} onAbrir={() => setKpiAbierto("total_eventos_acumulados")} />
-          <TarjetaKpi etiqueta="Ediciones consolidadas" color="azul" valor={entero(acumulado?.ediciones)} pie="Cambios en páginas existentes" />
-          <TarjetaKpi etiqueta="Páginas creadas" color="violeta" valor={entero(acumulado?.creaciones)} pie="Creaciones en las horas consolidadas" />
-          <TarjetaKpi etiqueta="Eventos de bots" color="verde" valor={acumulado?.eventos ? `${(100 * acumulado.eventos_bot / acumulado.eventos).toFixed(2)} %` : "—"}
-            pie={`${entero(acumulado?.eventos_bot)} de ${entero(acumulado?.eventos)} eventos consolidados`} />
-          <TarjetaKpi etiqueta="Reversiones detectadas" color="rosa" valor={entero(acumulado?.reversiones)} pie="En todas las horas consolidadas" />
-          <TarjetaKpi etiqueta="Cambio neto de contenido" color="cian" valor={bytes(acumulado?.delta_bytes)} pie="Bytes añadidos menos eliminados" />
-        </div>
+        <Seccion titulo="Acumulado" descripcion={fin ? `${etiqueta} · hasta ${horaLocal(fin)} UTC−5 · ${entero(acumulado?.horas)} horas consolidadas` : "Pendiente de una hora consolidada"}>
+          <dl className="grid gap-5 sm:grid-cols-3 sm:gap-0">
+            <div className="sm:pr-6">
+              <dt className="text-[13px] text-muted-foreground">Eventos almacenados</dt>
+              <dd className="mt-2 text-[28px] font-semibold leading-none tabular-nums">
+                <button type="button" onClick={() => setKpiAbierto("total_eventos_acumulados")} className="rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring" aria-label="Eventos almacenados: ver definición">
+                  {formatoKpi("total_eventos_acumulados", data?.kpis.total_eventos_acumulados[0]?.valor)}
+                </button>
+              </dd>
+              <dd className="mt-2 text-xs text-muted-foreground">{data?.desde ? `Desde ${horaLocal(data.desde)}` : "Registrados hasta el corte"}</dd>
+            </div>
+            <div className="border-t pt-4 sm:border-t-0 sm:border-l sm:px-6 sm:pt-0">
+              <dt className="text-[13px] text-muted-foreground">Páginas creadas</dt>
+              <dd className="mt-2 text-[28px] font-semibold leading-none tabular-nums">{entero(acumulado?.creaciones)}</dd>
+              <dd className="mt-2 text-xs text-muted-foreground">En las horas consolidadas</dd>
+            </div>
+            <div className="border-t pt-4 sm:border-t-0 sm:border-l sm:pl-6 sm:pt-0">
+              <dt className="text-[13px] text-muted-foreground">Cambio neto de contenido</dt>
+              <dd className="mt-2 text-[28px] font-semibold leading-none tabular-nums">{bytes(acumulado?.delta_bytes)}</dd>
+              <dd className="mt-2 text-xs text-muted-foreground">Bytes añadidos menos eliminados</dd>
+            </div>
+          </dl>
+        </Seccion>
 
         <Seccion titulo={`Evolución por hora · ${etiqueta}`}
           descripcion={`Valor de cada hora consolidada · últimas ${evolucion.length || HORAS_EVOLUCION} horas disponibles · ${etiqueta}`}
@@ -147,10 +156,10 @@ export default function ResumenPage() {
                 <YAxis tickLine={false} axisLine={false} width={60} fontSize={11} stroke="var(--muted-foreground)" tickFormatter={ejeY} />
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.5 }} content={<TooltipEvolucion kpi={kpiElegido} />} />
-                <Bar dataKey="valor" fill={PALETA_METRICA[KPIS[kpiElegido].color].grafico} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                <Bar dataKey="valor" fill={TENDENCIA_GRAFICO.neutro} radius={[2, 2, 0, 0]} isAnimationActive={false}>
                   {evolucion.map((p) => {
-                    const tono = KPIS[kpiElegido].unidad === "bytes" ? "neutro" : compararValores(p.valor, p.previo, kpiElegido === "tasa_reversion_pct")
-                    const fill = tono === "bueno" ? "#10b981" : tono === "malo" ? "#ef4444" : PALETA_METRICA[KPIS[kpiElegido].color].grafico
+                    const tono = KPIS[kpiElegido].unidad === "bytes" ? "neutro" : compararValores(p.valor, p.previo)
+                    const fill = TENDENCIA_GRAFICO[tono]
                     return <Cell key={p.ventana} fill={fill} fillOpacity={p.ultima ? 1 : 0.65} />
                   })}
                 </Bar>

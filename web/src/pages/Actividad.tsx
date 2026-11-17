@@ -161,14 +161,14 @@ export default function ActividadPage() {
             </Select>
           </div>
         }>
-        {previo && <p className="text-xs text-muted-foreground">Color del valor frente a los mismos minutos del día anterior · reversiones con criterio inverso.</p>}
+        {previo && <p className="text-xs text-muted-foreground">Color del valor frente a los mismos minutos del día anterior.</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!tot ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos del día" color="azul" tonoValor={compararValores(tot.ev, previo?.ev)} valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
-              <TarjetaKpi etiqueta="Promedio por minuto" color="naranja" tonoValor={compararValores(tot.ev / tot.min, previo ? previo.ev / previo.minutos : null)} valor={entero(tot.ev / tot.min)} pie={`Pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
-              <TarjetaKpi etiqueta="Hechos por bots" color="verde" tonoValor={compararValores(tot.bots / tot.ev, previo?.ev ? previo.bots / previo.ev : null)} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones" color="rosa" tonoValor={compararValores(tot.rev, previo?.rev, true)} valor={entero(tot.rev)} pie="Ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
+              <TarjetaKpi etiqueta="Eventos del día" tonoValor={compararValores(tot.ev, previo?.ev)} valor={entero(tot.ev)} pie={`${horas.length} horas procesadas`} onAbrir={() => setMetrica("dia")} />
+              <TarjetaKpi etiqueta="Promedio por minuto" tonoValor={compararValores(tot.ev / tot.min, previo ? previo.ev / previo.minutos : null)} valor={entero(tot.ev / tot.min)} pie={`Pico de ${entero(tot.pico.eventos)} a las ${horaLocal(tot.pico.t, false)}`} onAbrir={() => setMetrica("prom")} />
+              <TarjetaKpi etiqueta="Hechos por bots" tonoValor={compararValores(tot.bots / tot.ev, previo?.ev ? previo.bots / previo.ev : null)} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta="Reversiones" tonoValor={compararValores(tot.rev, previo?.rev)} valor={entero(tot.rev)} pie="Ediciones que revierten a otro" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>

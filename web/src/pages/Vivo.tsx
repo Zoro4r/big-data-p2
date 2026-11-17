@@ -243,11 +243,11 @@ export default function VivoPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={130} />) : (
             <>
-              <TarjetaKpi etiqueta="Eventos por segundo" color="azul" tonoValor={compararValores(data.eventos_ultimo_minuto, anterior?.eventos_ultimo_minuto)} valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
-              <TarjetaKpi etiqueta="Editores activos" color="naranja" tonoValor={compararValores(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0), previos?.editores)} valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
+              <TarjetaKpi etiqueta="Eventos por segundo" tonoValor={compararValores(data.eventos_ultimo_minuto, anterior?.eventos_ultimo_minuto)} valor={(data.eventos_ultimo_minuto / 60).toFixed(1)} pie={`${entero(data.eventos_ultimo_minuto)} en el último minuto`} onAbrir={() => setMetrica("eps")} />
+              <TarjetaKpi etiqueta="Editores activos" tonoValor={compararValores(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0), previos?.editores)} valor={entero(Object.values(data.editores ?? {}).reduce((s, n) => s + n, 0))}
                 pie={`${entero((data.editores?.registrado ?? 0) + (data.editores?.temporal ?? 0) + (data.editores?.ip ?? 0))} personas · ${entero(data.editores?.bot ?? 0)} bots en 30 min`} onAbrir={() => setMetrica("editores")} />
-              <TarjetaKpi etiqueta="Hechos por bots" color="verde" tonoValor={compararValores(tot.ev ? tot.bots / tot.ev : null, previos?.eventos ? previos.bots / previos.eventos : null)} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
-              <TarjetaKpi etiqueta="Reversiones detectadas" color="rosa" tonoValor={compararValores(tot.rev, previos?.reversiones, true)} valor={entero(tot.rev)} pie="En los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
+              <TarjetaKpi etiqueta="Hechos por bots" tonoValor={compararValores(tot.ev ? tot.bots / tot.ev : null, previos?.eventos ? previos.bots / previos.eventos : null)} valor={tot.ev ? `${((tot.bots / tot.ev) * 100).toFixed(1)} %` : "—"} pie={`${entero(tot.bots)} eventos en 30 min`} onAbrir={() => setMetrica("bots")} />
+              <TarjetaKpi etiqueta="Reversiones detectadas" tonoValor={compararValores(tot.rev, previos?.reversiones)} valor={entero(tot.rev)} pie="En los últimos 30 minutos" onAbrir={() => setMetrica("rev")} />
             </>
           )}
         </div>

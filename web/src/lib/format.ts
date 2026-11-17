@@ -69,18 +69,18 @@ export function ejeDia<T extends { t: string }>(serie: T[], horas = 2) {
 export const horaMs = (ms: number | string) => horaLocal(Number(ms), false)
 
 /**
- * Colores compartidos por las tarjetas, leyendas y gráficos.
- * Así un mismo color significa siempre lo mismo en todo el dashboard.
+ * Paleta pastel compartida por las leyendas y los gráficos.
+ * Cada categoría conserva su color entre vistas; los valores de KPI son neutros.
  */
 export const COLOR = {
-  enwiki: "#3b82f6",
-  eswiki: "#8b5cf6",
-  humano: "#f97316",
-  registrado: "#ea580c",
-  temporal: "#8b5cf6",
-  ip: "#8b5cf6",
-  bot: "#10b981",
-  otro: "#a1a1aa",
+  enwiki: "#93b5dd",
+  eswiki: "#c2b0df",
+  humano: "#93b5dd",
+  registrado: "#93b5dd",
+  temporal: "#b2c7df",
+  ip: "#b2c7df",
+  bot: "#c2b0df",
+  otro: "#bcc3cf",
 } as const
 
 /** Color de la serie según la wiki elegida; "ambas" usa el azul general del panel. */
@@ -93,23 +93,19 @@ export function colorTipo(tipo: string | null | undefined): string {
 }
 
 
-export const PALETA_METRICA = {
-  azul: { texto: "text-blue-700 dark:text-blue-400", grafico: "#3b82f6" },
-  naranja: { texto: "text-orange-700 dark:text-orange-400", grafico: "#f97316" },
-  verde: { texto: "text-emerald-700 dark:text-emerald-400", grafico: "#10b981" },
-  violeta: { texto: "text-violet-700 dark:text-violet-400", grafico: "#8b5cf6" },
-  rosa: { texto: "text-rose-700 dark:text-rose-400", grafico: "#f43f5e" },
-  cian: { texto: "text-cyan-700 dark:text-cyan-400", grafico: "#06b6d4" },
-} as const
-export type ColorMetrica = keyof typeof PALETA_METRICA
 export type TonoValor = "bueno" | "malo" | "neutro"
+export const TENDENCIA_GRAFICO: Record<TonoValor, string> = {
+  bueno: "#a8cdb6",
+  malo: "#dfafaf",
+  neutro: COLOR.enwiki,
+}
 export const TEXTO_TENDENCIA: Record<TonoValor, string> = {
-  bueno: "text-emerald-700 dark:text-emerald-400",
+  bueno: "text-green-700 dark:text-green-400",
   malo: "text-red-700 dark:text-red-400",
-  neutro: "",
+  neutro: "text-foreground",
 }
 
-export function compararValores(actual: number | null | undefined, anterior: number | null | undefined, inverso = false): TonoValor {
+export function compararValores(actual: number | null | undefined, anterior: number | null | undefined): TonoValor {
   if (actual == null || anterior == null || !Number.isFinite(actual) || !Number.isFinite(anterior) || actual === anterior) return "neutro"
-  return (actual > anterior) !== inverso ? "bueno" : "malo"
+  return actual > anterior ? "bueno" : "malo"
 }

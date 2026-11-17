@@ -20,10 +20,12 @@ await build({
       import { renderToStaticMarkup } from "react-dom/server"
       import { MemoryRouter } from "react-router-dom"
       import Resumen from "./src/pages/Resumen"
+      import { TarjetaKpi } from "./src/components/common"
       import Arquitectura, { Diagrama } from "./src/pages/Arquitectura"
       export { KPIS, cambio } from "./src/lib/kpis"
       export { intervaloLocal, compararValores, COLOR } from "./src/lib/format"
       export { fixture } from "@/lib/api"
+      export function renderKpi(props) { return renderToStaticMarkup(React.createElement(TarjetaKpi, props)) }
       export function render(page) {
         return renderToStaticMarkup(React.createElement(MemoryRouter, null,
           React.createElement(page === "flujo" ? Diagrama : page === "arquitectura" ? Arquitectura : Resumen, { onAbrir() {} })))
@@ -59,7 +61,7 @@ await build({
   }],
 })
 
-const { render, fixture, KPIS, cambio, intervaloLocal, compararValores, COLOR } = requireWeb(output)
+const { render, renderKpi, fixture, KPIS, cambio, intervaloLocal, compararValores, COLOR } = requireWeb(output)
 for (const name of Object.keys(KPIS)) {
   fixture.kpis[name] = [
     { ventana: "2026-11-17T01:00:00Z", valor: 9.09, detalle: null },
@@ -81,15 +83,23 @@ assert.equal(cambio("eventos_procesados", [
   { ventana: "2026-11-17T00:00:00Z", valor: 10 },
 ]), null)
 assert.ok(cambio("tasa_automatizacion_pct", fixture.kpis.tasa_automatizacion_pct).texto.includes("puntos porcentuales"))
-assert.ok(summary.includes("Ediciones consolidadas"))
+assert.ok(!summary.includes("Ediciones consolidadas"))
+const accumulated = summary.match(/<dl[^>]*>(.*?)<\/dl>/s)?.[1]
+assert.ok(accumulated)
+assert.equal((accumulated.match(/<dt /g) ?? []).length, 3)
 assert.ok(summary.includes("Páginas creadas"))
-assert.ok(summary.includes("text-center"))
+const neutralCard = renderKpi({ etiqueta: "Eventos", valor: "100", pie: "Esta hora" })
+assert.ok(neutralCard.includes("text-foreground"))
+assert.ok(neutralCard.includes("self-center"))
+assert.ok(!neutralCard.includes("text-center"))
+assert.ok(renderKpi({ etiqueta: "Eventos", valor: "100", pie: "Esta hora", tonoValor: "malo" }).includes("text-red-700"))
 assert.equal(compararValores(5, 3), "bueno")
 assert.equal(compararValores(3, 5), "malo")
-assert.equal(compararValores(5, 3, true), "malo")
+assert.equal(compararValores(5, 5), "neutro")
 assert.equal(compararValores(null, 0), "neutro")
 assert.equal(compararValores(NaN, 0), "neutro")
-assert.equal(COLOR.humano, "#f97316")
+assert.equal(COLOR.humano, COLOR.registrado)
+assert.notEqual(COLOR.humano, COLOR.bot)
 const architecture = render("arquitectura")
 assert.ok(architecture.includes("Google Cloud"))
 assert.ok(architecture.includes("Cómo funciona"))

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { PALETA_METRICA, TEXTO_TENDENCIA, type ColorMetrica, type TonoValor } from "@/lib/format"
+import { TEXTO_TENDENCIA, type TonoValor } from "@/lib/format"
 
 const TONO = {
   bueno: "border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400",
@@ -19,23 +19,22 @@ export function TarjetaKpi(props: {
   cambio?: { texto: string; tono: keyof typeof TONO; sube: boolean } | null
   pie: ReactNode
   titulo?: string
-  color?: ColorMetrica
   tonoValor?: TonoValor
   /** Si se pasa, la tarjeta se puede clickear (abre el detalle del KPI) */
   onAbrir?: () => void
   /** Clases extra para el elemento de la grilla (por ejemplo, su posición con `order`) */
   className?: string
 }) {
-  const { etiqueta, valor, cambio, pie, titulo, onAbrir, className, color = "azul" } = props
+  const { etiqueta, valor, cambio, pie, titulo, onAbrir, className } = props
   const tono = props.tonoValor ?? cambio?.tono ?? "neutro"
-  const textoValor = tono === "neutro" ? PALETA_METRICA[color].texto : TEXTO_TENDENCIA[tono]
+  const textoValor = TEXTO_TENDENCIA[tono]
   const Icono = cambio?.sube ? TrendingUp : TrendingDown
   // Subgrid: la tarjeta ocupa 3 filas de la grilla padre (nombre, valor, contexto), así las tarjetas
   // de una misma fila alinean su valor aunque algún nombre ocupe dos líneas.
   const tarjeta = (
-    <Card className={cn("row-span-3 grid grid-rows-subgrid gap-x-0 gap-y-3 py-[18px] shadow-xs", !onAbrir && className, onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
-      <div className="flex flex-col items-center justify-start gap-2 px-5">
-        <CardDescription className="flex items-center justify-center gap-1 text-center text-[13px] group-hover:text-foreground">
+    <Card className={cn("row-span-3 grid min-h-40 grid-rows-subgrid gap-x-0 gap-y-3 py-5 text-left shadow-xs", !onAbrir && className, onAbrir && "transition-[border-color,box-shadow,background-color] group-hover:border-foreground/25 group-hover:bg-muted/30 group-hover:shadow-md")} title={onAbrir ? undefined : titulo}>
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-2 gap-y-1 self-center px-5">
+        <CardDescription className="flex items-center gap-1 text-[13px] group-hover:text-foreground">
           {etiqueta}
           {onAbrir && <ArrowUpRight className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />}
         </CardDescription>
@@ -46,13 +45,13 @@ export function TarjetaKpi(props: {
           </Badge>
         )}
       </div>
-      <CardTitle className={cn("self-end px-5 text-center text-[28px] leading-none font-semibold tracking-tight tabular-nums transition-colors", textoValor)}>{valor}</CardTitle>
-      <span className="px-5 text-center text-[13px] font-medium">{pie}</span>
+      <CardTitle className={cn("self-center px-5 text-[28px] leading-none font-semibold tracking-tight tabular-nums transition-colors", textoValor)}>{valor}</CardTitle>
+      <span className="self-center px-5 text-[13px] font-medium">{pie}</span>
     </Card>
   )
   if (!onAbrir) return tarjeta
   return (
-    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className={cn("group row-span-3 grid grid-rows-subgrid gap-0 rounded-xl text-center outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}>
+    <button type="button" onClick={onAbrir} aria-label={`${etiqueta}: ${valor}. Ver definición`} className={cn("group row-span-3 grid grid-rows-subgrid gap-0 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}>
       {tarjeta}
     </button>
   )
