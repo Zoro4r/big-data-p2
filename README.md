@@ -4,6 +4,7 @@ Pipeline multimodelo que procesa cada hora los cambios de Wikipedia (`enwiki` y 
 
 - Justificación del dataset: [docs/justificacion-dataset.md](docs/justificacion-dataset.md)
 - Registro de lo realizado: [docs/trazabilidad.md](docs/trazabilidad.md)
+- Correcciones, pruebas y actualización del modelo de datos: [docs/correcciones-dev-ian.md](docs/correcciones-dev-ian.md)
 
 ## Estructura
 
@@ -41,7 +42,9 @@ docker-compose.yml       MongoDB, Cassandra, Neo4j, Postgres (Airflow), Airflow,
 extraer → validar_y_limpiar → cargar_mongo → [cargar_cassandra, cargar_neo4j] → calcular_kpis
 ```
 
-Cassandra y Neo4j leen de MongoDB los eventos de la hora. Todas las cargas son idempotentes: re-ejecutar una hora no duplica datos.
+Cassandra y Neo4j leen de MongoDB los eventos de la hora. Cassandra reconstruye la ventana bajo un bloqueo compartido con streaming y conserva un manifiesto de sus filas. Neo4j reemplaza las contribuciones de cada hora y wiki en una transacción. Reprocesar también aplica correcciones y eliminaciones.
+
+El Resumen agrupa la última hora consolidada y el acumulado hasta su cierre. En vivo muestra conteos provisionales. Los protagonistas del Resumen usan exclusivamente la hora indicada.
 
 ## Levantar el entorno en local
 
@@ -58,7 +61,7 @@ A mano, sin el script: `cp .env.example .env` (y cambiar las contraseñas) y lue
 | --- | --- | --- |
 | Dashboard | http://localhost:8501 | sin contraseña en local (`DASHBOARD_PASSWORD` del `.env` para activarla) |
 | Documentación de la API | http://localhost:8501/api/docs | la misma sesión del dashboard |
-| Airflow | http://localhost:8080 | `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` del `.env` |
+| Airflow | http://localhost:8080 (`AIRFLOW_WEB_PORT` permite cambiarlo) | `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` del `.env` |
 | Neo4j Browser | http://localhost:7474 | `neo4j` / `NEO4J_PASSWORD` |
 | MongoDB | `mongodb://localhost:27017` | `MONGO_USER` / `MONGO_PASSWORD` |
 | Cassandra | `localhost:9042` | sin autenticación |
