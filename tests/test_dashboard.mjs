@@ -28,7 +28,7 @@ await build({
       export function renderKpi(props) { return renderToStaticMarkup(React.createElement(TarjetaKpi, props)) }
       export function render(page) {
         return renderToStaticMarkup(React.createElement(MemoryRouter, null,
-          React.createElement(page === "flujo" ? Diagrama : page === "arquitectura" ? Arquitectura : Resumen, { onAbrir() {} })))
+          React.createElement(page === "flujo" ? Diagrama : page === "arquitectura" ? Arquitectura : Resumen, { onAbrir() {}, vistaInicial: page === "resumen-acumulado" ? "acumulado" : "hora" })))
       }
     `,
   },
@@ -45,12 +45,17 @@ await build({
       context.onResolve({ filter: /^@\/lib\/api$/ }, () => ({ path: "api", namespace: "fixture" }))
       context.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
         contents: `
-          export const fixture = { kpis: {}, horas: [], ejecuciones: [], total: 55000,
+          export const fixture = { kpis: {}, horas: [{ hora_utc: "2026-11-17T01:00:00Z", wiki: "enwiki", eventos: 15000, eventos_bot: 2000, reversiones: 717 }], ejecuciones: [], total: 55000,
             desde: "2026-11-16T23:00:00Z", corte: "2026-11-17T02:00:00Z",
             acumulado: { eventos: 55000, ediciones: 50000, creaciones: 5000, eventos_bot: 7858,
               reversiones: 2895, delta_bytes: 8200000, horas: 3, inicio: "2026-11-16T23:00:00Z", fin: "2026-11-17T02:00:00Z" } }
+          const protagonistas = {
+            pagina_mas_disputada: { valor: 99, detalle: "enwiki:HistorialSolo" },
+            editor_mas_conectado: { valor: 88, detalle: "EditorHistorico" },
+            editor_mas_revertido: { valor: 77, detalle: "RevertidoHistorico (revertido por 3 editores)" },
+          }
           export function useApi(ruta) {
-            return { data: ruta.startsWith("/api/resumen") ? fixture : null,
+            return { data: ruta?.startsWith("/api/resumen/acumulado/protagonistas") ? { protagonistas, actualizando: false } : ruta?.startsWith("/api/resumen") ? fixture : null,
               cargando: false, error: null, recargar() {} }
           }
           export async function api() { return {} }
@@ -69,6 +74,7 @@ for (const name of Object.keys(KPIS)) {
   ]
 }
 fixture.kpis.total_eventos_acumulados[0].valor = 55000
+fixture.kpis.pagina_mas_disputada[0].detalle = "enwiki:HoraSolo"
 assert.equal(intervaloLocal("2026-11-17T04:00:00Z", "2026-11-17T05:00:00Z"), "16 nov · 23:00–17 nov · 00:00 UTC−5")
 const summary = render("resumen")
 for (const label of ["Última hora consolidada", "Acumulado", "20:00–21:00 UTC−5",
@@ -84,10 +90,19 @@ assert.equal(cambio("eventos_procesados", [
 ]), null)
 assert.ok(cambio("tasa_automatizacion_pct", fixture.kpis.tasa_automatizacion_pct).texto.includes(" pp"))
 assert.ok(!summary.includes("Ediciones consolidadas"))
-const accumulated = summary.match(/<dl[^>]*>(.*?)<\/dl>/s)?.[1]
-assert.ok(accumulated)
-assert.equal((accumulated.match(/<dt /g) ?? []).length, 3)
-assert.ok(summary.includes("Páginas creadas"))
+const cumulative = render("resumen-acumulado")
+assert.ok(!summary.includes("Se procesaron"))
+assert.ok(!summary.includes("Cambios frente a la hora anterior"))
+assert.ok(summary.includes("HoraSolo") && !summary.includes("HistorialSolo"))
+assert.ok(cumulative.includes("HistorialSolo") && !cumulative.includes("HoraSolo"))
+assert.ok(cumulative.includes("Páginas creadas"))
+assert.ok(cumulative.includes("55,000"))
+assert.ok(cumulative.includes("Más detalles del acumulado"))
+assert.ok(cumulative.includes("Protagonistas del acumulado"))
+assert.ok(cumulative.includes("Evolución por hora"))
+assert.equal(summary.match(/<table[\s\S]*?<\/table>/)?.[0], cumulative.match(/<table[\s\S]*?<\/table>/)?.[0])
+assert.equal((cumulative.slice(0, cumulative.indexOf("Evolución por hora")).match(/Ver definición/g) ?? []).length, 4)
+assert.ok(!cumulative.includes("Eventos de la hora: "))
 const neutralCard = renderKpi({ etiqueta: "Eventos", valor: "100", pie: "Esta hora" })
 assert.ok(neutralCard.includes("text-foreground"))
 assert.ok(neutralCard.includes("self-center"))
@@ -100,7 +115,7 @@ assert.ok(!mainValue?.includes("text-red"))
 assert.equal(variacion(20, 23, "pp").texto, "−3 pp")
 assert.equal(variacion(20, 20).tono, "neutro")
 assert.equal(variacion(null, 0), null)
-assert.ok(summary.indexOf("Evolución por hora") < summary.indexOf("Acumulado"))
+assert.equal((summary.match(/role="tab"/g) ?? []).length, 2)
 assert.equal((summary.slice(0, summary.indexOf("Evolución por hora")).match(/Ver definición/g) ?? []).length, 4)
 assert.ok(summary.includes("Más detalles de la hora"))
 assert.equal(compararValores(5, 3), "bueno")
