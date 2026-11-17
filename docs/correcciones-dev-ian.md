@@ -21,6 +21,10 @@ Las regresiones cubren reinicio, replay, fallo de escritura, escrituras atrasada
 
 `node tests/test_dashboard.mjs` comprueba mediante renderizado React los períodos, unidades, textos y la arquitectura, incluidos los estados sin datos.
 
+Las tarjetas están centradas y comparten una paleta con los gráficos: humanos en naranja y bots en verde. Los valores con comparación disponible usan verde al subir y rojo al bajar; las reversiones invierten el criterio. El contenido neto conserva un color fijo. En vivo compara con la actualización anterior; Actividad compara los mismos minutos del día anterior solamente cuando hay cobertura completa.
+
+El acumulado incluye eventos almacenados, ediciones, creaciones, participación de bots, reversiones y cambio neto de contenido, con corte y número de horas visibles. Los indicadores consolidados se suman desde las filas horarias de Cassandra correspondientes a ejecuciones completadas del modelo 2, descartando ventanas que cambien durante la lectura. La arquitectura ofrece las pestañas «Arquitectura» y «Cómo funciona», con los mismos detalles de cada componente.
+
 `tests/seed_local.py` genera 55,000 registros **sintéticos** en una base de desarrollo vacía. Se utiliza para probar el volumen y el pipeline. El dataset de la entrega debe acreditarse con los eventos reales de Wikimedia.
 
 Para esta muestra, iniciar `airflow` y `api` con sus dependencias en un proyecto Compose vacío y ejecutar el script antes de iniciar `stream`.

@@ -7,6 +7,7 @@ import { LogoBase, type Base } from "@/components/fuente"
 import { Header, Pagina } from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useApi } from "@/lib/api"
 import { entero, horaLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -49,19 +50,21 @@ const hace = (iso?: string | null) => {
   return s < 60 ? `hace ${Math.round(s)} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : horaLocal(iso)
 }
 
-function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
-  function nodo(id: Id, detalle: string) {
+function NodoArquitectura({ id, detalle, onAbrir, compact = false }: { id: Id; detalle: string; onAbrir: (id: Id) => void; compact?: boolean }) {
     const c = CAJAS.find((caja) => caja.id === id)!
     return (
       <button type="button" onClick={() => onAbrir(id)} aria-label={`${c.titulo}: ver detalle`}
-        className={cn("relative flex min-h-20 w-full flex-col justify-center gap-1 rounded-xl border p-4 text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
-          c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
+        className={cn("relative flex w-full flex-col justify-center gap-1 rounded-xl border text-left transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+          compact ? "h-20 p-2" : "min-h-20 p-4", c.oscura ? "border-foreground bg-foreground text-background" : "bg-card")}>
         <ArrowUpRight className="absolute right-3 top-3 size-3 opacity-40" aria-hidden />
-        <span className="flex items-center gap-2 pr-3 text-sm font-semibold">{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
-        <span className={cn("text-xs", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
+        <span className={cn("flex items-center pr-3 font-semibold", compact ? "gap-1 text-xs leading-tight" : "gap-2 text-sm")}>{c.logo && <LogoBase base={c.logo} />}{c.titulo}</span>
+        <span className={cn(compact ? "text-[10.5px] leading-tight" : "text-xs", c.oscura ? "opacity-75" : "text-muted-foreground")}>{detalle}</span>
       </button>
     )
-  }
+}
+
+export function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
+  const nodo = (id: Id, detalle: string) => <NodoArquitectura id={id} detalle={detalle} onAbrir={onAbrir} />
   const flecha = <ChevronRight className="mx-auto size-5 shrink-0 rotate-90 text-muted-foreground sm:rotate-0" aria-hidden />
   return (
     <div className="space-y-6 rounded-xl border bg-card p-5 shadow-xs sm:p-6">
@@ -93,10 +96,61 @@ function Diagrama({ onAbrir }: { onAbrir: (id: Id) => void }) {
       <section className="space-y-3 border-t pt-5" aria-label="Consulta del dashboard">
         <h2 className="text-sm font-semibold">Consulta y visualización</h2>
         <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1.25fr]">
-          <p className="text-sm text-muted-foreground">MongoDB · eventos<br />Cassandra · métricas<br />Neo4j · relaciones</p>
+          <div className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border bg-muted/20 px-4 text-center text-sm text-muted-foreground">
+            <span>MongoDB · eventos</span><span>Cassandra · métricas</span><span>Neo4j · relaciones</span>
+          </div>
           {flecha}{nodo("api", "Consulta cada base según la vista")}{flecha}{nodo("dashboard", "En vivo, horas consolidadas e historial")}
         </div>
       </section>
+    </div>
+  )
+}
+
+const POSICIONES: { id: Id; x: number; y: number; w: number; detalle: string }[] = [
+  { id: "fuente", x: 10, y: 205, w: 120, detalle: "Eventos JSON · SSE" },
+  { id: "rapida", x: 155, y: 205, w: 120, detalle: "Servicio de streaming" },
+  { id: "mongo", x: 300, y: 205, w: 120, detalle: "Documentos completos" },
+  { id: "lotes", x: 445, y: 205, w: 120, detalle: "Apache Airflow" },
+  { id: "cassandra", x: 590, y: 145, w: 135, detalle: "Series de tiempo y KPIs" },
+  { id: "neo4j", x: 590, y: 285, w: 135, detalle: "Relaciones y contribuciones" },
+  { id: "api", x: 750, y: 205, w: 120, detalle: "Consultas a las tres bases" },
+  { id: "dashboard", x: 895, y: 205, w: 145, detalle: "React · navegador" },
+]
+
+export function ArquitecturaGeneral({ onAbrir }: { onAbrir: (id: Id) => void }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border bg-card shadow-xs" role="region" aria-label="Arquitectura del sistema">
+      <div className="relative h-[440px] min-w-[1060px]">
+        <div className="absolute left-[13.5%] right-[16.5%] top-10 bottom-6 rounded-2xl border border-blue-200 bg-blue-50/30 dark:border-blue-900 dark:bg-blue-950/10" />
+        <span className="absolute left-[15%] top-14 text-xs font-semibold text-blue-700 dark:text-blue-400">Google Cloud · Máquina virtual · Docker Compose</span>
+        <span className="absolute left-[85%] top-[170px] text-xs font-medium text-muted-foreground">Cliente web</span>
+        <svg className="absolute inset-0 size-full" viewBox="0 0 1060 440" preserveAspectRatio="none" aria-hidden>
+          <defs>
+            <marker id="arquitectura-flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="currentColor" /></marker>
+          </defs>
+          <g className="text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arquitectura-flecha)">
+            <path d="M130 245 H155" /><path d="M275 245 H300" /><path d="M420 245 H445" />
+            <path d="M565 230 C580 230 575 185 590 185" /><path d="M565 260 C580 260 575 325 590 325" />
+            <path d="M725 185 C740 185 735 230 750 230" /><path d="M725 325 C740 325 735 260 750 260" />
+            <path d="M870 245 H895" />
+            <path d="M360 285 V390 H810 V285" />
+          </g>
+          <path d="M215 205 V115 H657 V145" fill="none" stroke="#10b981" strokeWidth="1.7" markerEnd="url(#arquitectura-flecha)" className="text-emerald-500" />
+          <path d="M70 285 V355 H505 V285" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="5 4" markerEnd="url(#arquitectura-flecha)" className="text-amber-500" />
+          <g className="fill-muted-foreground" fontSize="11" textAnchor="middle">
+            <text x="430" y="103">Conteos por minuto · provisionales</text>
+            <text x="285" y="303">Guarda eventos</text><text x="435" y="195">Lee la hora</text>
+            <text x="275" y="343">Recuperación de una hora incompleta</text>
+            <text x="585" y="407">La API también consulta los documentos de MongoDB</text>
+          </g>
+        </svg>
+        {POSICIONES.map((node) => (
+          <div key={node.id} className="absolute" style={{ left: `${100 * node.x / 1060}%`, top: node.y, width: `${100 * node.w / 1060}%` }}>
+            <NodoArquitectura id={node.id} detalle={node.detalle} onAbrir={onAbrir} compact />
+          </div>
+        ))}
+        <span className="absolute left-[42%] top-[300px] max-w-32 text-center text-[11px] leading-snug text-muted-foreground">PostgreSQL<br />Metadatos de Airflow</span>
+      </div>
     </div>
   )
 }
@@ -541,7 +595,14 @@ export default function ArquitecturaPage() {
     <>
       <Header ruta={["Proyecto", "Arquitectura"]} />
       <Pagina titulo="Arquitectura" descripcion="Cómo llegan los datos de Wikipedia, cómo se procesan y en qué base se guarda cada parte. Haz clic en un componente para ver su detalle.">
-        <Diagrama onAbrir={setAbierto} />
+        <Tabs defaultValue="arquitectura" className="gap-5">
+          <TabsList aria-label="Vista de arquitectura">
+            <TabsTrigger value="arquitectura">Arquitectura</TabsTrigger>
+            <TabsTrigger value="funcionamiento">Cómo funciona</TabsTrigger>
+          </TabsList>
+          <TabsContent value="arquitectura"><ArquitecturaGeneral onAbrir={setAbierto} /></TabsContent>
+          <TabsContent value="funcionamiento"><Diagrama onAbrir={setAbierto} /></TabsContent>
+        </Tabs>
       </Pagina>
       <Detalle id={abierto} d={data} onCambiar={setAbierto} />
     </>
