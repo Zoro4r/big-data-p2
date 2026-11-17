@@ -40,7 +40,7 @@ function metricaTipo(t: FilaTipo, totalDataset: number, wikis: string[], etiquet
   datos.push(["Total almacenado (todos los tipos)", entero(totalDataset)])
   return {
     titulo: t.tipo, etiqueta, momento: corte ? `Dataset hasta ${horaLocal(corte)} UTC−5` : "Dataset almacenado", valor: entero(t.total),
-    nota: totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % del total almacenado` : "Sin eventos almacenados",
+    nota: totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % de ${entero(totalDataset)} eventos` : "Sin eventos almacenados",
     datos, definicion, lectura,
     calculo: { texto: "Se cuentan los documentos de MongoDB por tipo de evento, dentro de las wikis seleccionadas." },
     origen: <>Documentos originales de <Base base="mongo" />, incluidos los eventos recientes que todavía no se consolidan.</>,
@@ -84,7 +84,7 @@ export default function ExploradorPage() {
         <div className="space-y-1"><h2 className="text-base font-semibold">Eventos almacenados por tipo</h2><p className="text-sm text-muted-foreground">{data ? `${entero(data.total)} eventos de ${etiqueta}. Incluye los recientes pendientes de consolidar.` : "Cargando el dataset…"}</p></div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {!data ? Array.from({ length: 4 }, (_, i) => <Cargando key={i} alto={160} />) : porTipo.map((t) => (
-            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % del total` : "Sin eventos almacenados"} onAbrir={() => setTipoAbierto(t.clave)} />
+            <TarjetaKpi key={t.tipo} etiqueta={t.tipo} valor={entero(t.total)} pie={totalDataset ? `${((t.total / totalDataset) * 100).toFixed(1)} % de ${entero(totalDataset)} eventos` : "Sin eventos almacenados"} onAbrir={() => setTipoAbierto(t.clave)} />
           ))}
         </div>
 

@@ -185,7 +185,7 @@ assert.ok(activity.includes("55,000") && activity.includes("29,653"))
 assert.ok(activity.includes("306"))
 assert.ok(activity.includes("Cierre: 16 nov · 21:00"))
 const explorer = render("explorador")
-for (const text of ["Eventos almacenados por tipo", "100 eventos de", "80.0 % del total"]) assert.ok(explorer.includes(text), text)
+for (const text of ["Eventos almacenados por tipo", "100 eventos de", "80.0 % de 100 eventos"]) assert.ok(explorer.includes(text), text)
 assert.ok(!explorer.includes("últimas 24 h"))
 exploradorFixture.total = 0; exploradorFixture.tipos = []
 assert.equal((render("explorador").match(/Ver definición/g) ?? []).length, 4)
