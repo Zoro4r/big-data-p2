@@ -1,0 +1,9 @@
+Compilación: pdfLaTeX + BibTeX mediante latexmk.
+Resultado: 42 páginas tras la auditoría de maquetación general.
+Compilación sin avisos, referencias indefinidas ni desbordes tipográficos.
+Clase tesisutec.cls e IEEEtran.bst: idénticos a la plantilla suministrada.
+Verificación: todas las páginas renderizadas e inspeccionadas; texto dentro de los límites; 110 enlaces internos y bibliográficos.
+Capturas integradas con sus explicaciones; bloques de código completos; tablas revisadas.
+Portada: nombres completos proporcionados por el usuario; datos editables en datos.tex.
+Detalle: evidencias/auditoria-maquetacion.md.
+Capturas de interfaz: dashboard del proyecto desplegado en Google Cloud Platform, 17 de noviembre de 2026.

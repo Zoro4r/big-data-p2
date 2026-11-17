@@ -1,0 +1,111 @@
+\appendix
+\renewcommand{\thechapter}{\Alph{chapter}}
+\renewcommand{\thesection}{\Alph{chapter}.\arabic{section}}
+\renewcommand{\thetable}{\Alph{chapter}.\arabic{table}}
+\renewcommand{\thefigure}{\Alph{chapter}.\arabic{figure}}
+\chapter{REPRODUCIBILIDAD Y TRAZABILIDAD}
+\section{Mapa del repositorio}
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{4.3cm}Y}
+\toprule
+Ubicación & Responsabilidad revisada \\
+\midrule
+\ruta{src/wikipipe/extract.py}, \ruta{fuente.py} & Consumo SSE, recuperación y decisión de fuente horaria. \\
+\ruta{src/wikipipe/clean.py}, \ruta{config.py} & Reglas, derivados y variables del pipeline. \\
+\ruta{src/wikipipe/streaming.py}, \ruta{windows.py} & Ingesta, cobertura y coordinación de escrituras. \\
+\ruta{src/wikipipe/mongo.py}, \ruta{cassandra_store.py}, \ruta{neo4j_store.py} & Persistencia, agregación y construcción temporal de relaciones. \\
+\ruta{src/wikipipe/kpis.py}, \ruta{rebuild.py}, \ruta{crud.py} & Indicadores, reconstrucción y operaciones sobre las bases. \\
+\ruta{db/}, \ruta{airflow/dags/} & Esquemas, restricciones, índices y DAG. \\
+\ruta{api/}, \ruta{web/src/} & API y aplicación analítica. \\
+\ruta{docker-compose.yml}, \ruta{infra/}, \ruta{deploy.sh}, \ruta{local.sh} & Ejecución local, infraestructura y despliegue. \\
+\ruta{tests/}, \ruta{docs/} & Pruebas, guías, requisitos y evidencia histórica. \\
+\bottomrule
+\end{tabularx}
+\caption{Guía de navegación del código fuente.}
+\end{tabla}
+
+\section{Ejecución local y esquemas}
+Los siguientes comandos describen el procedimiento reproducible del repositorio. No indican que el entorno completo se haya levantado durante esta revisión.
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}
+./local.sh
+# Alternativa manual:
+cp .env.example .env
+# Configurar las variables y contraseñas antes del arranque.
+docker compose up -d --build
+
+docker compose exec airflow \
+  python /opt/airflow/db/create_schemas.py
+\end{lstlisting}
+\end{minipage}\par
+
+El dashboard se sirve en \codigo{http://localhost:8501}; Airflow en el puerto 8080 salvo configuración distinta; Neo4j Browser en 7474. La API de desarrollo se publica en \codigo{127.0.0.1:8010}. Las credenciales se toman de variables y no se incluyen en este documento.
+
+\section{Procesamiento de una ventana y CRUD}
+El ejemplo procesa una hora mediante el comando de prueba del DAG. Se debe verificar el intervalo asignado por Airflow en la ejecución; la guía local del repositorio utiliza la hora de cierre como referencia para estas demostraciones.
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}
+docker compose exec airflow airflow dags test \
+  wikipedia_recent_changes 2026-11-17T11:00:00+00:00
+
+docker compose exec airflow python -m wikipipe.crud todo
+\end{lstlisting}
+\end{minipage}\par
+
+Para una reconstrucción del modelo se deben seguir los pasos de \ruta{docs/correcciones-dev-ian.md}: copia recuperable, pausa del DAG, espera de tareas y detención de streaming. \codigo{--reset-graph} respalda el grafo en JSONL gzip y después lo vacía, incluidas entidades manuales. Este informe no ejecuta esa operación.
+
+\section{Comandos de verificación}
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}
+PYTHONPATH=src:api python -m pytest tests -q
+node tests/test_dashboard.mjs
+node tests/test_crud_history.mjs
+npm run build --prefix web
+\end{lstlisting}
+\end{minipage}\par
+La revisión usó Python 3.11.17 y un entorno temporal con las dependencias del repositorio y de la API, además de \codigo{pytest} y \codigo{httpx}. Las salidas y versiones se conservan en \ruta{informe/evidencias/verificacion.txt}.
+
+Para habilitar las diez regresiones que requieren bases, la documentación proporciona este procedimiento en un proyecto Compose de desarrollo:
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}
+docker compose -p wikipipe-dev-ian up -d --build
+docker compose -p wikipipe-dev-ian cp tests/. api:/tmp/tests/
+docker compose -p wikipipe-dev-ian exec -T api pip install pytest httpx
+docker compose -p wikipipe-dev-ian exec -T \
+  -e WIKIPIPE_INTEGRATION=1 api \
+  python -m pytest /tmp/tests/test_pipeline_integration.py -q
+\end{lstlisting}
+\end{minipage}\par
+
+Los tests de integración usan nombres temporales para MongoDB y Cassandra y prefijos para entidades de Neo4j. Deben ejecutarse en un entorno de desarrollo aislado. La muestra de \ruta{tests/seed_local.py} contiene 55\,000 registros sintéticos: sirve para probar procesamiento y no acredita el volumen real de Wikimedia.
+
+\section{Correspondencia con el enunciado}
+\begin{table}[H]\centering\small\setstretch{1.05}\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{P{3.8cm}P{2.3cm}Y}
+\toprule
+Requisito & Desarrollo en el informe & Evidencia principal \\
+\midrule
+Fuente semiestructurada y actualizable & Cap. II & JSON, SSE y consumidor continuo. \\
+Mínimo de 50\,000 registros & Cap. II y VII & 206\,762 eventos documentados tras la reconstrucción. \\
+Justificación multimodelo & Cap. III & Esquemas y patrones de consulta de las tres bases. \\
+DAG programado de seis etapas & Cap. IV & Dependencias y configuración horaria. \\
+CRUD en cada base & Cap. V & Funciones, API, interfaz y demo de consola. \\
+Dashboard y capturas & Cap. V & Siete vistas; capturas del dashboard desplegado en GCP. \\
+Cinco o más KPIs con fórmula e interpretación & Cap. VI & Doce indicadores implementados. \\
+Conclusiones & Cap. VII & Resultados, límites y mejoras. \\
+Código, scripts y DAG & Anexo A & Archivos y comandos del repositorio. \\
+Video y evaluación de pares & Entregables complementarios & Su ejecución no se acredita mediante este informe. \\
+\bottomrule
+\end{tabularx}
+\caption{Trazabilidad de los requisitos académicos.}
+\end{table}
+
+\section{Identificación y plantilla}
+Código revisado: \texttt{\RevisionCodigo}. Las cifras históricas proceden de la bitácora; las descripciones técnicas siguen el código vigente. Se conservaron la clase \codigo{tesisutec.cls}, el estilo \codigo{IEEEtran.bst} y el logo de la plantilla. La portada se adaptó al curso y sus datos se editan en \ruta{datos.tex}.
+
+\section{Alcance y método de revisión del informe}
+Se revisaron el código Python del pipeline y la API, los esquemas JSON/CQL/Cypher, el DAG, el frontend TypeScript, los archivos de contenedores, Terraform, las pruebas y la documentación del repositorio. La referencia de esta revisión es el commit \texttt{\RevisionCodigo}, del 17 de noviembre de 2026 \cite{repo}.
+
+La evidencia se distingue en tres grupos: comportamiento comprobable en el código, mediciones históricas registradas en la bitácora y verificaciones ejecutadas para este informe. No se interpreta una configuración de escritura cada dos segundos como una medición completa de latencia. Tampoco se presenta una prueba sintética como acreditación del dataset real.
+
+El sistema opera en una VM, sin clúster ni alta disponibilidad. Sus resultados dependen de la retención, el tamaño de las transacciones y las reglas heurísticas.

@@ -1,0 +1,26 @@
+...................                                                      [100%]
+19 passed, 1 skipped in 0.24s
+React: períodos, sumas consolidadas, dataset del Explorador, En vivo y estados sin datos verificados
+CRUD: historial sin límite de cinco, orden, datos actualizados y eliminaciones verificados
+
+Fecha de revisión: 17 de noviembre de 2026 (America/Lima).
+Commit revisado: 3ce1bb5.
+Python: 3.11.17, entorno temporal de revisión fuera del repositorio.
+Prueba: PYTHONPATH=src:api python -m pytest tests -q
+Frontend: node tests/test_dashboard.mjs; node tests/test_crud_history.mjs
+Build: npm run build --prefix web
+Resultado del build ejecutado: TypeScript y Vite correctos; 3306 módulos transformados.
+Integración: módulo omitido por falta de WIKIPIPE_INTEGRATION=1.
+Docker: daemon detenido; no se levantaron bases ni se ejecutaron migraciones.
+Capturas finales: interfaz del dashboard desplegado en http://34.45.96.253:8501/, obtenidas mediante Chrome el 17 de noviembre de 2026.
+Formularios con datos de prueba: solo previsualización; no se ejecutó insertar, actualizar o eliminar.
+GCP: acceso de lectura a la interfaz desplegada para las capturas; sin cambios en los servicios ni en los datos.
+
+Versiones del entorno de verificación:
+pytest==9.2.0
+requests==2.32.3
+pymongo==4.11
+cassandra-driver==3.29.2
+neo4j==5.27.0
+fastapi==0.115.14
+httpx==0.28.1

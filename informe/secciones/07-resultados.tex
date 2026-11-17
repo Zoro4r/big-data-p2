@@ -1,0 +1,84 @@
+\chapter{RESULTADOS, DISCUSIÓN Y CONCLUSIONES}
+\label{cap:resultados}
+\section{Resultados documentados de procesamiento}
+La evaluación combina los registros del equipo con las verificaciones locales realizadas para el informe. Las mediciones de la tabla~\ref{tab:evidencia} pertenecen a cortes diferentes y no se agregan como si procedieran de una misma ejecución.
+
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{3.2cm}P{4.0cm}Y}
+\toprule
+Evidencia y período & Resultado registrado & Alcance \\
+\midrule
+Captura exploratoria, 31 oct. & 4\,915 eventos en 134 s; 93 wikis. & Caracterización de la fuente global, previa al filtro final. \\
+Dos horas, 31 oct. & 16\,442 y 15\,402 eventos; 31\,844 acumulados. & Primer procesamiento real de enwiki y eswiki. \\
+CRUD en VM, registro del 31 oct. & Las 12 operaciones terminaron; se consultaron 79\,521 eventos. & Evidencia histórica de ejecución y superación del mínimo. \\
+Comparación de fuentes, 12 nov. & 1\,598 identificadores iguales; 0 diferencias. & Ventana de cinco minutos, no todo el historial. \\
+Reconstrucción, 17 nov. & 206\,762 eventos conservados desde las 01:00 UTC. & Corte reportado tras migrar al modelo 2. \\
+\bottomrule
+\end{tabularx}
+\caption{Evidencias históricas con su período y alcance.}\label{tab:evidencia}
+\fuente{\ruta{docs/trazabilidad.md} y \ruta{docs/justificacion-dataset.md}}
+\end{tabla}
+
+En las dos horas iniciales, el volumen pasó de 16\,442 a 15\,402 eventos, una disminución de aproximadamente 6.33\,\%. Las tasas de automatización registradas fueron 27.31\,\% y 27.22\,\%. Estos resultados ilustran los cálculos del sistema inicial; no acreditan los valores de una hora actual ni los rankings horarios del nuevo modelo.
+
+La bitácora describe una repetición de la primera hora: MongoDB insertó cero documentos nuevos y el acumulado permaneció en 31\,844. Es una evidencia histórica de deduplicación. El modelo 2 amplía esa estrategia con reemplazo de contribuciones, correcciones y eliminación de filas obsoletas \cite{bitacora,correcciones}.
+
+\section{Tiempos observados y límites de comparación}
+En una ventana inicial de aproximadamente 16\,000 eventos se registraron 2.4 s para MongoDB, 4.3 s para Cassandra, 28 s para Neo4j y 1.7 s para KPIs. Estas cifras corresponden a etapas y versión iniciales; las tareas de Cassandra y Neo4j pueden correr en paralelo, de modo que su suma no es la duración del DAG \cite{bitacora}.
+
+El 12 de noviembre se comparó la misma ventana de cinco minutos: MongoDB devolvió 1\,598 eventos en 0.2 s y EventStreams en 48.9 s, con igualdad de identificadores. Para esa muestra, el cociente de tiempos fue $48.9/0.2=244.5$. No se interpreta como aceleración universal: incluye acceso remoto, reproducción del stream y una única ventana. Otra ejecución documentada leyó 20\,770 eventos desde MongoDB en 3.2 s; la hora anterior, recuperada externamente, tuvo un volumen y duración diferentes \cite{bitacora}.
+
+La frecuencia de vaciado de dos segundos no garantiza que cada evento aparezca en pantalla en ese plazo. La latencia total incluye recepción, persistencia, conteos, consultas y refresco. No se realizó para este informe un experimento de percentiles de latencia ni una prueba de carga sostenida.
+
+\section{Migración temporal y recorte del historial}
+La integración del modelo 2 detectó relaciones antiguas sin atribución horaria. El código rechazó la carga para impedir mezclar ambos formatos. La bitácora registra que se conservó un snapshot y se optó por reconstruir un período reducido en lugar de reprocesar las aproximadamente 400 horas del historial anterior \cite{bitacora}.
+
+Se eliminaron los eventos anteriores al 17 de noviembre y se reconstruyeron las tablas derivadas y el grafo. La hora 00:00 UTC, con 57\,669 eventos y fuerte concentración de actividad en un bot, quedó excluida después de bloquear una carga de Neo4j durante más de veinte minutos. Las demás horas reconstruidas se reportaron alrededor de veinte segundos cada una. El corte posterior registró 206\,762 eventos y catorce horas reconstruidas de 01:00 a 14:00 UTC; la hora de las 15:00 se recuperó posteriormente mediante el DAG.
+
+Esta decisión mantiene un volumen superior al mínimo del curso, pero reduce la cobertura y elimina precisamente una hora de alta actividad automática. Por ello, el dataset conservado no representa un día completo ni una muestra aleatoria del día. El incidente es evidencia de un límite de escalabilidad de la transacción horaria del grafo y debe acompañar cualquier interpretación de volumen o automatización.
+
+\section{Verificación ejecutada para el informe}
+Se ejecutaron las pruebas existentes en un entorno Python 3.11 con las versiones fijadas de los drivers de la API. El resultado fue \textbf{19 pruebas correctas y un módulo omitido}. El módulo de integración se omite deliberadamente si \codigo{WIKIPIPE_INTEGRATION} no vale 1; contiene diez pruebas que necesitan los tres motores. Docker estaba detenido en el equipo, por lo que no se presentan como ejecutadas en esta revisión \cite{verificacion}.
+
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{4.3cm}P{2.8cm}Y}
+\toprule
+Verificación & Resultado & Qué comprueba \\
+\midrule
+Python: limpieza & 11 pruebas correctas. & Tipos de usuario, validación, derivados, comentarios y registros malformados. \\
+Python: decisión de fuente & 4 pruebas correctas. & Cobertura completa, huecos, espera y tramo detenido. \\
+Python: streaming & 4 pruebas correctas. & Filtro, contadores, rechazos y cobertura en vivo. \\
+Integración con bases & Módulo omitido. & Requiere MongoDB, Cassandra y Neo4j activos; diez casos definidos. \\
+Renderizado React & Correcto. & Períodos, unidades, acumulados, datos vacíos y textos. \\
+Historial CRUD en frontend & Correcto. & Orden, datos actualizados, registros borrados y errores temporales. \\
+Compilación del frontend & Correcta. & TypeScript y construcción de producción con Vite. \\
+\bottomrule
+\end{tabularx}
+\caption{Resultado y alcance de las verificaciones locales.}
+\end{tabla}
+
+Las pruebas de integración disponibles abarcan reemplazo y aislamiento temporal, distinción de cuentas entre wikis, fallos y reinicios de streaming, marcas de escritura, operaciones CRUD, eliminación exacta de relaciones, rollback del grafo, paginación y alcances de vistas. Su existencia aporta cobertura prevista; la bitácora registra una ejecución previa en desarrollo, pero esta revisión no la sustituye por un resultado nuevo.
+
+\section{Discusión de limitaciones}
+\begin{itemize}
+\item \textbf{Escala y disponibilidad.} Los servicios comparten una VM y Cassandra tiene replicación 1. Una falla del host afecta al conjunto. El modelo de consultas es compatible con crecimiento, pero la instalación actual no demuestra escalabilidad distribuida.
+\item \textbf{Concentración del grafo.} La transacción de reemplazo y la reconstrucción acumulada pueden encarecer una ventana con cuentas de mucha actividad. El mutex global también serializa las cargas del grafo.
+\item \textbf{Cobertura y retención.} Los márgenes temporales y la recuperación externa son políticas operativas con historial limitado. El recorte documentado deja una ausencia conocida que debe hacerse visible al analizar el día.
+\item \textbf{Inferencias.} Bots, reversiones y categorías dependen parcialmente de nombres o comentarios. No se dispone de una medición independiente de precisión y exhaustividad.
+\item \textbf{Consistencia.} Las bases se actualizan en etapas. La publicación por ejecución y la verificación de versión reducen lecturas mixtas, pero no aportan atomicidad distribuida. Las modificaciones CRUD requieren reconstrucción de derivados.
+\item \textbf{Seguridad y mantenimiento.} La contraseña compartida y el despliegue automático cubren una demostración; quedan pendientes roles, TLS, migraciones previas y una estrategia de respaldo y restauración integral.
+\end{itemize}
+
+\section{Conclusiones}
+El proyecto implementa el recorrido completo desde eventos semiestructurados de Wikipedia hasta consultas documentales, series temporales y relaciones entre entidades. La distribución de responsabilidades aprovecha MongoDB para conservar contexto y reconstruir, Cassandra para leer materializaciones temporales y Neo4j para expresar conexiones. Los tres motores tienen una función verificable en el código y el dashboard.
+
+El DAG satisface las seis etapas solicitadas y añade recuperación desde la fuente externa cuando falta cobertura local. La versión temporal incorpora claves estables, ventanas semiabiertas, bloqueo renovable, marcas crecientes, manifiestos y reemplazo transaccional del grafo. Estos mecanismos explican cómo se busca evitar duplicados y reconstruir resultados, sin atribuir al sistema una consistencia distribuida que no implementa.
+
+Los doce KPIs y las siete vistas permiten observar volumen, automatización, creación, revisión y participación. Su utilidad depende de respetar denominadores, cortes y alcances: un conteo provisional de cinco minutos no es una hora consolidada, y una relación de coedición no demuestra colaboración intencional.
+
+La cifra documentada de 206\,762 eventos después de la reconstrucción supera el mínimo académico. No obstante, la exclusión de la hora de mayor concentración revela una restricción real del grafo y limita la representatividad del período. La solución cumple el alcance funcional implementado, mientras que su operación prolongada exige mejorar escalabilidad, cobertura, seguridad y procedimientos de migración.
+
+\section{Trabajo futuro}
+Se propone priorizar cargas de grafo con un área de preparación y publicación por versión, para acotar transacciones sin perder coherencia por ventana; evaluar estas cargas con distribuciones reales y cuentas muy activas; y reconstruir la hora excluida cuando exista una ruta de procesamiento validada.
+
+También conviene segmentar las particiones históricas de Cassandra, incorporar política de retención y restauración probada de las tres bases, medir latencia y frescura por percentiles, y ejecutar las regresiones de integración antes de desplegar cambios de modelo. Para el análisis, un corpus de reversiones etiquetadas permitiría evaluar la heurística. Las relaciones de creación, categorías, traslados y archivos pueden alimentar indicadores temáticos adicionales.

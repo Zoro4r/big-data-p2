@@ -1,0 +1,104 @@
+\chapter{INDICADORES IMPLEMENTADOS}
+\label{cap:kpis}
+\section{Convenciones de cálculo}
+Los doce KPIs se implementan en \ruta{src/wikipipe/kpis.py}. Se calculan para ambas wikis y para cada una por separado. Los resultados se almacenan como valor y detalle en \codigo{kpis} o \codigo{kpis_por_wiki}. El detalle identifica la entidad ganadora cuando el indicador representa una página o editor \cite{repo}.
+
+Para una hora $h$, sean $E_h$ el total de eventos, $B_h$ los eventos de bots, $H_h$ los eventos humanos, $U_h$ los nombres humanos distintos, $M_h$ los eventos \codigo{edit}, $N_h$ los eventos \codigo{new}, $R_h$ las ediciones que contienen una reversión detectada y $V_h$ las entradas aceptadas únicas. $I_h$ representa las entradas del archivo de limpieza. Se utiliza $t_e$ para el instante \codigo{meta.dt} de un evento.
+
+Una división sin denominador válido devuelve un valor ausente, no un cero. Las comparaciones entre porcentajes se muestran en puntos porcentuales. El frontend solo calcula diferencias horarias si los puntos son contiguos; así no confunde una hora faltante con una comparación inmediata.
+
+\section{Volumen y evolución}
+\subsection{Eventos de la hora}
+\textbf{Definición:} número de eventos de los cuatro tipos procesados en la ventana. \textbf{Fórmula:}
+\[
+K_1(h)=E_h.
+\]
+\textbf{Fuente:} suma de \codigo{eventos} en \codigo{resumen_por_hora} de Cassandra. \textbf{Interpretación:} describe carga de actividad y de procesamiento. Una caída puede tener causas comunitarias, temporales o de cobertura; necesita contrastarse con el estado del pipeline.
+
+\subsection{Cambio frente a la hora anterior}
+\textbf{Definición:} variación porcentual del volumen respecto de la hora previa. \textbf{Fórmula:}
+\[
+K_2(h)=100\frac{E_h-E_{h-1}}{E_{h-1}}.
+\]
+\textbf{Fuente:} Cassandra. \textbf{Interpretación:} permite detectar cambios de ritmo. Si la hora anterior no existe o tiene cero eventos, el indicador queda ausente. Una variación positiva no representa por sí sola una mejora de calidad.
+
+\subsection{Eventos acumulados}
+\textbf{Definición:} documentos almacenados de las wikis elegidas anteriores al cierre de la hora. \textbf{Fórmula:}
+\[
+K_8(h)=\left|\{e\in\texttt{events}:t_e<h+1\text{ hora}\}\right|.
+\]
+\textbf{Fuente:} conteo filtrado de MongoDB. \textbf{Interpretación:} volumen histórico disponible hasta el corte. A diferencia del acumulado de las tarjetas actuales, este KPI no restringe el conteo a las ventanas publicadas del modelo 2. La distinción debe mantenerse al comparar cifras.
+
+\section{Participación, automatización y creación}
+\subsection{Proporción de eventos de bots}
+\textbf{Definición:} participación de eventos automáticos entre todos los tipos. \textbf{Fórmula:}
+\[
+K_3(h)=100\frac{B_h}{E_h}.
+\]
+\textbf{Fuente:} Cassandra, usando la clasificación de la limpieza. \textbf{Interpretación:} cuantifica automatización del flujo observado. No es la proporción de cuentas bot ni únicamente de ediciones de artículos. Su exactitud depende de la clasificación de nombres y marcas.
+
+\subsection{Actividad por editor humano}
+\textbf{Definición:} promedio de eventos por nombre humano distinto durante la hora. \textbf{Fórmula:}
+\[
+K_4(h)=\frac{H_h}{|U_h|}.
+\]
+\textbf{Fuente:} agregación en MongoDB. \textbf{Interpretación:} intensidad de participación. El cálculo global obtiene los nombres distintos después de combinar las wikis; no suma cantidades de usuarios por wiki porque una misma cuenta podría aparecer en ambas. Incluye cuentas registradas, temporales e IP clasificadas como humanas y eventos de todos los tipos.
+
+\subsection{Proporción de páginas nuevas}
+\textbf{Definición:} creaciones entre ediciones y creaciones. \textbf{Fórmula:}
+\[
+K_5(h)=100\frac{N_h}{M_h+N_h}.
+\]
+\textbf{Fuente:} MongoDB. \textbf{Interpretación:} contrasta creación de páginas con mantenimiento. El denominador excluye categorizaciones y registros; una ``página'' puede pertenecer a espacios distintos al de artículos, pues no se impone \codigo{namespace=0} en este KPI.
+
+\subsection{Variación neta de contenido}
+\textbf{Definición:} bytes agregados menos bytes eliminados en \codigo{edit} y \codigo{new}. \textbf{Fórmula:}
+\[
+K_6(h)=\sum_{e\in W_h,\;type(e)\in\{edit,new\}}
+\left(\operatorname{length.new}(e)-\operatorname{length.old}(e)\right).
+\]
+\textbf{Fuente:} MongoDB y \codigo{derived.delta_bytes}. Los tamaños ausentes se sustituyen por cero según la regla implementada. \textbf{Interpretación:} indica expansión o reducción neta; no mide calidad, importancia ni texto original. Un valor negativo puede responder a limpieza legítima, reversiones u otras modificaciones.
+
+\section{Reversiones y relaciones}
+\subsection{Ediciones que revierten}
+\textbf{Definición:} porcentaje de eventos \codigo{edit} que revierten a otro editor según el comentario. \textbf{Fórmula:}
+\[
+K_7(h)=100\frac{R_h}{M_h}.
+\]
+\textbf{Fuente:} MongoDB. \textbf{Interpretación:} frecuencia observada de revisión por reversión. El denominador no incluye \codigo{new}. Depende de una heurística y no proporciona precisión o exhaustividad demostradas frente a todas las reversiones reales.
+
+\subsection{Página más disputada}
+\textbf{Definición:} página con mayor número de reversiones detectadas en la hora. Para cada página $p$ se cuenta $r_h(p)$:
+\[
+K_9(h)=\operatorname*{arg\,max}_{p}\ r_h(p).
+\]
+\textbf{Fuente:} primer puesto de \codigo{paginas_disputadas_por_hora} en Cassandra, comparado entre wikis cuando se combinan. El valor guarda la cantidad y el detalle la clave de página. \textbf{Interpretación:} prioriza inspección de páginas con actividad de reversión. No corresponde al antiguo criterio de cantidad de editores que aparece en mediciones iniciales.
+
+\subsection{Editor humano más conectado}
+\textbf{Definición:} cuenta humana con mayor cantidad de otros humanos que editaron páginas comunes dentro de la hora. Si $C_h(u)$ es ese conjunto:
+\[
+K_{10}(h)=\operatorname*{arg\,max}_{u\text{ humano}}|C_h(u)|.
+\]
+\textbf{Fuente:} Neo4j, recorrido \codigo{Editor-EDITO-Pagina-EDITO-Editor}, con hora y wiki cuando corresponde. Se cuentan vecinos distintos. \textbf{Interpretación:} centralidad de coactividad. El recorrido no demuestra acuerdo entre los participantes y no utiliza la relación acumulada \codigo{COEDITA} para producir el KPI horario.
+
+\subsection{Editor más revertido}
+\textbf{Definición:} cuenta que recibió más reversiones en la hora. \textbf{Fórmula:}
+\[
+K_{11}(h)=\operatorname*{arg\,max}_{u}\sum_{v}r_h(v,u).
+\]
+\textbf{Fuente:} Neo4j, suma de \codigo{veces} en relaciones entrantes \codigo{REVIRTIO}. El detalle incluye la cuenta y el número de editores que la revirtieron. \textbf{Interpretación:} señal para revisar la interacción en contexto, sin atribuir intención o vandalismo de forma automática.
+
+\section{Calidad del procesamiento}
+\subsection{Validación de eventos}
+\textbf{Definición:} proporción de entradas que terminan como eventos válidos únicos. \textbf{Fórmula:}
+\[
+K_{12}(h)=100\frac{V_h}{I_h}.
+\]
+\textbf{Fuente:} estadísticas de \codigo{clean_file}. \textbf{Interpretación:} cumplimiento de reglas sobre el archivo procesado. Los duplicados reducen el numerador relativo; los rechazos tienen motivo explícito. El valor por wiki usa sus propias entradas y aceptados. Un archivo vacío produce valor ausente.
+
+\section{Uso correcto de los períodos}
+Los KPIs horarios no deben sumarse o promediarse sin considerar su significado. Los eventos, creaciones, reversiones y bytes pueden acumularse sobre ventanas disjuntas. Los porcentajes deben recalcularse con numeradores y denominadores totales. Los editores distintos requieren una nueva operación de distinción; sumar conteos horarios repite cuentas.
+
+Para los protagonistas acumulados, la API consulta las ventanas completadas hasta el mismo corte y calcula los resultados desde MongoDB y Neo4j. No suma únicamente los ganadores horarios ni los rankings truncados: un candidato que nunca ganó una hora podría ser el primero en el acumulado.
+
+Por ejemplo, si una hora tiene 1 evento de bot entre 2 eventos y otra tiene 10 entre 100, el promedio simple es 30\,\%, pero la proporción acumulada correcta es $11/102=10.78$\,\%. Esta diferencia explica por qué el dashboard conserva totales y períodos explícitos.

@@ -1,0 +1,44 @@
+\chapter{INTRODUCCIÓN Y PLANTEAMIENTO DEL PROBLEMA}
+\label{cap:intro}
+\section{Contexto y motivación}
+Los cambios de Wikipedia permiten observar cómo una comunidad crea, mantiene y revisa conocimiento. Una edición puede agregar contenido, deshacer una contribución previa o dejar un mensaje en una página de discusión. Al mismo tiempo, los bots realizan tareas automáticas y los registros administrativos describen bloqueos, traslados y agradecimientos. Un conteo total de eventos no explica por sí solo estas diferencias.
+
+El proyecto propone integrar esas señales en una plataforma de consulta. El análisis se limita a \codigo{enwiki} y \codigo{eswiki}, de modo que sea posible comparar dos comunidades y mantener un volumen operativo compatible con los recursos del equipo. El objetivo analítico es describir actividad y relaciones observables; identificar una reversión no equivale a demostrar vandalismo ni a evaluar la calidad de una contribución.
+
+La propuesta responde al Proyecto Grupal II de Big Data: emplear un dataset actualizable de al menos 50\,000 registros, justificar MongoDB, Cassandra y Neo4j, automatizar seis etapas con Airflow, implementar CRUD y presentar indicadores y visualizaciones \cite{enunciado}.
+
+\section{Descripción del problema}
+La fuente entrega documentos JSON con estructura variable. Almacenarlos en un único esquema tabular rígido obligaría a tratar numerosos campos opcionales. Consultar repetidamente todos los documentos para dibujar una serie por minuto incrementaría el trabajo de lectura. Por otra parte, preguntas como qué editores comparten páginas o quién revierte a quién se expresan como recorridos entre entidades.
+
+La dificultad comprende también el tiempo. El consumidor recibe eventos durante toda la hora, mientras Airflow consolida ventanas ya cerradas. Una desconexión, un evento reenviado o una corrección manual puede provocar duplicados o resúmenes inconsistentes si ambas capas escriben sin coordinación. El dashboard debe indicar cuándo una cifra es provisional y cuándo procede de una hora consolidada.
+
+La pregunta que guía la implementación es: \textit{¿cómo integrar documentos, series temporales y relaciones para monitorear la actividad colaborativa de Wikipedia con actualización continua y reprocesamiento por ventanas?}
+
+\section{Usuarios y necesidades analíticas}
+\begin{table}[H]\centering\small\setstretch{1.05}\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{P{3.0cm}YY}
+\toprule
+Usuario & Necesidad & Respuesta del sistema \\
+\midrule
+Patrulleros y moderadores & Revisar reversiones, cuentas y cambios de contenido. & En vivo, detalle de eventos y red de interacciones. \\
+Comunidad editora & Conocer participación, creación y colaboración. & Actividad por editor, páginas nuevas y coedición. \\
+Analistas del ecosistema Wikimedia & Comparar actividad humana y automática entre wikis. & Filtro global, automatización y series consolidadas. \\
+Operadores del pipeline & Detectar cortes y controlar la calidad de procesamiento. & Estado de las capas, validación, ejecuciones y arquitectura. \\
+\bottomrule
+\end{tabularx}
+\caption{Usuarios previstos y necesidades cubiertas.}
+\end{table}
+
+\section{Objetivos}
+\subsection{Objetivo general}
+Implementar una plataforma multimodelo que capture y procese cambios de Wikipedia, permita consultar su evolución y sus relaciones, y presente indicadores con períodos y fuentes identificables.
+
+\subsection{Objetivos específicos}
+\begin{enumerate}
+\item Caracterizar una fuente JSON actualizable y documentar su selección, alcance y volumen.
+\item Conservar los eventos en MongoDB, materializar consultas temporales en Cassandra y representar interacciones en Neo4j.
+\item Automatizar extracción, limpieza, cargas y cálculo de KPIs con un DAG horario de Airflow.
+\item Permitir el reprocesamiento de ventanas sin sumar nuevamente sus contribuciones y coordinar la capa rápida con la consolidación.
+\item Implementar operaciones CRUD y un dashboard que conecte las tres bases.
+\item Definir e interpretar doce indicadores y verificar las reglas de procesamiento y presentación.
+\end{enumerate}

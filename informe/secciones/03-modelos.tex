@@ -1,0 +1,175 @@
+\chapter{ARQUITECTURA Y MODELOS DE DATOS}
+\label{cap:modelos}
+\section{Arquitectura general}
+La solución combina una capa rápida con una capa por lotes y materializaciones orientadas a consulta. La capa rápida conserva cambios recientes y permite seguimiento provisional. La capa por lotes procesa horas completas y construye los resúmenes y relaciones que requieren consolidación. Ambas comparten MongoDB como repositorio de eventos \cite{repo}.
+
+La figura~\ref{fig:arquitectura} resume el flujo implementado. No se utiliza Spark ni un clúster Kafka propio: el equipo consume el endpoint SSE publicado por Wikimedia. PostgreSQL almacena metadatos de Airflow y no sustituye a ninguna de las tres bases analíticas.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=0.9cm and 0.6cm]
+\node[caja,fill=azul,text width=5.1cm] (src) {Wikimedia EventStreams\\\footnotesize recentchange: enwiki y eswiki};
+\node[caja,below left=0.9cm and -1.1cm of src,text width=3.5cm] (stream) {Streaming continuo\\\footnotesize buffer: 2 s o 200 eventos};
+\node[caja,below right=0.9cm and -1.1cm of src,text width=3.5cm] (air) {Airflow cada hora\\\footnotesize extracción y consolidación};
+\node[caja,below=1.2cm of stream,fill=azul,text width=3.5cm] (mongo) {MongoDB\\\footnotesize eventos y coordinación};
+\node[caja,below=1.2cm of air,fill=rosa,text width=3.5cm] (neo) {Neo4j\\\footnotesize contribuciones temporales};
+\node[caja,below=1.15cm of $(mongo)!0.5!(neo)$,text width=4.2cm] (cass) {Cassandra\\\footnotesize minutos, horas, rankings y KPIs};
+\node[caja,below=0.9cm of cass,text width=4.2cm,fill=azul] (api) {FastAPI $\rightarrow$ React / nginx\\\footnotesize consultas, CRUD y visualización};
+\draw[flecha] (src) -- (stream);
+\draw[flecha,dashed] (src) -- node[right,font=\scriptsize]{respaldo} (air);
+\draw[flecha] (stream) -- (mongo);
+\draw[flecha] (mongo) -- node[above,font=\scriptsize,sloped]{hora completa} (air);
+\draw[flecha] (air) -- (neo);
+\draw[flecha] (air.west) -- ++(-0.45,0) |- (cass.east);
+\draw[flecha] (stream.west) -- ++(-0.55,0) |- node[near end,below,font=\scriptsize]{minutos provisionales} (cass.west);
+\draw[flecha] (cass) -- (api);
+\draw[flecha] (mongo.west) -- ++(-0.85,0) |- (api.west);
+\draw[flecha] (neo.east) -- ++(0.85,0) |- (api.east);
+\end{tikzpicture}
+\caption{Flujo lógico de la arquitectura implementada.}\label{fig:arquitectura}
+\fuente{elaboración propia a partir del código del repositorio; línea discontinua: recuperación externa}
+\end{figure}
+
+\section{Justificación de la persistencia multimodelo}
+La distribución se decide según el patrón de acceso. MongoDB conserva documentos heterogéneos y permite inspeccionar campos anidados. Cassandra guarda respuestas temporales precalculadas. Neo4j representa relaciones y soporta recorridos entre editores y páginas. El resultado es una persistencia políglota: los modelos complementan sus funciones y requieren sincronización explícita.
+
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{2.3cm}YY}
+\toprule
+Base & Información principal & Consulta que motiva el modelo \\
+\midrule
+MongoDB & Evento completo normalizado, derivados, rechazos y control. & Buscar una edición y explicar su contexto o reconstruir una ventana. \\
+Cassandra & Series, resúmenes, actividad por editor, rankings y KPIs. & Recuperar una serie por wiki y día o los valores horarios de un indicador. \\
+Neo4j & Entidades e interacciones con atribución temporal. & Hallar coeditores, patrulleros y reversiones recibidas. \\
+\bottomrule
+\end{tabularx}
+\caption{Distribución de responsabilidades entre las tres bases.}
+\end{tabla}
+
+La ventaja no elimina los costos: existen datos derivados duplicados, tres conexiones y reglas de reconstrucción. La consistencia entre bases se consigue mediante ejecuciones y reintentos; no existe una transacción distribuida que confirme MongoDB, Cassandra y Neo4j al mismo tiempo.
+
+\section{MongoDB: documentos y fuente de reconstrucción}
+\subsection{Colecciones}
+El esquema se define en \ruta{db/mongo/schema.json} y se aplica con \codigo{ensure_schema}. La colección \codigo{events} almacena un documento por \codigo{meta.id}. Los \textit{upserts} usan \codigo{ReplaceOne} y lotes de 1\,000 operaciones. Los campos originales no se proyectan fuera de este almacenamiento; sin embargo, \codigo{sanitize} cambia puntos por guiones bajos y retira prefijos de dólar en las claves. En una extracción directa de EventStreams, el archivo crudo conserva la representación de origen. Si la hora se exporta desde MongoDB, sus claves ya están normalizadas.
+
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{4.0cm}Y}
+\toprule
+Colección & Función \\
+\midrule
+\codigo{events} & Documentos aceptados, campos originales normalizados y \codigo{derived}. \\
+\codigo{events_rejected} & Evento o entrada rechazada, motivo e instante cuando es interpretable. \\
+\codigo{pipeline_runs} & Resultado por ventana, cargas, KPIs, versión y fecha de publicación. \\
+\codigo{stream_state} & Marcador SSE para retomar el consumo. \\
+\codigo{stream_cobertura} & Tramos de actividad continua que habilitan la lectura horaria local. \\
+\codigo{pipeline_windows} & Bloqueo renovable, marca de escritura y manifiestos de reconstrucción. \\
+\bottomrule
+\end{tabularx}
+\caption{Colecciones del esquema documental.}
+\end{tabla}
+
+\subsection{Validador e índices}
+MongoDB permite combinar esquema flexible con validaciones de tipos y campos \cite{mongo}. En el proyecto, el validador exige identificador, tipo, wiki, título, usuario, metadatos y derivados. Dentro de \codigo{derived}, la fecha BSON, el día, la hora, el tipo de usuario y la clave de página son obligatorios. Se configura \codigo{validationLevel=moderate}; la validación Python realiza comprobaciones adicionales antes de la carga.
+
+Hay índices por fecha; por wiki, tipo y fecha; por editor y fecha; por página; por editor revertido; y por wiki, fecha e identificador. Este último permite ordenar de forma estable cuando varios eventos tienen el mismo instante. Los rechazos se indexan por motivo y fecha; las ejecuciones por inicio de ventana.
+
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Consulta documental por wiki y ventana; ejemplo de uso.}]
+db.events.find({
+  wiki: "eswiki",
+  "derived.event_dt": {
+    $gte: ISODate("2026-11-17T10:00:00Z"),
+    $lt:  ISODate("2026-11-17T11:00:00Z")
+  }
+}).sort({"derived.event_dt": -1, _id: -1})
+\end{lstlisting}
+\end{minipage}\par
+
+\section{Cassandra: modelo orientado a consultas}
+El diseño sigue el acceso esperado: una partición y un rango temporal permiten leer los resultados de una vista. La documentación de Cassandra describe este modelado como orientado a consultas, con desnormalización en función de los patrones de lectura \cite{cassandra}. El proyecto materializa ocho tablas en \ruta{db/cassandra/schema.cql}.
+
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{4.0cm}P{3.1cm}Y}
+\toprule
+Tabla & Partición; orden interno & Uso \\
+\midrule
+\codigo{resumen_por_hora} & \codigo{fecha}; \codigo{hora,wiki} & Conteos horarios por wiki y tipo, editores, reversiones y bytes. \\
+\codigo{eventos_por_minuto} & \codigo{wiki,fecha}; \codigo{minuto} descendente & Serie temporal provisional y consolidada. \\
+\codigo{actividad_editor} & \codigo{editor}; \codigo{fecha,hora,wiki} & Historial de una cuenta. \\
+\codigo{paginas_top_por_hora} & \codigo{wiki,fecha}; \codigo{hora,posicion} & Hasta 20 páginas por hora, ordenadas por editores y ediciones. \\
+\codigo{paginas_disputadas_por_hora} & \codigo{wiki,fecha}; \codigo{hora,posicion} & Hasta 20 páginas con más reversiones por hora. \\
+\codigo{kpis} & \codigo{kpi}; \codigo{ventana} descendente & Serie global de cada indicador. \\
+\codigo{kpis_por_wiki} & \codigo{kpi,wiki}; \codigo{ventana} descendente & Serie filtrada por comunidad. \\
+\codigo{ejecuciones} & \codigo{fecha}; \codigo{ventana} descendente & Calidad, volumen, duración y fuente de extracción. \\
+\bottomrule
+\end{tabularx}
+\caption{Tablas, particiones y accesos en Cassandra.}\label{tab:cassandra}
+\end{tabla}
+
+Las columnas almacenan valores calculados, no incrementos de contadores CQL. Reprocesar reemplaza la ventana y escribe el resultado absoluto, lo que evita volver a sumar el mismo evento. El ranking de páginas activas prioriza editores distintos, luego ediciones y título; el ranking de disputa prioriza reversiones.
+
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[caption={Lectura de una serie temporal por su partición.}]
+SELECT minuto, eventos, eventos_bot, reversiones
+FROM wikipipe.eventos_por_minuto
+WHERE wiki = 'eswiki' AND fecha = '2026-11-17'
+  AND minuto >= '2026-11-17T10:00:00Z'
+  AND minuto <  '2026-11-17T11:00:00Z';
+\end{lstlisting}
+\end{minipage}\par
+
+El keyspace usa \codigo{SimpleStrategy} con factor de replicación 1. Esta elección es compatible con una demostración de un nodo, pero no ofrece tolerancia a la pérdida de ese nodo. Además, las particiones por editor y por KPI crecen con el historial; una operación prolongada requeriría segmentarlas, por ejemplo, por mes.
+
+\section{Neo4j: relaciones y atribución temporal}
+\subsection{Entidades e identidad}
+El modelo analítico contiene cuatro clases de nodo. \codigo{Editor} usa \codigo{user} como identidad global; \codigo{Pagina} y \codigo{Categoria} usan una clave con wiki y nombre; \codigo{Wiki} usa su nombre. Un nodo auxiliar \codigo{PipelineModelo} almacena la versión y actúa como punto de bloqueo de las cargas transaccionales.
+
+La unicidad de \codigo{Editor.user} implica que una cuenta con el mismo nombre en las dos wikis se trata como la misma identidad. Este supuesto es relevante al contar personas distintas: el sistema observa cuentas y nombres, no verifica identidades reales.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\node[caja,fill=azul,text width=2.8cm] (a) at (0,3.3) {Editor A\\\footnotesize user único};
+\node[caja,fill=rosa,text width=2.8cm] (b) at (7.6,3.3) {Editor B\\\footnotesize user único};
+\node[caja,text width=2.8cm] (p) at (0,0.5) {Página\\\footnotesize key = wiki:título};
+\node[caja,text width=2.8cm] (c) at (7.6,0.5) {Categoría\\\footnotesize\texttt{wiki:nombre}};
+\node[caja,text width=2.8cm] (w) at (3.8,-2.4) {Wiki\\\footnotesize nombre único};
+\draw[flecha] (a) -- node[above,font=\scriptsize,align=center,text width=4cm]{REVIRTIO / MENSAJE\_A\\AGRADECIO / BLOQUEO} (b);
+\draw[flecha] (a) -- node[left,font=\scriptsize,align=right]{EDITO / CREO\\SUBIO} (p);
+\draw[flecha] (b) -- node[above,font=\scriptsize,sloped]{EDITO} (p);
+\draw[flecha] (p) -- node[above,font=\scriptsize]{EN\_CATEGORIA} (c);
+\draw[flecha] (p) -- node[pos=.55,left,font=\scriptsize]{PERTENECE\_A} (w);
+\draw[flecha] (c) -- node[pos=.55,right,font=\scriptsize]{PERTENECE\_A} (w);
+\end{tikzpicture}
+\caption{Núcleo del grafo analítico y relaciones principales.}\label{fig:grafo}
+\fuente{elaboración propia; las contribuciones de actividad conservan wiki y ventana}
+\end{figure}
+
+\subsection{Relaciones de actividad y estado}
+\begin{tabla}
+\begin{tabularx}{\textwidth}{P{3.3cm}P{3.0cm}Y}
+\toprule
+Relación & Origen y destino & Significado \\
+\midrule
+\codigo{EDITO}, \codigo{CREO}, \codigo{SUBIO} & Editor $\to$ Página & Ediciones y creaciones; subida de archivo. \codigo{EDITO} incluye también eventos \codigo{new}. \\
+\codigo{REVIRTIO}, \codigo{MENSAJE_A} & Editor $\to$ Editor & Reversiones y mensajes inferidos. \\
+\codigo{AGRADECIO}, \codigo{BLOQUEO} & Editor $\to$ Editor & Acción de registro con destinatario. \\
+\codigo{MOVIDA_A} & Página $\to$ Página & Traslado con título de destino. \\
+\codigo{PERTENECE_A} & Página/Categoría $\to$ Wiki & Comunidad de pertenencia. \\
+\codigo{CAMBIO_CATEGORIA} & Página $\to$ Categoría & Contribución temporal de adición o eliminación. \\
+\codigo{EN_CATEGORIA} & Página $\to$ Categoría & Estado derivado de la última acción conservada. \\
+\codigo{ACTIVO_EN} & Editor $\to$ Wiki & Actividad temporal para reconstruir atributos de la cuenta. \\
+\codigo{COEDITA} & Editor $\leftrightarrow$ Editor & Relación materializada entre humanos con páginas comunes. \\
+\bottomrule
+\end{tabularx}
+\caption{Relaciones del modelo temporal implementado.}
+\end{tabla}
+
+Las relaciones de contribución incluyen \codigo{ventana}, \codigo{wiki} y \codigo{version=2}. Por ello, dos editores pueden tener varias relaciones del mismo tipo en horas o wikis diferentes. Una consulta debe sumar \codigo{veces} y aplicar el período correspondiente; contar aristas sin considerar su granularidad produciría una métrica distinta.
+
+Las cargas usan \codigo{UNWIND} y \codigo{MERGE}. Este último permite buscar o crear patrones; la unicidad se refuerza con restricciones explícitas \cite{neo4j}. Cada hora se reemplaza en una sola transacción, y después se recalculan atributos y relaciones acumuladas afectadas.
+
+\subsection{Coedición y límites del modelo}
+La relación materializada \codigo{COEDITA} se genera para páginas con entre 2 y 50 editores humanos, para limitar la explosión de pares. Es una relación acumulada sin wiki. En cambio, el KPI horario de editor más conectado recorre directamente \codigo{EDITO} con filtros de hora, wiki y tipo humano; no depende de ese límite de materialización. La API también calcula coeditores desde \codigo{EDITO} cuando necesita un filtro por wiki.
+
+Compartir páginas expresa proximidad de actividad, no necesariamente cooperación. Además, categorías, bloqueos y traslados reflejan los eventos conservados; el sistema no reconstruye un estado completo de Wikipedia anterior al inicio de la captura. Las relaciones \codigo{CREO}, \codigo{SUBIO} y \codigo{MOVIDA_A} amplían el modelo, aunque todavía no alimentan un KPI específico del dashboard.

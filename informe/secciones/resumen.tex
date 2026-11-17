@@ -1,0 +1,19 @@
+\chapter*{RESUMEN}
+\addcontentsline{toc}{chapter}{Resumen}
+Wikipedia produce cambios continuos que combinan actividad humana, automatización y acciones de moderación. Analizarlos requiere conservar documentos heterogéneos, consultar su evolución temporal y recorrer relaciones entre editores. Este proyecto implementa \textit{Wikipedia en vivo}, una plataforma de Big Data que integra MongoDB, Apache Cassandra y Neo4j para analizar los cambios de Wikipedia en inglés y español.
+
+La solución combina un consumidor continuo de Wikimedia EventStreams con un DAG horario de Apache Airflow. MongoDB conserva los eventos y los registros de ejecución; Cassandra materializa series por minuto, resúmenes por hora y resultados de indicadores; Neo4j representa editores, páginas, categorías e interacciones. El modelo temporal atribuye las contribuciones del grafo a una hora UTC y una wiki, y permite reemplazarlas al reprocesar. Una API FastAPI conecta estas bases con un dashboard React de siete vistas y operaciones CRUD.
+
+Se implementan doce indicadores con definición, fórmula e interpretación, incluidos automatización, creación de páginas, reversiones y coedición. La bitácora registra 206\,762 eventos después de la reconstrucción del 17 de noviembre de 2026, cifra que supera el mínimo de 50\,000 exigido por el curso y que se distingue de las mediciones anteriores. La verificación local del informe comprende pruebas unitarias, comprobaciones de renderizado y compilación del frontend; las pruebas contra bases requieren servicios activos. Los resultados muestran la complementariedad de los modelos y también un límite de la carga transaccional del grafo frente a horas con actividad muy concentrada.
+
+\noindent\textbf{Palabras clave:} Big Data, Wikipedia, persistencia políglota, Airflow, MongoDB, Cassandra, Neo4j.
+
+\chapter*{ABSTRACT}
+\addcontentsline{toc}{chapter}{Abstract}
+Wikipedia changes combine human contributions, automated activity and moderation actions. Their analysis requires preserving heterogeneous documents, querying time series and traversing relationships among editors. This project implements \textit{Wikipedia en vivo}, a Big Data platform that integrates MongoDB, Apache Cassandra and Neo4j to analyze English and Spanish Wikipedia changes.
+
+The system combines a continuous Wikimedia EventStreams consumer with an hourly Apache Airflow DAG. MongoDB stores events and execution records, Cassandra materializes minute series, hourly summaries and indicator values, and Neo4j represents editors, pages, categories and interactions. A temporal model assigns graph contributions to a UTC hour and a wiki, allowing them to be replaced during reprocessing. A FastAPI service connects the databases to a seven-view React dashboard with CRUD operations.
+
+Twelve indicators cover automation, page creation, reverts and human coediting, among other aspects. The project log reports 206,762 events after reconstruction on November 17, 2026, exceeding the course minimum of 50,000 records. These figures are kept separate from earlier measurements. Local verification includes unit tests, rendering checks and frontend compilation; database integration tests require running services. The implementation demonstrates complementary storage models while exposing a scalability limit of large graph transactions under highly concentrated activity.
+
+\noindent\textbf{Keywords:} Big Data, Wikipedia, polyglot persistence, Airflow, MongoDB, Cassandra, Neo4j.

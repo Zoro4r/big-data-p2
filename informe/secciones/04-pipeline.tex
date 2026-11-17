@@ -1,0 +1,78 @@
+\chapter{AUTOMATIZACIÓN, CONSISTENCIA Y DESPLIEGUE}
+\label{cap:pipeline}
+\section{Capa rápida: ingesta continua}
+El servicio \codigo{stream} ejecuta \codigo{python -m wikipipe.streaming}. Cada evento recibido se filtra por wiki, se valida y se enriquece. El consumidor acumula eventos hasta 200 registros o hasta que transcurran aproximadamente dos segundos desde el último vaciado. Estos parámetros determinan una frecuencia objetivo; la duración real también depende de las escrituras, bloqueos y conexiones.
+
+Los documentos se guardan primero en MongoDB mediante \textit{upsert}. Los minutos afectados se reconstruyen leyendo los eventos persistidos y se escriben como valores absolutos en Cassandra. Así, reiniciar el proceso o recibir nuevamente un evento no exige confiar en un contador en memoria. Los minutos pendientes se conservan como pendientes cuando una escritura falla.
+
+El marcador SSE se persiste en \codigo{stream_state}. Al reiniciar se usa \codigo{Last-Event-ID}, salvo que el marcador tenga más de 24 horas, en cuyo caso el consumidor comienza en vivo. El código incorpora reconexión con espera creciente. Una parada prolongada requiere verificar y recuperar las ventanas faltantes.
+
+\section{Selección de la fuente horaria}
+El módulo \codigo{fuente.py} decide entre MongoDB y EventStreams. MongoDB se usa cuando un tramo de cobertura comienza antes o en el inicio de la ventana y se extiende hasta cinco minutos después de su cierre. El margen ayuda a evitar lecturas prematuras; solo se exportan eventos dentro del intervalo solicitado.
+
+Si el tramo sigue activo pero todavía no alcanza el margen, se sondea cada 15 segundos hasta un máximo de diez minutos. Un tramo cuya actualización supera dos minutos se considera detenido. Si falta cobertura, se solicita nuevamente la hora al stream externo.
+
+La cobertura avanza únicamente después de persistir eventos y con fechas recibidas con menos de 60 segundos de retraso. Este control reduce el riesgo de declarar completa una hora mientras el consumidor recupera atrasos. No es una garantía matemática de ausencia de eventos tardíos arbitrarios.
+
+\section{DAG de Apache Airflow}
+El DAG \codigo{wikipedia_recent_changes} utiliza \codigo{@hourly}, \codigo{catchup=False} y \codigo{max_active_runs=1}. Cada tarea dispone de dos reintentos con cinco minutos de espera; la extracción tiene un límite de ejecución de 30 minutos. La ventana se toma de \codigo{data_interval_start} y \codigo{data_interval_end}, según el modelo de intervalos de Airflow \cite{airflow}.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=0.65cm and 0.65cm]
+\node[caja,text width=5.0cm,fill=azul] (e) {1. extraer};
+\node[caja,below=of e,text width=5.0cm] (v) {2. validar\_y\_limpiar};
+\node[caja,below=of v,text width=5.0cm] (m) {3. cargar\_mongo};
+\node[caja,below left=0.8cm and -1.1cm of m,text width=3.7cm] (c) {4. cargar\_cassandra};
+\node[caja,below right=0.8cm and -1.1cm of m,text width=3.7cm] (n) {5. cargar\_neo4j};
+\node[caja,below=1.0cm of $(c)!0.5!(n)$,text width=5.0cm,fill=rosa] (k) {6. calcular\_kpis};
+\draw[flecha] (e)--(v);\draw[flecha] (v)--(m);
+\draw[flecha] (m)--(c);\draw[flecha] (m)--(n);
+\draw[flecha] (c)--(k);\draw[flecha] (n)--(k);
+\end{tikzpicture}
+\caption{Dependencias de las seis tareas del DAG horario.}\label{fig:dag}
+\fuente{\ruta{airflow/dags/wikipedia_pipeline.py}}
+\end{figure}
+
+\subsection{Entradas, transformaciones y salidas}
+\begin{enumerate}
+\item \textbf{Extraer.} Exporta la ventana desde MongoDB o la solicita a EventStreams. Escribe \ruta{data/raw/AAAA-MM-DD/HHMM.jsonl.gz}, inicialmente con un nombre temporal que se reemplaza al terminar.
+\item \textbf{Validar y limpiar.} Comprueba reglas, elimina duplicados del archivo, calcula \codigo{derived} y genera archivos válidos y rechazados con estadísticas globales y por wiki.
+\item \textbf{Cargar MongoDB.} Inserta o reemplaza los eventos limpios y los rechazos. Si la fuente fue MongoDB, omite la reescritura porque los eventos ya están almacenados.
+\item \textbf{Cargar Cassandra.} Lee de MongoDB la ventana y construye conteos, series, actividad por cuenta y rankings. Reemplaza las filas anteriores bajo un bloqueo horario.
+\item \textbf{Cargar Neo4j.} Lee la misma ventana, construye filas de entidades y relaciones y reemplaza sus contribuciones en una transacción. Puede ejecutarse en paralelo con Cassandra.
+\item \textbf{Calcular KPIs.} Espera las dos cargas. Calcula los indicadores globales y por wiki, los escribe en Cassandra, registra la ejecución y publica un resumen de versión 2 en MongoDB. También actualiza acumulados posteriores y el crecimiento de la siguiente hora cuando corresponde.
+\end{enumerate}
+
+\section{Tiempo, reintentos e idempotencia}
+Se usan intervalos semiabiertos:
+\[
+W_h=\{e\mid h\leq t_e<h+1\text{ hora}\}.
+\]
+Así, un evento situado exactamente en el cierre pertenece a la hora siguiente. Las ventanas se identifican en UTC. La API convierte las fechas de consulta diaria a UTC$-5$ para su presentación y puede necesitar leer dos días UTC para formar un día local.
+
+La extracción externa no dispone de parámetro de cierre. El código observa el avance de los dos centros de datos configurados, \codigo{codfw} y \codigo{eqiad}, con un margen de 120 segundos, un umbral de eventos posteriores y un criterio de inactividad. Es una política operativa para cerrar el consumo; una demora excepcional más larga puede requerir reconciliación posterior.
+
+\subsection{Coordinación de escrituras en Cassandra}
+Streaming y Airflow comparten \codigo{lock_hour}, implementado con un documento en MongoDB. El bloqueo vence a los 60 segundos, se renueva cada 15 y genera una marca creciente en microsegundos. Las eliminaciones usan esa marca y las inserciones la marca más uno. De esta manera, una escritura atrasada de un propietario vencido no debe sobrescribir un resultado más reciente.
+
+Antes de escribir, Cassandra conserva un manifiesto de editores anteriores y pendientes. Al reintentar puede borrar tanto filas históricas de esa hora como filas de una carga parcial. La reconstrucción reemplaza también los minutos y los rankings, y crea resúmenes de cero para wikis sin eventos en la ventana.
+
+\subsection{Reemplazo del grafo y publicación}
+Neo4j elimina las contribuciones de versión 2 de la hora y escribe las nuevas dentro de una transacción. El nodo \codigo{PipelineModelo} serializa estas reconstrucciones. Si falla la transacción, se conserva el estado previo; si termina, se actualizan estados afectados, categorías y coedición.
+
+El registro de una ejecución completada es la señal para publicar sus KPIs. La API consulta ventanas de versión 2 que no estén marcadas como \codigo{reprocessing}. Además, compara \codigo{recorded_at} antes y después de lecturas de resultados y descarta ventanas que cambiaron durante la consulta. Es una estrategia de publicación y consistencia eventual, no una transacción conjunta entre motores.
+
+Una corrección o eliminación en MongoDB necesita reprocesar la ventana para reflejarse en las bases derivadas. La tarea \codigo{cargar_mongo} omite la reescritura cuando exportó desde MongoDB; por ello, un cambio futuro en las reglas de enriquecimiento exige una migración explícita de \codigo{derived}, no solo volver a ejecutar esa ruta.
+
+\section{Contenedores e infraestructura}
+Docker Compose define MongoDB 7.0.14, Cassandra 4.1.7, Neo4j Community 5.26.2, PostgreSQL 16.4, Airflow 2.10.5, streaming, API y web. Se usan volúmenes para las bases y una carpeta persistente para los archivos del pipeline. Los \textit{health checks}, políticas de reinicio y límites de memoria ayudan a ordenar el arranque y contener fallos.
+
+Terraform crea una VM de Compute Engine, IP estática, bucket de Cloud Storage, cuenta de servicio y reglas de firewall. La configuración predeterminada utiliza una VM \codigo{e2-standard-2}, con 2 vCPU y 8 GB de RAM, y un disco inicial de 50 GB. La bitácora documenta su ampliación posterior a 100 GB; el archivo Terraform conserva el valor inicial y excluye ese cambio del ciclo de recreación \cite{bitacora}.
+
+El arranque instala Docker, obtiene el código y las variables y ejecuta Compose. Los archivos crudos se sincronizan al bucket cada 30 minutos. Ese respaldo no representa, por sí solo, una copia consistente de los volúmenes de las tres bases.
+
+\subsection{Acceso y despliegue continuo}
+Las interfaces administrativas se restringen por CIDR, SSH utiliza IAP y el dashboard dispone de contraseña compartida. En GCP no se crean reglas públicas para MongoDB y Cassandra. En local, Compose publica sus puertos, por lo que el entorno tiene un perímetro distinto.
+
+El timer de \codigo{autodeploy.sh} compara \codigo{main} cada minuto, construye las imágenes en una carpeta temporal y sincroniza el código si la compilación termina. Conserva \codigo{.env} y \codigo{data/} y reinicia API y streaming. Compilar antes de actualizar reduce fallos de construcción, pero no valida compatibilidad de esquemas ni ejecuta automáticamente una migración de datos. El incidente del modelo 2 mostró la necesidad de agregar esa validación al despliegue.
