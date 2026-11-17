@@ -138,6 +138,48 @@ def resumen_acumulado(corte: str, wiki: str | None = None) -> dict:
 
 
 @cacheado
+def protagonistas_acumulados(corte: str, wiki: str | None = None) -> dict:
+    """Rankings históricos exactos al corte, solo de ventanas consolidadas del modelo 2."""
+    end = datetime.fromisoformat(corte)
+    runs = [run for run in completed_runs(0) if datetime.fromisoformat(run["window_end"]) <= end]
+    starts = sorted({datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc) for run in runs})
+    windows = [start.isoformat() for start in starts]
+    result = {name: None for name in ("pagina_mas_disputada", "editor_mas_conectado", "editor_mas_revertido")}
+    if not starts:
+        return {"protagonistas": result, "actualizando": False}
+    # No se suman rankings parciales por hora: podrían omitir al ganador histórico.
+    pages = list(mongo_db().events.aggregate([
+        {"$match": {"wiki": {"$in": [wiki] if wiki else sorted(config.WIKIS)},
+                    "derived.event_dt": {"$gte": starts[0], "$lt": end},
+                    "type": "edit", "derived.revert_target": {"$exists": True, "$nin": [None, ""]}}},
+        {"$match": {"$expr": {"$in": [{"$dateTrunc": {"date": "$derived.event_dt", "unit": "hour"}}, starts]}}},
+        {"$group": {"_id": {"wiki": "$wiki", "title": "$title"}, "valor": {"$sum": 1}}},
+        {"$sort": {"valor": -1, "_id.wiki": 1, "_id.title": 1}}, {"$limit": 1},
+    ]))
+    if pages:
+        page = pages[0]
+        result["pagina_mas_disputada"] = {"valor": page["valor"], "detalle": f"{page['_id']['wiki']}:{page['_id']['title']}"}
+    connected = _cypher(
+        "MATCH (e:Editor)-[r:EDITO]->(p:Pagina)<-[other:EDITO]-(b:Editor) "
+        "WHERE r.ventana IN $windows AND other.ventana IN $windows "
+        "AND r.tipo <> 'bot' AND other.tipo <> 'bot' AND e <> b AND ($wiki IS NULL OR p.wiki = $wiki) "
+        "RETURN e.user AS detalle, count(DISTINCT b) AS valor ORDER BY valor DESC, detalle LIMIT 1",
+        windows=windows, wiki=wiki)
+    reverted = _cypher(
+        "MATCH (a:Editor)-[r:REVIRTIO]->(b:Editor) WHERE r.ventana IN $windows AND ($wiki IS NULL OR r.wiki = $wiki) "
+        "RETURN b.user AS detalle, sum(r.veces) AS valor, count(DISTINCT a) AS por "
+        "ORDER BY valor DESC, por DESC, detalle LIMIT 1", windows=windows, wiki=wiki)
+    if connected:
+        result["editor_mas_conectado"] = connected[0]
+    if reverted:
+        row = reverted[0]
+        result["editor_mas_revertido"] = {"valor": row["valor"], "detalle":
+            f"{row['detalle']} (revertido por {row['por']} {'editor' if row['por'] == 1 else 'editores'})"}
+    changing = stable_windows(runs) != set(windows)
+    return {"protagonistas": {name: None for name in result} if changing else result, "actualizando": changing}
+
+
+@cacheado
 def kpis(horas: int = 72, wiki: str | None = None) -> dict:
     """Series alineadas exclusivamente con ventanas completadas del modelo actual."""
     runs = completed_runs(horas)

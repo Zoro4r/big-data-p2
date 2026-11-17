@@ -99,6 +99,14 @@ def resumen(wiki: str = "ambas"):
             "acumulado": q.resumen_acumulado(end, w) if end else None}
 
 
+@app.get("/api/resumen/acumulado/protagonistas")
+def protagonistas_acumulados(corte: datetime, wiki: str = "ambas"):
+    if corte.tzinfo is None:
+        raise HTTPException(status_code=400, detail="El corte debe incluir su zona horaria")
+    w = None if wiki == "ambas" else wikis_de(wiki)[0]
+    return q.protagonistas_acumulados(corte.isoformat(), w)
+
+
 @app.get("/api/estado")
 def estado():
     """Estado de las dos capas para la cabecera del dashboard (consulta liviana)."""

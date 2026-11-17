@@ -294,3 +294,45 @@ def test_live_five_minute_windows_and_distinct_editors(stores):
     assert datetime.fromisoformat(current["fin"]) - datetime.fromisoformat(current["inicio"]) == timedelta(minutes=5)
     assert queries.metricas_vivo(now, ["eswiki"])["actual"]["eventos"] == 1
     assert queries.metricas_vivo(now, ["missingwiki"])["actual"]["editores"] == {}
+
+
+def test_cumulative_protagonists_respect_wiki_completed_windows_and_cut(stores):
+    import queries
+    import main
+    db, _, _, prefix = stores
+    second, future = START + timedelta(hours=1), START + timedelta(hours=2)
+    docs = [event(prefix, "a"), event(prefix, "b", user="B"),
+            *[event(prefix, "rev" + str(i), revert="B") for i in range(3)],
+            event(prefix, "c", user="C", start=second), event(prefix, "d", user="D", start=second),
+            event(prefix, "last-rev", user="C", start=second, revert="D"),
+            event(prefix, "es-base", user="E", wiki="eswiki"),
+            *[event(prefix, "es-rev" + str(i), user="F", wiki="eswiki", revert="E") for i in range(6)],
+            *[event(prefix, "future" + str(i), user="Future", start=future, revert="A") for i in range(10)]]
+    db.events.insert_many(docs)
+    for start in (START, second, future):
+        load(stores, start)
+    for start in (START, second):
+        mongo.record_run(db, {"window_start": start.isoformat(), "window_end": (start + timedelta(hours=1)).isoformat()})
+    cut = (future + timedelta(hours=1)).isoformat()
+    en = queries.protagonistas_acumulados(cut, "enwiki")["protagonistas"]
+    assert en["pagina_mas_disputada"]["valor"] == 4
+    assert en["editor_mas_revertido"]["valor"] == 3
+    assert en["editor_mas_revertido"]["detalle"].startswith(prefix + "B ")
+    assert en["editor_mas_conectado"] == {"valor": 3, "detalle": prefix + "A"}
+    es = queries.protagonistas_acumulados(cut, "eswiki")["protagonistas"]
+    assert es["pagina_mas_disputada"]["valor"] == 6
+    assert es["editor_mas_revertido"]["detalle"].startswith(prefix + "E ")
+    both = queries.protagonistas_acumulados(cut)["protagonistas"]
+    assert both["pagina_mas_disputada"]["detalle"] == "eswiki:" + prefix + "Page"
+    first = queries.protagonistas_acumulados(second.isoformat(), "enwiki")["protagonistas"]
+    assert first["pagina_mas_disputada"]["valor"] == 3
+    assert first["editor_mas_conectado"]["valor"] == 1
+    client = TestClient(main.app)
+    assert client.get("/api/resumen/acumulado/protagonistas", params={"corte": cut, "wiki": "enwiki"}).json()["protagonistas"] == en
+    assert client.get("/api/resumen/acumulado/protagonistas", params={"corte": "2026-11-14T10:00:00"}).status_code == 400
+    mongo.record_run(db, {"window_start": future.isoformat(), "window_end": cut})
+    queries.limpiar_cache()
+    latest = queries.protagonistas_acumulados(cut, "enwiki")["protagonistas"]
+    assert latest["editor_mas_revertido"]["valor"] == 10
+    assert latest["editor_mas_revertido"]["detalle"].startswith(prefix + "A ")
+    assert queries.protagonistas_acumulados(future.isoformat(), "enwiki")["protagonistas"] == en
