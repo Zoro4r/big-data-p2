@@ -95,7 +95,8 @@ def resumen(wiki: str = "ambas"):
     end = (datetime.fromisoformat(latest) + timedelta(hours=1)).isoformat() if latest else None
     return {"kpis": series, "horas": q.resumen_por_hora(2), "ejecuciones": q.ejecuciones(2),
             "total": q.total_eventos(), "desde": q.primer_evento(), "wiki": wiki,
-            "intervalo": {"inicio": latest, "fin": end}, "corte": end}
+            "intervalo": {"inicio": latest, "fin": end}, "corte": end,
+            "acumulado": q.resumen_acumulado(end, w) if end else None}
 
 
 @app.get("/api/estado")

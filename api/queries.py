@@ -103,6 +103,40 @@ def completed_runs(horas: int = 72) -> list[dict]:
         .sort("window_start_dt", -1).limit(horas))
 
 
+def stable_windows(runs: list[dict]) -> set[str]:
+    """Ventanas que conservaron su versión durante la lectura de Cassandra."""
+    current = {run["_id"]: run for run in mongo_db().pipeline_runs.find(
+        {"_id": {"$in": [run["_id"] for run in runs]}, "reprocessing": {"$ne": True}}, {"recorded_at": 1})}
+    return {datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc).isoformat()
+            for run in runs if run["_id"] in current and current[run["_id"]].get("recorded_at") == run.get("recorded_at")}
+
+
+@cacheado
+def resumen_acumulado(corte: str, wiki: str | None = None) -> dict:
+    """Totales exactos de las horas consolidadas hasta el corte del Resumen."""
+    end = datetime.fromisoformat(corte)
+    runs = [run for run in completed_runs(0) if datetime.fromisoformat(run["window_end"]) <= end]
+    allowed = {datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc) for run in runs}
+    fields = ("eventos", "ediciones", "creaciones", "eventos_bot", "reversiones", "delta_bytes")
+    rows = []
+    session = cassandra()
+    for day in sorted({start.date() for start in allowed}):
+        for row in session.execute("SELECT * FROM resumen_por_hora WHERE fecha = %s", (day,)):
+            values = _fila(row)
+            start = datetime.combine(values["fecha"], datetime.min.time(), timezone.utc).replace(hour=values["hora"])
+            if start in allowed and (wiki is None or values["wiki"] == wiki):
+                rows.append((start, values))
+    stable = stable_windows(runs)
+    totals = {field: 0 for field in fields}
+    hours = set()
+    for start, values in rows:
+        if start.isoformat() in stable:
+            hours.add(start)
+            for field in fields:
+                totals[field] += values.get(field) or 0
+    return {**totals, "horas": len(hours), "inicio": min(hours).isoformat() if hours else None, "fin": corte}
+
+
 @cacheado
 def kpis(horas: int = 72, wiki: str | None = None) -> dict:
     """Series alineadas exclusivamente con ventanas completadas del modelo actual."""
@@ -125,11 +159,7 @@ def kpis(horas: int = 72, wiki: str | None = None) -> dict:
             key = datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc).isoformat()
             row = values.get(key)
             out[name].append({"ventana": key, "valor": row.valor if row else None, "detalle": row.detalle if row else None})
-    # Si una reconstrucción comenzó durante las lecturas, se descarta esa ventana completa.
-    current = {run["_id"]: run for run in mongo_db().pipeline_runs.find(
-        {"_id": {"$in": [run["_id"] for run in runs]}, "reprocessing": {"$ne": True}}, {"recorded_at": 1})}
-    stable = {datetime.fromisoformat(run["window_start"]).astimezone(timezone.utc).isoformat()
-              for run in runs if run["_id"] in current and current[run["_id"]].get("recorded_at") == run.get("recorded_at")}
+    stable = stable_windows(runs)
     out = {name: [point for point in points if point["ventana"] in stable] for name, points in out.items()}
     return out
 

@@ -214,6 +214,11 @@ def test_correction_updates_following_totals_and_completed_series(stores, monkey
     assert series["total_eventos_acumulados"][0]["valor"] == 4
     assert series["crecimiento_pct"][0]["valor"] == 200
     assert {points[0]["ventana"] for points in series.values()} == {next_hour.isoformat()}
+    totals = queries.resumen_acumulado((next_hour + timedelta(hours=1)).isoformat())
+    assert totals["eventos"] == totals["ediciones"] == 3
+    assert totals["horas"] == 1 and totals["creaciones"] == 0
+    assert totals["delta_bytes"] == 30
+
     class ConcurrentSession:
         def execute(self, *args):
             result = session.execute(*args)
