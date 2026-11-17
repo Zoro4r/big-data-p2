@@ -1405,6 +1405,22 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - los KPIs de la Fundación se dicen con precisión;
     - las frases largas se partieron.
   - Guion y notas de las diapositivas iguales en ambos decks.
+- **Incidente en la VM (17 nov, 05:00–11:42 UTC):** la VM dejó de responder (Airflow, SSH y los registros) justo cuando arrancaba la corrida de las 05:00.
+  - **Causa:**
+    - Una regresión de `ext4` en el kernel de Debian 6.1.0-55 (paquete 6.1.192-1, DLA-4906-1), que instalaron las actualizaciones automáticas. El fallo es un `NULL pointer dereference` en `ext4_mb_load_buddy_gfp` y `ext4_mb_regular_allocator` al reservar espacio en disco.
+    - Al caerse el proceso que escribía, todo lo que escribe a disco queda bloqueado. Está reportado en Debian (bug #1154151 y otros) y todavía no tiene corrección.
+    - Los reinicios forzados dejaron dañados los mapas de bloques libres del sistema de archivos.
+  - **Diagnóstico:** se descartaron primero la falta de memoria y la falta de espacio. El disco tenía 29 GB usados de 50. El error del kernel se vio en la consola serie de la VM (`get-serial-port-output`).
+  - **Arreglo:**
+    1. Snapshot del disco: `wikipipe-vm-antes-resize-20261117`.
+    2. El disco pasó a 100 GB. Se amplió con `gcloud`, porque cambiarlo en Terraform recreaba la VM; ahora Terraform ignora ese tamaño (`lifecycle.ignore_changes`).
+    3. Desde una VM auxiliar temporal: dos pasadas de `e2fsck -fy`, hasta que salió limpio. Solo se borraron archivos huérfanos ya eliminados, sin pérdida de datos.
+    4. En el disco de la VM: se desinstalaron `linux-image-6.1.0-55-cloud-amd64` y `linux-image-cloud-amd64`. La VM arranca con el 6.1.0-54 (6.1.190-1), y las actualizaciones automáticas ya no instalan kernels nuevos.
+    5. Como prevención quedaron también 4 GB de swap (`swappiness` 10), topes de memoria por contenedor y la caché de Neo4j en 1 GB.
+  - **Datos:**
+    - La corrida de las 04:00 quedó atascada en «running» y, con `max_active_runs=1`, bloqueó las siguientes.
+    - Se limpiaron sus tareas y se lanzaron a mano las horas de 05:00 a 10:00 (`dags trigger -e`). Son idempotentes y toman de EventStreams lo que el stream no guardó.
+  - **Pendiente:** cuando Debian publique el kernel corregido, reinstalar `linux-image-cloud-amd64` para volver a recibir actualizaciones de seguridad.
 - **Demo de Cassandra (17 nov):** después de insertar, la página ocultaba el aviso «Ya hay una fila con esta clave», y el paso 4 de la demo de Jhon no se podía mostrar. Ahora cualquier cambio en el formulario, incluido «Completar con datos de prueba», borra el estado de fila insertada, y el aviso vuelve ([cassandra-crud.tsx, `insertada`](../web/src/components/cassandra-crud.tsx)). Commit `fix: show existing key warning again after inserting a row`.
 - **Arreglo:** en Crear › Categorización, el campo Página mostraba «:» en vez de quedar vacío. La expresión que extrae la página del comentario aceptaba los dos puntos del enlace `[[:]]` como nombre (commit `fix: empty category page field showing a colon`, [crear-evento.tsx, `paginaCat`](../web/src/components/crear-evento.tsx)).
 - **Pendiente:** el texto y las capturas de la sección 7 del informe todavía describen `actividad_editor`. Se actualizan cuando el usuario apruebe la interfaz.
