@@ -260,3 +260,37 @@ def test_mongo_pagination_keeps_events_with_equal_timestamps(stores):
         last = result["documentos"][-1]
         params.update(antes=last["fecha"], antes_id=last["_id"])
     assert len(seen) == len(set(seen)) == 23
+
+
+def test_live_five_minute_windows_and_distinct_editors(stores):
+    import queries
+    db, _, _, prefix = stores
+    now = START + timedelta(minutes=10)
+
+    def at(key, dt, user="Shared", wiki="enwiki", bot=False, revert=None):
+        doc = event(prefix, key, user=user, wiki=wiki, start=dt - timedelta(seconds=10), revert=revert)
+        doc["bot"] = bot
+        doc["derived"] = clean.derive(doc)
+        return mongo.to_document(doc)
+
+    db.events.insert_many([
+        at("too-old", START - timedelta(microseconds=1)),
+        at("previous-start", START),
+        at("previous-same-user", START + timedelta(minutes=1), wiki="eswiki"),
+        at("current-start", START + timedelta(minutes=5), revert="Other"),
+        at("current-same-user", START + timedelta(minutes=6), wiki="eswiki"),
+        at("bot1", now - timedelta(seconds=2), user="BatchBot", bot=True),
+        at("bot2", now - timedelta(seconds=1), user="BatchBot", bot=True),
+        at("end-excluded", now),
+        at("future", now + timedelta(seconds=1)),
+    ])
+    windows = queries.metricas_vivo(now, ["enwiki", "eswiki"])
+    current, previous = windows["actual"], windows["anterior"]
+    assert current["eventos"] == current["ediciones"] == 4
+    assert current["eventos_bot"] == 2 and current["reversiones"] == 1
+    assert current["editores"] == {"registrado": 1, "bot": 1}
+    assert previous["eventos"] == 2 and previous["editores"] == {"registrado": 1}
+    assert current["inicio"] == previous["fin"]
+    assert datetime.fromisoformat(current["fin"]) - datetime.fromisoformat(current["inicio"]) == timedelta(minutes=5)
+    assert queries.metricas_vivo(now, ["eswiki"])["actual"]["eventos"] == 1
+    assert queries.metricas_vivo(now, ["missingwiki"])["actual"]["editores"] == {}

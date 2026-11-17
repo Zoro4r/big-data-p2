@@ -343,6 +343,31 @@ def estado() -> dict:
 BORRADO_GRANDE = 1000  # bytes; igual que en web/src/lib/eventos.ts
 
 
+def metricas_vivo(ahora: datetime, wikis: list[str]) -> dict:
+    """Dos ventanas contiguas de cinco minutos, con el mismo corte y editores distintos."""
+    corte = ahora - timedelta(minutes=5)
+    inicio = ahora - timedelta(minutes=10)
+    result = {periodo: {"inicio": start.isoformat(), "fin": end.isoformat(), "eventos": 0,
+                       "ediciones": 0, "eventos_bot": 0, "reversiones": 0, "editores": {}}
+              for periodo, start, end in (("actual", corte, ahora), ("anterior", inicio, corte))}
+    rows = mongo_db().events.aggregate([
+        {"$match": {"wiki": {"$in": wikis}, "derived.event_dt": {"$gte": inicio, "$lt": ahora}}},
+        {"$group": {"_id": {"periodo": {"$cond": [{"$gte": ["$derived.event_dt", corte]}, "actual", "anterior"]},
+                            "editor": "$user"},
+                    "tipo": {"$first": "$derived.user_type"}, "eventos": {"$sum": 1},
+                    "ediciones": {"$sum": {"$cond": [{"$eq": ["$type", "edit"]}, 1, 0]}},
+                    "eventos_bot": {"$sum": {"$cond": [{"$eq": ["$derived.user_type", "bot"]}, 1, 0]}},
+                    "reversiones": {"$sum": {"$cond": [{"$ne": [{"$ifNull": ["$derived.revert_target", ""]}, ""]}, 1, 0]}}}},
+    ])
+    for row in rows:
+        totals = result[row["_id"]["periodo"]]
+        for field in ("eventos", "ediciones", "eventos_bot", "reversiones"):
+            totals[field] += row[field]
+        tipo = "bot" if row["eventos_bot"] else row["tipo"] or "registrado"
+        totals["editores"][tipo] = totals["editores"].get(tipo, 0) + 1
+    return result
+
+
 def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     """Actividad de los últimos minutos escrita por el servicio de streaming (sin caché)."""
     ahora = datetime.now(timezone.utc)
@@ -384,6 +409,7 @@ def vivo(minutos: int = 30, wikis: list[str] | None = None) -> dict:
     estado = db.stream_state.find_one({"_id": "recentchange"}) or {}
     return {
         "ahora": ahora.isoformat(), "inicio": desde.isoformat(), "fin": ahora.isoformat(), "provisional": True,
+        "metricas": metricas_vivo(ahora, wikis),
         "editores": editores,
         "eventos_ultimo_minuto": db.events.count_documents(
             {"derived.event_dt": {"$gte": hace_un_minuto, "$lt": ahora}, "wiki": {"$in": wikis}}),
