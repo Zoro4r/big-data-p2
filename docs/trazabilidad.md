@@ -1405,6 +1405,9 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - los KPIs de la Fundación se dicen con precisión;
     - las frases largas se partieron.
   - Guion y notas de las diapositivas iguales en ambos decks.
+- **Entregables en el README (17 nov):**
+  - El [README](../README.md) abre con una tabla «Entregables» que enlaza el código, los scripts de creación de las tres bases, el DAG y el dashboard desplegado.
+  - El informe técnico en PDF no se versiona en el repositorio: un compañero preparó la versión final y se sube al Canvas del curso. El README lo indica así.
 - **Repositorio público (17 nov):** a pedido del usuario, `Zoro4r/big-data-p2` pasó de privado a público, para que el código fuente se pueda revisar como entregable.
   - **Revisión previa del historial (324 commits):**
     - No se encontraron claves privadas ni tokens de GitHub, Google o AWS.
