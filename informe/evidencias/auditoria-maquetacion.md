@@ -33,3 +33,7 @@ Resultado: 42 páginas, frente a las 56 de la versión anterior.
 - 110 enlaces internos y bibliográficos presentes.
 - Índices, numeración, figuras y tablas regenerados.
 - No se modificó el código de la aplicación ni se alteraron mediciones del proyecto.
+
+## Enlaces de entrega
+
+Se añadió el anexo B al final, con los enlaces al repositorio y al video de presentación. La versión actual tiene 43 páginas y 116 enlaces. Se revisaron visualmente el índice, la tabla de trazabilidad y el nuevo anexo; las otras 40 páginas conservan el mismo texto. Compilación sin avisos ni desbordes y destinos de los dos enlaces verificados en el PDF.

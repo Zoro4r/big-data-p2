@@ -6,8 +6,9 @@ Informe elaborado con la clase y los recursos de `Plantilla_UTEC_PFC.zip`.
 - Portada: `datos.tex`. Se incorporaron los nombres completos proporcionados por el equipo; el docente puede completarse si corresponde.
 - Contenido: `secciones/`.
 - Referencias: `referencias.bib`, estilo IEEEtran.
+- Enlaces al repositorio y al video: anexo B, al final del informe.
 - Verificaciones: `evidencias/verificacion.txt`.
-- PDF compilado junto al código: `Informe_Wikipedia_UTEC.pdf`.
+- PDF compilado junto al código: `Informe P2 - Wikimedia.pdf`.
 - Copia de entrega: `../output/pdf/Informe_Wikipedia_UTEC.pdf`.
 
 ## Compilar
