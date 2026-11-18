@@ -542,7 +542,7 @@ Aun con el rediseño, el dashboard en Streamlit se veía poco profesional. shadc
 
 **Decisión** (aprobada): migrar el dashboard a **React + shadcn/ui + Recharts**, con una API en **FastAPI** que reutiliza las consultas actuales a las tres bases. El enunciado lo permite: "Streamlit o Dash (Python) u otro que crea conveniente".
 
-**Mockup previo en Claude Design** (lienzo privado del dueño del proyecto), con 4 pantallas: Resumen y KPIs, Actividad en el tiempo, Red de editores y Operaciones CRUD.
+**Mockup previo**, con 4 pantallas: Resumen y KPIs, Actividad en el tiempo, Red de editores y Operaciones CRUD.
 
 - **Estilo:** neutros zinc de shadcn, tipografía Geist, tarjetas con borde fino y barra lateral clara.
 - **Colores de datos:** la paleta validada de la entrada 15.
@@ -724,7 +724,7 @@ La fuente de cada tarjeta ("Cassandra · resumen_por_hora", "MongoDB · events",
 
 Commit `feat: show database logos as data sources`, desplegado con `./deploy.sh`.
 
-**Ajuste: recorrido del dato en lugar de nombres de tablas.** Los nombres de tablas (`resumen_por_hora`, `events`) no aportaban en las tarjetas y daban a entender que los KPIs se leen de varias bases. En realidad, cada KPI se calcula en la base que mejor lo responde y todos se guardan en Cassandra, desde donde los lee el dashboard. Se compararon cuatro diseños en Claude Design y se eligió mostrar el recorrido:
+**Ajuste: recorrido del dato en lugar de nombres de tablas.** Los nombres de tablas (`resumen_por_hora`, `events`) no aportaban en las tarjetas y daban a entender que los KPIs se leen de varias bases. En realidad, cada KPI se calcula en la base que mejor lo responde y todos se guardan en Cassandra, desde donde los lee el dashboard. Se compararon cuatro diseños y se eligió mostrar el recorrido:
 
 - KPI calculado en Cassandra: solo "Cassandra".
 - Calculado en otra base: "MongoDB → Cassandra", "Neo4j → Cassandra" o "Airflow → Cassandra" (la calidad sale de la limpieza en el DAG).
@@ -734,7 +734,7 @@ El pie queda separado por una línea y alineado al fondo de la tarjeta; el toolt
 
 ### 25. Tarjetas compactas y detalle de cada KPI
 
-Las tarjetas se veían grandes con el pie "MongoDB → Cassandra". Se diseñaron varias alternativas en Claude Design (tarjetas clickeables, modal, panel lateral, detalle desplegado, globo, botón de información) y se eligió la "F4": un modal en dos columnas.
+Las tarjetas se veían grandes con el pie "MongoDB → Cassandra". Se diseñaron varias alternativas (tarjetas clickeables, modal, panel lateral, detalle desplegado, globo, botón de información) y se eligió la "F4": un modal en dos columnas.
 
 **Tarjetas.** Quedan solo con nombre, cambio, valor y una línea de contexto, en todas las vistas. En el Resumen, cada tarjeta de KPI es un botón: al pasar el mouse se marca y muestra una flecha junto al nombre, y al hacer clic abre su detalle. Los protagonistas de Neo4j también se pueden clickear.
 
@@ -755,7 +755,7 @@ Verificación: `tsc` y `npm run build` sin errores; con Playwright se abrió un 
 
 ### 26. Lista de últimas ediciones, filtros y detalle del evento
 
-La lista "Últimas ediciones" de la vista En vivo se rediseñó en Claude Design. Se compararon una tabla con columnas, un feed en frases, una consola y una línea de tiempo, y se eligió una lista ordenada sin encabezados.
+La lista "Últimas ediciones" de la vista En vivo se rediseñó. Se compararon una tabla con columnas, un feed en frases, una consola y una línea de tiempo, y se eligió una lista ordenada sin encabezados.
 
 **Lista** (`web/src/pages/Vivo.tsx`):
 
@@ -802,7 +802,7 @@ Commit `fix: clarify mongo validator test in crud page`.
 
 ### 27. Crear eventos de MongoDB con formulario y editor JSON
 
-Antes, "Crear" en MongoDB solo pedía título, editor y comentario, y el servidor completaba el resto con valores fijos (siempre una edición en enwiki). Un evento real tiene unos 25 campos. El diseño se trabajó en Claude Design (propuestas A, B, C y variantes B2–B6) y se eligió una columna izquierda simple con un editor JSON a la derecha.
+Antes, "Crear" en MongoDB solo pedía título, editor y comentario, y el servidor completaba el resto con valores fijos (siempre una edición en enwiki). Un evento real tiene unos 25 campos. El diseño se trabajó con varias propuestas (A, B, C y variantes B2–B6) y se eligió una columna izquierda simple con un editor JSON a la derecha.
 
 **Columna izquierda** (`web/src/components/crear-evento.tsx`):
 
@@ -825,7 +825,7 @@ Verificación con Playwright en local: edición con bytes cambiados (−100 B), 
 
 ### 28. Consultar eventos de MongoDB con filtros y ficha del documento
 
-Antes, Consultar pedía un `_id` exacto y mostraba el JSON crudo. Se diseñaron en Claude Design tres opciones (por `_id` con atajos, filtros con lista de resultados, filtros con filtro JSON) y se eligió una combinación: la columna izquierda de la opción de filtros y la derecha de la opción por `_id`.
+Antes, Consultar pedía un `_id` exacto y mostraba el JSON crudo. Se diseñaron tres opciones (por `_id` con atajos, filtros con lista de resultados, filtros con filtro JSON) y se eligió una combinación: la columna izquierda de la opción de filtros y la derecha de la opción por `_id`.
 
 **Columna izquierda** (`web/src/components/consultar-evento.tsx`):
 
@@ -842,7 +842,7 @@ Verificación con Playwright en local: tres documentos creados y encontrados con
 
 ### 29. Actualizar eventos de MongoDB con el formulario y los cambios a la vista
 
-Antes, Actualizar pedía un `_id`, el nombre de un campo y un valor, sin mostrar el documento. Además, el `$set` dejaba `derived` desactualizado: si cambiaban los bytes, `delta_bytes` seguía con el valor viejo. Se diseñó en Claude Design (canvas "Actualizar eventos en MongoDB"); se eligió la opción B3: formulario con los valores actuales en tonos neutros, sin "Se ejecutará" ni el valor anterior repetido en la columna izquierda.
+Antes, Actualizar pedía un `_id`, el nombre de un campo y un valor, sin mostrar el documento. Además, el `$set` dejaba `derived` desactualizado: si cambiaban los bytes, `delta_bytes` seguía con el valor viejo. Se diseñó primero como prototipo; se eligió la opción B3: formulario con los valores actuales en tonos neutros, sin "Se ejecutará" ni el valor anterior repetido en la columna izquierda.
 
 **Columna izquierda** (`web/src/components/actualizar-evento.tsx`): "Documento a actualizar" con `_id` y botón Cargar ("Actualizar este" desde Consultar lo carga solo), una ficha corta del documento y sus campos con los valores actuales: título, editor, tipo de editor, bytes (en ediciones y páginas nuevas) y comentario. Un campo cambiado muestra "· editado" en gris, un borde algo más oscuro y un botón para deshacer dentro del campo. El comentario ocupa el espacio que sobra, así la columna termina a la misma altura que la derecha. El botón dice "Guardar N cambios".
 
@@ -854,7 +854,7 @@ Verificación: con la API, un cambio de bytes y título recalculó `delta_bytes`
 
 ### 30. Eliminar eventos de MongoDB con doble confirmación
 
-Antes, Eliminar borraba directo con solo escribir un `_id`, sin mostrar qué documento era. Se diseñaron en Claude Design (canvas "Eliminar eventos en MongoDB") tres opciones: confirmar escribiendo el `_id`, limpiar varios documentos de demostración, y diálogo de confirmación con "Deshacer". Se eligió combinar la confirmación escrita con el diálogo, sin "Deshacer": borrar no se puede revertir.
+Antes, Eliminar borraba directo con solo escribir un `_id`, sin mostrar qué documento era. Se diseñaron tres opciones: confirmar escribiendo el `_id`, limpiar varios documentos de demostración, y diálogo de confirmación con "Deshacer". Se eligió combinar la confirmación escrita con el diálogo, sin "Deshacer": borrar no se puede revertir.
 
 **Columna izquierda** (`web/src/components/eliminar-evento.tsx`): "Documento a eliminar" con `_id` y Cargar ("Eliminar" desde Consultar lo carga solo), ficha del documento y el campo "Para confirmar, escribe el _id". El botón rojo "Eliminar documento…" se activa solo cuando el texto coincide y abre un diálogo "¿Eliminar «…»?" con Cancelar y Eliminar.
 
@@ -864,13 +864,13 @@ Verificación con Playwright: crear → Consultar → "Eliminar" → el botón e
 
 ### 31. Requerimientos del proyecto y cómo los cumplimos
 
-Se diseñaron en Claude Design las mismas mejoras del CRUD para Cassandra y Neo4j (canvas "CRUD de Cassandra y Neo4j"), pero quedaron en pausa: se discutió que Cassandra solo guarda datos calculados por el pipeline y que, si se implementan, las escrituras deberían limitarse a editores «Demo_».
+Se diseñaron las mismas mejoras del CRUD para Cassandra y Neo4j, pero quedaron en pausa: se discutió que Cassandra solo guarda datos calculados por el pipeline y que, si se implementan, las escrituras deberían limitarse a editores «Demo_».
 
 Se creó `docs/requerimientos.md`: recorre cada sección de las instrucciones (fuente de datos, arquitectura multimodelo, Airflow, CRUD, dashboard, KPIs y entregables) y describe cómo la cumple el proyecto, con las cifras de la VM al 7 de noviembre (2,570,895 eventos en MongoDB, ~945 mil nodos y ~2.8 millones de relaciones en Neo4j, 163 corridas del DAG). Marca como pendientes el informe en PDF, las capturas del dashboard y el video. Commit `docs: add project requirements checklist`.
 
 ### 32. Sección «Arquitectura» del dashboard
 
-Nueva página **Arquitectura** (grupo "Proyecto" del menú), diseñada en Claude Design (canvas "Sección Arquitectura"). Se compararon una página larga, pestañas y un diagrama clicable, y se eligió el diagrama: cada componente abre un modal con su detalle, con la caja "Capa por lotes" compacta ("DAG de Airflow · cada hora · extraer → validar → cargar → KPIs").
+Nueva página **Arquitectura** (grupo "Proyecto" del menú), diseñada primero como prototipo. Se compararon una página larga, pestañas y un diagrama clicable, y se eligió el diagrama: cada componente abre un modal con su detalle, con la caja "Capa por lotes" compacta ("DAG de Airflow · cada hora · extraer → validar → cargar → KPIs").
 
 **Diagrama** (`web/src/pages/Arquitectura.tsx`): Wikimedia EventStreams → capa rápida y capa por lotes → MongoDB, Cassandra y Neo4j → API FastAPI → dashboard. Debajo, cuatro cifras en vivo (eventos guardados, ritmo de llegada, corridas del DAG y calidad de la última hora) que abren el modal relacionado. Cada modal tiene navegación anterior/siguiente por los 8 componentes.
 
@@ -903,7 +903,7 @@ En `docs/requerimientos.md`, cada referencia a otro archivo indica ahora su secc
 
 ### 33. CRUD de Cassandra y Neo4j con la interfaz rediseñada
 
-Se implementó lo diseñado en Claude Design (canvas "CRUD de Cassandra y Neo4j"), con los mismos patrones que MongoDB: columna izquierda alineada con las pestañas, coincidencias debajo de "Buscar", "· editado" con deshacer, tabla de cambios, y confirmación escribiendo el nombre más un diálogo, sin deshacer.
+Se implementó lo diseñado para el CRUD de Cassandra y Neo4j, con los mismos patrones que MongoDB: columna izquierda alineada con las pestañas, coincidencias debajo de "Buscar", "· editado" con deshacer, tabla de cambios, y confirmación escribiendo el nombre más un diálogo, sin deshacer.
 
 **Regla de datos de demostración:** Cassandra y Neo4j guardan datos que calcula el pipeline. Consultar funciona con cualquier editor real, pero crear, actualizar y eliminar solo se permiten sobre nombres «Demo_…». La API lo impide con un 403 (`solo_demo` en `api/main.py`) y la interfaz lo avisa y desactiva el botón.
 
@@ -1029,7 +1029,7 @@ Commit `fix: stop extraction when every datacenter is done or idle`. Las horas p
 
 La corrida de las 00:00 UTC del 12 de noviembre había empezado su extracción 4 minutos antes del despliegue, con el código viejo. Se reinició: extrajo su hora en unos 36 s y terminó las 6 tareas en unos 2 min. Las 6 horas recuperadas terminaron en `success` antes de las 03:00 UTC.
 
-**Informe técnico.** Se redactó el informe como documento compartible (Claude Docs, exportable a PDF), con las secciones que piden las instrucciones:
+**Informe técnico.** Se redactó el informe técnico, con las secciones que piden las instrucciones:
 - introducción y problema, dataset, arquitectura (diagrama), pipeline de Airflow (diagrama), modelos de las tres bases, CRUD, KPIs y dashboard, con capturas de las 7 vistas tomadas de la VM;
 - además: despliegue, resultados (gráfico de eventos por hora de las últimas 72 horas, con la ráfaga de bots del 9 de noviembre), problemas y soluciones, y conclusiones.
 
@@ -1242,7 +1242,7 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - abre un modal con los últimos 5 eventos de la wiki (`ModalUltimos` en [consultar-evento.tsx](../web/src/components/consultar-evento.tsx));
   - al elegir uno, Consultar lo busca por `_id` (`buscarId`), y Actualizar o Eliminar lo cargan;
   - en Crear sigue llenando el formulario con datos «Demo_».
-- **Rediseño del modal (opción B, diseñada en Claude Design)** (commit `fix: show last events modal as a selectable table`): tabla con columnas Página (título y editor), Tipo (sin color) y Llegó, más un selector redondo por fila. Al pie se muestra el `_id` elegido con los botones «Cancelar» y «Usar este evento»; el doble clic también confirma ([consultar-evento.tsx, `ModalUltimos`](../web/src/components/consultar-evento.tsx)).
+- **Rediseño del modal (opción B)** (commit `fix: show last events modal as a selectable table`): tabla con columnas Página (título y editor), Tipo (sin color) y Llegó, más un selector redondo por fila. Al pie se muestra el `_id` elegido con los botones «Cancelar» y «Usar este evento»; el doble clic también confirma ([consultar-evento.tsx, `ModalUltimos`](../web/src/components/consultar-evento.tsx)).
 - **Placeholders en Crear** (commit `feat: add placeholders to create event form`): cada campo muestra un ejemplo, como «Ej. Machu Picchu», «Ej. Demo_Editor» o «Ej. 12000» ([crear-evento.tsx, `Texto`/`Numero` y `FormularioEvento`](../web/src/components/crear-evento.tsx)).
 - Desplegado en la VM entre corridas horarias y verificado con capturas.
 - **Placeholders más tenues** (commits `fix: dim input placeholders` y `fix: use john doe as editor placeholder`): a pedido del usuario, el placeholder usa `text-muted-foreground/50` en todos los campos ([input.tsx](../web/src/components/ui/input.tsx), [textarea.tsx](../web/src/components/ui/textarea.tsx)). Los campos de usuario muestran «Ej. John Doe» y «Ej. Jane Doe» ([crear-evento.tsx, `FormularioEvento`](../web/src/components/crear-evento.tsx)).
@@ -1317,7 +1317,7 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Cambio posterior** (commits `fix: open minute breakdown of an hour in a modal` y `fix: soften minute chart hover cursor`): a pedido del usuario, el detalle minuto a minuto se abre en un modal al hacer clic en la hora y ya no ocupa una sección fija de la página. El cursor del gráfico usa el mismo gris que el gráfico por hora.
   - **Título:** el gráfico por hora pasó de «Humanos y bots por hora» a «Eventos por hora» (commit `fix: rename hourly chart to events per hour`).
 - **Columnas del CRUD con la altura de la más alta** (commit `fix: let crud columns share the taller height`): la columna derecha ya no se recorta a la altura del formulario con scroll interno. Neo4j › Consultar mostraba la red cortada. Ahora la fila de la grilla toma la altura de la columna más alta y las dos se estiran hasta ahí ([Crud.tsx](../web/src/pages/Crud.tsx)).
-- **Informe técnico actualizado con la interfaz aprobada** (revisiones 103 a 106 del documento en Claude Docs):
+- **Informe técnico actualizado con la interfaz aprobada**:
   - **Sección 7 (Operaciones CRUD):**
     - La introducción explica los formularios vacíos y los botones «Completar con datos de prueba» y «Elegir entre los últimos…». Ya no menciona el registro de la sesión.
     - MongoDB menciona «Cancelar» en Actualizar.
@@ -1330,7 +1330,7 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - En la tabla de vistas, Actividad cuenta con el modal por minuto y el Explorador ya no tiene el filtro de reversiones; su base pasa a «MongoDB y Cassandra».
     - Se actualizaron los textos y las capturas de Actividad (con el modal abierto), Explorador, Operaciones CRUD y Arquitectura (sin tarjetas).
     - Las fechas de las capturas pasan a «entre el 11 y el 13 de noviembre».
-- **Informe, sección 8 (KPIs) reescrita con capturas anotadas** (revisiones 107 a 112 del documento):
+- **Informe, sección 8 (KPIs) reescrita con capturas anotadas**:
   - Se tomó la vista «Resumen y KPIs» del 13 nov (hora 10:00–10:59 UTC−5) y se hicieron dos recortes con círculos rojos numerados del ① al ⑫: las tarjetas y «Protagonistas de la hora». Los números siguen el orden de la sección.
   - La sección se organiza por público: patrulleros (N2), Fundación Wikimedia (N3 y N4), comunidad (N5 y N6) y operadores (N7). Cada KPI indica para quién es, para qué sirve, cómo se calcula y su valor en la captura.
   - Se quitaron las tablas por necesidad y la lista «Valores en la última hora revisada (11 nov)», que quedaron reemplazadas por los valores de la captura.
@@ -1341,7 +1341,7 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
   - **Tarjeta «Eventos acumulados»** (commit `fix: show start date under accumulated events`): el pie decía «72 horas procesadas», que era la ventana del gráfico. Ahora dice «guardados desde el 31 oct». `/api/resumen` devuelve `desde` con la nueva función `primer_evento`, que también usa la vista Arquitectura ([queries.py](../api/queries.py), [Resumen.tsx](../web/src/pages/Resumen.tsx)).
   - **Tabla «Ejecuciones del pipeline»** (commit `refactor: show source instead of bots and reversions in pipeline runs`): se quitaron las columnas Bots y Reversiones, que ya muestra el gráfico de evolución, y se agregó «Leída de» (MongoDB o EventStreams), lo que necesita un operador (N7).
   - **Informe:** se reemplazaron la captura de las tarjetas y la de las partes de la vista (sin la F) y se actualizó la descripción de la parte E.
-- **Informe, sección 9 (Dashboard) por partes** (revisiones 115 y 116): a pedido del usuario, cada vista tiene su subsección con una captura del 13 nov en la que las partes están numeradas con círculos rojos. Cada número indica qué es, para qué sirve y para quién (patrulleros, Fundación Wikimedia, comunidad u operadores).
+- **Informe, sección 9 (Dashboard) por partes**: a pedido del usuario, cada vista tiene su subsección con una captura del 13 nov en la que las partes están numeradas con círculos rojos. Cada número indica qué es, para qué sirve y para quién (patrulleros, Fundación Wikimedia, comunidad u operadores).
   - **En vivo:** 7 partes.
   - **Actividad en el tiempo:** 8 partes.
   - **Explorador de eventos:** 7 partes.
@@ -1353,58 +1353,8 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
 - **Dos partes del dashboard que aportaban poco**, aprobado por el usuario:
   - **En vivo** (commit `feat: show active editors in live view`): la tarjeta «Últimos 30 minutos» repetía la suma del gráfico por minuto. Ahora es «Editores activos»: editores distintos de los últimos 30 minutos, separados en personas y bots. `vivo()` agrega `editores` con una agregación sobre `events` ([queries.py](../api/queries.py), [Vivo.tsx](../web/src/pages/Vivo.tsx)).
   - **Red de editores** (commit `refactor: drop connected editors card from network view`): se quitó la tarjeta «Editores conectados», que no llevaba a ninguna acción y que el ranking de editores más conectados ya cubre. Quedan tres tarjetas, y `tarjetas_red` ya no hace esa consulta a Neo4j ([Red.tsx](../web/src/pages/Red.tsx)).
-- **Informe sin números en círculo en el texto** (revisiones 117 a 161): a pedido del usuario, los ①–⑫ de los títulos y viñetas de las secciones 8 y 9 pasan a «1.», «2.», etc., y las referencias a «el KPI 7» o «el punto 1». Los círculos quedan solo en las imágenes. Se reemplazaron las capturas numeradas de En vivo y Red de editores, y se renumeró la lista de Red de editores (ahora 8 partes).
-- **Informe, captura de Arquitectura (sección 9):** se reemplazó por una toma solo del diagrama, a doble resolución y sin el menú lateral. La anterior se veía recortada y borrosa (revisión 163).
-- **Video: diapositivas y guion** (13 nov), a pedido del usuario. Las instrucciones piden un video de «máximo 20-25 minutos» en el que todos participan y demuestran lo que desarrollaron ([Instrucciones, «Entregables»](../Instrucciones%20Proyecto%20Grupal%20II.pdf#page=5)).
-  - **Diapositivas:** 11, hechas con el tipo Slides de Claude: «Wikipedia en vivo · Presentación del video». Dos por integrante (Jhon, Ian, Brayan y Ariana), más portada, paso a la demo y cierre, con el texto de cada uno en las notas.
-  - **Guion:** documento en Claude Docs, «Guion del video · Wikipedia en vivo». Incluye el reparto propuesto, una tabla de tiempos (≈19 min), el texto de las diapositivas, la demo paso a paso por persona y una lista de preparación.
-  - **Reparto:** Brayan (abre): problema, dataset y la demo de En vivo y Explorador. Ian: arquitectura y Airflow. Jhon: modelos y CRUD. Ariana: KPIs, dashboard y cierre. A pedido de Brayan, se intercambiaron sus partes con las de Jhon; en el guion y en las notas de las diapositivas se ajustaron los nombres y los relevos.
-  - **Prueba de lector y revisión (16 nov):**
-    - **Método:** siguiendo la etapa «Reader Testing» de la skill oficial `doc-coauthoring` ([anthropics/skills](https://github.com/anthropics/skills)), un subagente sin contexto leyó solo el texto hablado del video y respondió preguntas de comprensión.
-    - **Lo que encontró:** promesas sin cumplir («siete necesidades» y «siete vistas» que no se nombran; la sobrescritura de Cassandra que no se mostraba), términos sin definir (reversión, patrullero, bot, DAG, MERGE, derived, indicador), no quedaba claro de dónde salen los datos por minuto, repeticiones y frases que sonaban leídas.
-    - **Corrección del guion**, guiada por `youtube-script-writer` (mohitagw15856/pm-claude-skills) y `video-content-strategist` (alirezarezvani/claude-skills): apertura con gancho en lugar de saludo; cada diapositiva indica qué se ve en pantalla; términos definidos al usarlos; en la demo, MongoDB rechaza de verdad un documento incompleto y Cassandra muestra el aviso de sobrescritura; la calidad de datos se menciona en el resumen; sin repeticiones. Las notas de las diapositivas se igualaron y se quitaron las etiquetas N1–N7 de la diapositiva 2. Nuevo total: ≈19 min 05 s.
-  - **Tono del guion:** se reescribió para que suene hablado, con frases cortas, en primera persona y con un relevo explícito al final de cada parte.
-  - **Diapositivas con evidencia (17 nov):** a pedido del usuario, el deck se alineó con el guion revisado.
-    - **Método:** se siguió el modelo aserción-evidencia de la skill `conference-materials` (MattArtzAnthro/AI-Anthropology-Toolkit): el título de cada diapositiva afirma algo, el cuerpo lo demuestra con una imagen y lleva poco texto. Las skills de imágenes de stock (`unsplash`, `stock-images`, `google-image-search`) piden claves de API; se prefirieron capturas reales del sistema, que además sirven de prueba.
-    - **Capturas nuevas:** se tomaron a doble resolución, del dashboard y de Airflow. Para el CRUD solo se llenaron formularios, sin escribir en las bases: el validador de MongoDB rechazando un documento sin `title`, el aviso de Cassandra con una clave real que ya existe (`tasa_reversion_pct`, 16 nov 04:00 UTC) y la vista previa de una relación en Neo4j.
-    - **Cambios por diapositiva:**
-      - El problema: lista de últimos eventos, junto a los cuatro públicos.
-      - El dataset: un JSON real y cuatro cifras; los eventos guardados pasan de 5.2 M a 6.5 M.
-      - Airflow: la grilla de corridas en verde y el grafo de las seis tareas.
-      - Modelos: una captura por base.
-      - CRUD: la reacción de cada base al escribir.
-      - KPIs: las tarjetas del Resumen, con cuántos KPIs hay por público.
-      - Dashboard: miniaturas de las vistas, en lugar de la tabla.
-      - Portada, arquitectura, demo y cierre no cambian.
-    - **Guion:** «más de cinco millones» pasó a «más de seis millones», para coincidir con la diapositiva.
-    - **Revertido:** al usuario le pareció denso y feo: capturas con letra chica y varias imágenes por diapositiva. Se restauró el deck original, también el «5.2 M», y el guion volvió a «más de cinco millones». Los cambios siguen en otro artifact.
-  - **Presentación v2 (17 nov):** un artifact aparte, «Wikipedia en vivo · Presentación v2»; el original no se tocó.
-    - **Skills:** se usó `presentation-creator` (mblode/agent-skills): una idea por diapositiva, prueba de 3 segundos, variar el diseño según la función de la diapositiva y QA renderizando cada una. Se complementó con `presentation-design` y `presentation-content` (aaronvanston/skills-presentations): titulares grandes de peso medio y nada de párrafos.
-    - **Íconos vectoriales:** sin skill ni clave de API, desde [Lucide](https://lucide.dev) (licencia ISC; escudo, edificio, personas, reloj, rayo, etc.) y [Simple Icons](https://simpleicons.org) (CC0; logos de Wikipedia, MongoDB, Cassandra, Neo4j y Airflow). Van como SVG dentro de cada diapositiva.
-    - **Diseños:**
-      - Problema: frase grande, con los cuatro públicos en una franja.
-      - Dataset: tres cifras y un JSON resaltado.
-      - Arquitectura: el diagrama, con una leyenda de dos líneas.
-      - Airflow: un flujo de seis íconos.
-      - Modelos: logo y una pregunta por base.
-      - CRUD: un verbo por base (Rechaza, Reemplaza, Fusiona).
-      - KPIs: un «12» grande y la cuenta por público.
-      - Dashboard: una sola captura.
-      - Cierre: tres conclusiones numeradas.
-    - **Notas:** el texto del guion aprobado, sin cambios.
-    - **Dashboard:** la captura no se veía bien. Se reemplazó por las siete vistas, cada una con ícono, nombre y pregunta; CRUD y Arquitectura llevan el ícono oscuro, por ser las de operación. También se corrigió un error del script que les quitaba el tamaño a los `<rect>` de los íconos.
-    - **Reemplazo del original:** a pedido del usuario, el deck original («Presentación del video», el enlace ya compartido) pasó a tener el contenido de la v2. Se mantuvieron su título y su enlace, y quedó una copia local del anterior. La v2 queda como borrador.
-- **Cohesión del guion (17 nov):** a pedido del usuario, cada diapositiva abre con su tema («Ahora vamos a hablar de…»). Se quitaron las referencias a lo dicho en otra diapositiva: «esas dos Wikipedias», «estos datos», «estas tres bases», «todo esto».
-  - **Segunda prueba de lector:** con la etapa «Reader Testing» de `doc-coauthoring`, un lector sin contexto revisó todo el texto hablado y encontró 19 puntos. Se aplicaron 18; no se aplicó el de variar las aperturas, que pidió el usuario. Entre ellos:
-    - se nombran los seis pasos del DAG;
-    - «si el servicio se cortó» pasa a «si la capa rápida se desconectó»;
-    - Neo4j se menciona en la arquitectura antes de usar «las tres bases»;
-    - en la demo, el aviso de Cassandra se aclara como propio;
-    - las cifras de las diapositivas 1 y 2 cuadran (solo enwiki y eswiki);
-    - se definen Airflow, API, clave, agradecimientos y derived;
-    - los KPIs de la Fundación se dicen con precisión;
-    - las frases largas se partieron.
-  - Guion y notas de las diapositivas iguales en ambos decks.
+- **Informe sin números en círculo en el texto**: a pedido del usuario, los ①–⑫ de los títulos y viñetas de las secciones 8 y 9 pasan a «1.», «2.», etc., y las referencias a «el KPI 7» o «el punto 1». Los círculos quedan solo en las imágenes. Se reemplazaron las capturas numeradas de En vivo y Red de editores, y se renumeró la lista de Red de editores (ahora 8 partes).
+- **Informe, captura de Arquitectura (sección 9):** se reemplazó por una toma solo del diagrama, a doble resolución y sin el menú lateral. La anterior se veía recortada y borrosa.
 - **Entregables en el README (17 nov):**
   - El [README](../README.md) abre con una tabla «Entregables» que enlaza el código, los scripts de creación de las tres bases, el DAG y el dashboard desplegado.
   - El informe técnico en PDF no se versiona en el repositorio: un compañero preparó la versión final y se sube al Canvas del curso. El README lo indica así.
@@ -1426,13 +1376,8 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     6. Se corrió `python -m wikipipe.rebuild`.
   - **Hora 00:00 UTC excluida:** tenía un pico de bots con 57.669 eventos. Un solo editor con decenas de miles de relaciones dejó trabada la carga de Neo4j del modelo 2 durante más de 20 minutos, en una sola transacción. Se borró esa hora; las demás se reconstruyeron a unos 20 segundos cada una.
   - **Resultado:** 206.762 eventos desde el 17 de noviembre a las 01:00 UTC. Se reconstruyeron 14 horas (01:00 a 14:00). La hora de las 15:00, sin cobertura completa del streaming, se reprocesó con el DAG. Luego se reactivaron el streaming, el DAG y el autodeploy, y el Resumen volvió a mostrar datos.
-  - **Pendiente en los materiales:** las cifras del dataset («5.2 M eventos desde el 31 de octubre», «más de cinco millones») en la diapositiva, el guion y el informe, además de las capturas y los pasos de la demo que cambian con el dashboard de Ian.
-  - **Materiales actualizados al dashboard de Ian:**
-    - **Guion:**
-      - La cifra del dataset pasó a «más de doscientos mil desde el 17 de noviembre».
-      - Demo de Brayan: En vivo compara 5 minutos contra los 5 anteriores, y eswiki va en rosa.
-      - Demo de Ariana: el Resumen se recorre con «Más detalles» y la pestaña «Acumulado», el clic va a «Eventos de bots» y en Red ya no aparecen las páginas disputadas.
-    - **Presentación:** la diapositiva del dataset dice «200 mil · eventos desde el 17 nov» en ambos decks.
+  - **Pendiente en los materiales:** las cifras del dataset en el informe y las capturas que cambian con el dashboard de Ian.
+  - **Informe actualizado al dashboard de Ian:**
     - **Informe, criterio:** las cifras del 31 de octubre al 12 de noviembre quedan como período de medición, con una nota sobre el reproceso.
     - **Informe, sección 8:** capturas numeradas nuevas (tarjetas y «Más detalles», Protagonistas y Acumulado) y los 12 «En la captura» con valores del 17 de noviembre, de 11:00 a 11:59 (UTC−5). Las partes llevan letras A a F; la F son las pestañas.
     - **Informe, sección 9:**
@@ -1450,7 +1395,7 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     2. sincroniza el código en `/opt/wikipipe` sin tocar `.env` ni `data/`;
     3. recrea los contenedores cuya imagen cambió y reinicia la API y el streaming. Airflow toma el código nuevo en su siguiente tarea.
   - **Registro:** `/var/log/wikipipe-autodeploy.log` en la VM.
-  - **Acceso:** el repo es privado. La VM generó su propia deploy key de solo lectura, «wikipipe-vm (solo lectura, autodeploy)», y se registró en GitHub; la clave privada no sale de la VM.
+  - **Acceso:** el repo era privado en ese momento. La VM generó su propia deploy key de solo lectura, «wikipipe-vm (solo lectura, autodeploy)», y se registró en GitHub; la clave privada no sale de la VM.
   - **Consecuencia:** `main` pasa a ser lo que corre en producción. Lo que se despliegue con `deploy.sh` y no esté en `main` se reemplaza en el siguiente minuto. Cada arranque de la VM vuelve también a la última versión de `main`.
   - **Primera prueba:** a las 12:29 UTC la VM desplegó `f3c0487` sola.
 - **Rama `dev-ian` (17 nov):**
@@ -1460,7 +1405,6 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - Tiene las pestañas «Arquitectura» y «Cómo funciona», la VM y Docker Compose como contenedor, una leyenda de flechas y el logo oficial de Airflow.
     - Son 3 archivos: [Arquitectura.tsx](../web/src/pages/Arquitectura.tsx), [fuente.tsx](../web/src/components/fuente.tsx) y `web/public/img/airflow.svg`.
     - Usa los mismos datos de `/api/arquitectura` que la versión anterior. Se verificó con datos reales antes de integrarla.
-  - **Presentación y guion:** después del despliegue, la diapositiva 4 de ambos decks muestra una captura del diagrama nuevo tomada de la VM, que trae su propia leyenda de flechas. En la demo de Ian, el paso «Hacer clic en "Capa por lotes"» pasó a «Hacer clic en "Airflow" dentro del diagrama»: ese recuadro abre los seis pasos y las corridas registradas.
   - **El resto de la rama** queda para después de la entrega.
 - **Incidente en la VM (17 nov, 05:00–11:42 UTC):** la VM dejó de responder (Airflow, SSH y los registros) justo cuando arrancaba la corrida de las 05:00.
   - **Causa:**
