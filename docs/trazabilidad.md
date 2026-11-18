@@ -1405,6 +1405,12 @@ Pedidos del usuario sobre [Crud.tsx](../web/src/pages/Crud.tsx):
     - los KPIs de la Fundación se dicen con precisión;
     - las frases largas se partieron.
   - Guion y notas de las diapositivas iguales en ambos decks.
+- **Repositorio público (17 nov):** a pedido del usuario, `Zoro4r/big-data-p2` pasó de privado a público, para que el código fuente se pueda revisar como entregable.
+  - **Revisión previa del historial (324 commits):**
+    - No se encontraron claves privadas ni tokens de GitHub, Google o AWS.
+    - Nunca se versionaron archivos `.env`, `terraform.tfstate`, `tfvars` ni credenciales; solo la plantilla `.env.example`, con valores de ejemplo.
+    - Las cuatro contraseñas reales del despliegue no aparecen en ningún commit, y tampoco hay identificadores de facturación de Google Cloud.
+  - **Lo que queda visible:** el nombre y el correo de cada autor en los commits, como en cualquier repositorio público.
 - **Integración de `dev-ian` en `main` y recorte del historial (17 nov):**
   - **Qué pasó:** a las 12:58 UTC Ian integró su rama completa en `main` (merge `846ac7f`) y el despliegue automático la llevó a la VM. Desde entonces fallaba `cargar_neo4j` en cada corrida: `RuntimeError: El grafo usa el modelo anterior. Reconstruye con python -m wikipipe.rebuild --reset-graph`. El Resumen quedó en «Pendiente de consolidación».
   - **Decisión del usuario:** quedarse con el modelo de Ian. En vez de reconstruir los 17 días (unas 400 horas, de 8 a 12 horas de proceso), se borró el historial y se conservó solo el 17 de noviembre. Un día tiene entre 260.000 y 400.000 eventos, muy por encima del mínimo de 50.000 que pide el enunciado ([requerimientos.md, línea 25](requerimientos.md)).
