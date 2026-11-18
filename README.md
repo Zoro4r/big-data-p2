@@ -2,6 +2,18 @@
 
 Pipeline multimodelo que procesa cada hora los cambios de Wikipedia (`enwiki` y `eswiki`) desde el stream público de Wikimedia, los guarda en MongoDB, Cassandra y Neo4j, y calcula KPIs para un dashboard.
 
+## Entregables
+
+| Entregable | Dónde está |
+| --- | --- |
+| Código fuente completo | Este repositorio; la [estructura](#estructura) está más abajo |
+| Scripts de creación de las bases de datos | [db/mongo/schema.json](db/mongo/schema.json), [db/cassandra/schema.cql](db/cassandra/schema.cql) y [db/neo4j/constraints.cypher](db/neo4j/constraints.cypher); [db/create_schemas.py](db/create_schemas.py) los aplica |
+| DAG de Airflow | [airflow/dags/wikipedia_pipeline.py](airflow/dags/wikipedia_pipeline.py) (`wikipedia_recent_changes`, cada hora) |
+| Dashboard funcional | Desplegado en Google Cloud: http://34.45.96.253:8501 (pide la contraseña del equipo). También se levanta en local con `./local.sh` ([guía](docs/local.md)) |
+| Informe técnico en PDF | Subido al Canvas del curso |
+
+## Documentación
+
 - Justificación del dataset: [docs/justificacion-dataset.md](docs/justificacion-dataset.md)
 - Registro de lo realizado: [docs/trazabilidad.md](docs/trazabilidad.md)
 - Correcciones, pruebas y actualización del modelo de datos: [docs/correcciones-dev-ian.md](docs/correcciones-dev-ian.md)
